@@ -1,7 +1,7 @@
 # Topaz Offline Mirror Server
 Topaz Mirror Server is where you can install Topaz Giga Pixel and Topaz Photo without having any internet.
 
-Including the old no longer support applications.
+Including the old no longer support software.
 
 Offline Installation
 
