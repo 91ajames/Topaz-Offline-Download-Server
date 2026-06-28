@@ -2,7 +2,7 @@ import subprocess
 
 from pathlib import Path
 
-VERSION = "v 2.0.0"
+VERSION = "v 2.5.0"
 VERSION_FILE = VERSION.replace(" ", "_")
 
 DEST = r"C:\TopazMirror\v1"
