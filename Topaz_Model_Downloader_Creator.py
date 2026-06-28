@@ -2,7 +2,7 @@ import subprocess
 
 from pathlib import Path
 
-VERSION = "v 4.2.3"
+VERSION = "v 4.3.0"
 VERSION_FILE = VERSION.replace(" ", "_")
 
 DEST = r"C:\TopazMirror\v1"
@@ -384,6 +384,10 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write(f'set "DEST={DEST}"\n')
     f.write(f'set "MIRROR_ROOT={MIRROR_ROOT}"\n')
     f.write(f'set "BASE_URL={BASE_URL}"\n\n')
+    f.write('set "HOST1=models.topazlabs.com"\n')
+    f.write('set "HOST2=image-models.topazlabs.com"\n')
+    f.write('set "HOST3=models-r2.topazlabs.com"\n')
+    f.write('set "HOST4=models-bal.topazlabs.com"\n\n')
 
     f.write("echo ===========================================\n")
     f.write("echo         Topaz Model Downloader\n")
@@ -436,7 +440,25 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
 
         f.write(f"echo [{i}/{total}] {safe_echo(name)}\n")
         f.write(f'if exist "%DEST%\\{name}" goto {label}\n')
-        f.write(f'curl -L --fail --retry 3 -o "%DEST%\\{name}" "%BASE_URL%/{name}"\n')
+        f.write('set "FOUND=0"\n')
+        f.write(f'set "TEMPFILE=%TEMP%\\topaz_test_{i:04d}.tmp"\n')
+        f.write('del "!TEMPFILE!" >nul 2>&1\n')
+
+        f.write('for %%H in ("%HOST1%" "%HOST2%" "%HOST3%" "%HOST4%") do (\n')
+        f.write('    if "!FOUND!"=="0" (\n')
+        f.write(f'        curl -L --fail --connect-timeout 5 --max-time 30 -o "!TEMPFILE!" "http://%%~H/v1/{name}" >nul 2>&1\n')
+        f.write('        if not errorlevel 1 (\n')
+        f.write(f'            curl -L --fail --retry 2 --connect-timeout 5 -o "%DEST%\\{name}" "http://%%~H/v1/{name}"\n')
+        f.write('            if not errorlevel 1 set "FOUND=1"\n')
+        f.write('        )\n')
+        f.write('        del "!TEMPFILE!" >nul 2>&1\n')
+        f.write('    )\n')
+        f.write(')\n')
+
+        f.write('if "!FOUND!"=="0" (\n')
+        f.write(f'    echo FAILED: {safe_echo(name)}\n')
+        f.write(f'    del "%DEST%\\{name}" >nul 2>&1\n')
+        f.write(')\n')
         f.write(f"goto NEXT_{i:04d}\n")
         f.write(f":{label}\n")
         f.write("echo Already exists. Skipping.\n")
