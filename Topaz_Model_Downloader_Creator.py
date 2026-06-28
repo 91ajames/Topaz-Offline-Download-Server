@@ -2,7 +2,7 @@ import subprocess
 
 from pathlib import Path
 
-VERSION = "v 4.2.2
+VERSION = "v 4.2.3"
 VERSION_FILE = VERSION.replace(" ", "_")
 
 DEST = r"C:\TopazMirror\v1"
@@ -455,7 +455,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         f.write(f'if not exist "%DEST%\\{name}" (\n')
         f.write("    set /a MISSING_COUNT+=1\n")
         f.write(f"    echo    {safe_name}\n")
-        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\MissingFiles.txt"\n')
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_MissingReport.txt"\n')
         f.write(")\n")
 
     f.write("echo.\n")
