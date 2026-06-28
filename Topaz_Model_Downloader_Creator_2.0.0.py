@@ -2,7 +2,7 @@ import subprocess
 
 from pathlib import Path
 
-VERSION = "BETA 1.1.0"
+VERSION = "v 2.0.0"
 VERSION_FILE = VERSION.replace(" ", "_")
 
 SOURCE_FOLDER = Path(r"C:\TopazMirror\v1")
@@ -121,6 +121,15 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo.\n")
     f.write("echo       Thank Github 91ajames\n")
     f.write("echo ===========================================\n")
+    f.write("echo.\n")
+    f.write('set /p STARTSERVER=Start the Topaz Mirror Server now? (Y/N): \n')
+    f.write('if /I "%STARTSERVER%"=="Y" (\n')
+    f.write('    echo.\n')
+    f.write('    echo Starting Topaz Mirror Server...\n')
+    f.write('    cd /d "C:\\TopazMirror"\n')
+    f.write('    py -3.14 -m http.server 80\n')
+    f.write(')\n')
+    f.write("echo.\n")
     f.write("pause\n")
 
 print(f"Created: {OUT_BAT}")
