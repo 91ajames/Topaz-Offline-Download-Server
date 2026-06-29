@@ -2,19 +2,16 @@ import subprocess
 
 from pathlib import Path
 
-VERSION = "v 4.5.0"
+VERSION = "5.0.0"
 VERSION_FILE = VERSION.replace(" ", "_")
-
-DEST = r"C:\TopazMirror\v1"
-MIRROR_ROOT = r"C:\TopazMirror"
-BASE_URL = "http://models.topazlabs.com/v1"
-OUT_BAT = Path(fr"C:\TopazMirror\Topaz_Model_Downloader_{VERSION_FILE}.bat")
 
 MIRROR_ROOT = Path(r"C:\TopazMirror")
 DEST = MIRROR_ROOT / "v1"
 TEST = MIRROR_ROOT / "_test"
 TEST11 = MIRROR_ROOT / "1.1"
 TRACK = DEST / "track"
+BASE_URL = "http://models.topazlabs.com/v1"
+OUT_BAT = Path(fr"C:\TopazMirror\Topaz_Model_Downloader_{VERSION_FILE}.bat")
 
 # Create required folders if they don't already exist
 for folder in (MIRROR_ROOT, DEST, TEST, TEST11, TRACK):
@@ -391,7 +388,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
 
     f.write("echo ===========================================\n")
     f.write("echo         Topaz Model Downloader\n")
-    f.write(f"echo             {VERSION}\n")
+    f.write(f"echo                {VERSION}\n")
     f.write("echo ===========================================\n")
     f.write("echo.\n\n")
 
@@ -446,7 +443,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
 
         f.write('for %%H in ("%HOST1%" "%HOST2%" "%HOST3%" "%HOST4%") do (\n')
         f.write('    if "!FOUND!"=="0" (\n')
-        f.write(f'        curl -L --fail --connect-timeout 5 --max-time 30 -o "!TEMPFILE!" "http://%%~H/v1/{name}" >nul 2>&1\n')
+        f.write(f'        curl -L --fail --range 0-0 --connect-timeout 5 --max-time 10 -o "!TEMPFILE!" "http://%%~H/v1/{name}" >nul 2>&1\n')
         f.write('        if not errorlevel 1 (\n')
         f.write(f'            curl -L --fail --retry 2 --connect-timeout 5 -o "%DEST%\\{name}" "http://%%~H/v1/{name}"\n')
         f.write('            if not errorlevel 1 set "FOUND=1"\n')
@@ -465,25 +462,29 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         f.write(f":NEXT_{i:04d}\n")
         f.write("echo.\n\n")
     f.write("echo.\n")
+
+    f.write("echo.\n")
+    f.write("echo   Topaz Model Downloader Complete\n")
+    f.write("echo.\n")
+    f.write("echo.\n")
+    f.write("echo.\n")
     f.write("echo ===========================================\n")
     f.write("echo           Missing File Report\n")
     f.write("echo ===========================================\n")
     f.write("set MISSING_COUNT=0\n")
     f.write("echo.\n")
-    f.write('del "%MIRROR_ROOT%\\Topaz_Model_Downloader_MissingReport.txt" >nul 2>&1\n')
+    f.write('del "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt" >nul 2>&1\n')
 
     for name in files:
         safe_name = safe_echo(name)
         f.write(f'if not exist "%DEST%\\{name}" (\n')
         f.write("    set /a MISSING_COUNT+=1\n")
         f.write(f"    echo    {safe_name}\n")
-        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_MissingReport.txt"\n')
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
         f.write(")\n")
 
-    f.write("echo.\n")
     f.write('if "%MISSING_COUNT%"=="0" (\n')
     f.write("    echo All model files are present.\n")
-    f.write('    echo All model files are present.>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
     f.write(") else (\n")
     f.write("    echo ===========================================\n")
     f.write("    echo Missing Files: %MISSING_COUNT%\n")
@@ -491,21 +492,17 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("    echo ===========================================\n")
     f.write(")\n")
     f.write("echo.\n")
-
     f.write("echo ===========================================\n")
     f.write("echo Started : %STARTTIME%\n")
     f.write("echo Finished: %TIME%\n")
     f.write(f"echo Files   : {total}\n")
     f.write("echo ===========================================\n")
-    f.write("echo   Topaz Model Downloader Complete\n")
-    f.write(f"echo           {VERSION}\n")
-    f.write("echo     Folder: %CD%\n")
     f.write("echo.\n")
-    f.write("echo    Topaz-Offline-Download-Server\n")
-    f.write("echo.\n")
-    f.write("echo           Preservation\n")
+    f.write("echo    Topaz Offline Download Server\n")
+    f.write(f"echo               {VERSION}\n")
     f.write("echo.\n")
     f.write("echo       Thank Github 91ajames\n")
+    f.write("echo.\n")
     f.write("echo ===========================================\n")
     f.write("echo.\n")
     f.write('set /p STARTSERVER=Start the Topaz Mirror Server now? (Y/N): \n')
@@ -516,6 +513,8 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write(':START_TOPAZ_SERVER\n')
     f.write('echo.\n')
     f.write('echo Starting Topaz Mirror Server...\n')
+    f.write('echo.\n')
+    f.write("echo ===========================================\n")
     f.write('echo.\n')
     f.write('echo Detecting IPv4 addresses...\n')
     f.write('echo.\n')
@@ -545,6 +544,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write(')\n')
     f.write('echo.\n')
     f.write('echo Selected Host IP: !HOST_IP!\n')
+    f.write("echo.\n")
     f.write('set /p CONFIRM_IP=Is this the IP address you want? !HOST_IP! (Y/N): \n')
     f.write('if /I "!CONFIRM_IP!"=="Y" goto HOST_IP_SELECTED\n')
     f.write('if /I "!CONFIRM_IP!"=="YES" goto HOST_IP_SELECTED\n')
@@ -554,13 +554,19 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
 
     f.write(':HOST_IP_SELECTED\n')
     f.write('echo.\n')
-    f.write(r'echo Please modify your C:\Windows\System32\Drivers\etc\hosts...' + "\n")
+
+    f.write('echo.\n')
+    f.write("echo ===========================================\n")
+    f.write('echo.\n')
+    f.write(r'echo Please modify your "C:\Windows\System32\Drivers\etc\hosts" file...' + "\n")
     f.write('echo.\n')
     f.write('echo !HOST_IP! models.topazlabs.com\n')
     f.write('echo !HOST_IP! et.topazlabs.com\n')
     f.write('echo !HOST_IP! image-models.topazlabs.com\n')
     f.write('echo !HOST_IP! models-r2.topazlabs.com\n')
     f.write('echo !HOST_IP! models-bal.topazlabs.com\n')
+    f.write('echo.\n')
+    f.write("echo ===========================================\n")
     f.write('echo.\n')
     f.write('cd /d "C:\\TopazMirror"\n')
     f.write('py -3.14 -m http.server 80\n')
@@ -580,7 +586,7 @@ try:
     run_now = input("\nRun the generated BAT now? (Y/N): ").strip().lower()
 
     if run_now in ("y", "yes"):
-        print("\nLaunching BAT...")
+
         subprocess.run(f'cmd /k "{OUT_BAT}"', shell=True)
     else:
         print("\nBAT was not launched.")
