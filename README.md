@@ -28,7 +28,9 @@ This project recreates the expected download structure locally, allowing the sof
 
 * **Model files:** 325
 * **Neuroserver:** 2
-* **Approximate size:** 78.9 GB
+* **StarLight 1.0:** 3 - Coming Soon!
+* **StarLight 2.5:** 1
+* **Approximate size:** 92.4 GB
 
 ---
 
@@ -46,6 +48,8 @@ This project recreates the expected download structure locally, allowing the sof
 ## Goal
 
 Preserve the availability of Topaz AI models for future installations, even if official download sources change or become unavailable.
+
+![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz%20Model%20Downloader%205.5.0.png)
 
 ![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz%20Model%20Downloader%205.0.3.png)
 
