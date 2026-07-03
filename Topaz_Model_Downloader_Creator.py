@@ -1,8 +1,8 @@
-import subprocess 
+import subprocess
 
 from pathlib import Path
 
-VERSION = "5.0.5"
+VERSION = "5.0.8"
 VERSION_FILE = VERSION.replace(" ", "_")
 
 MIRROR_ROOT = Path(r"C:\TopazMirror")
@@ -372,7 +372,9 @@ for line in FILES_RAW.splitlines():
 
 # Sort alphabetically and remove duplicates
 files = sorted(set(FILES), key=str.lower)
-total = len(files)
+model_total = len(files)
+neuro_total = len(NEUROSERVER_FILES)
+total = model_total + neuro_total
 def safe_echo(text: str) -> str:
     return (
         text.replace("^", "^^")
@@ -447,7 +449,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     for i, name in enumerate(files, start=1):
         label = f"SKIP_{i:04d}"
 
-        f.write(f"echo [{i}/{total}] {safe_echo(name)}\n")
+        f.write(f"echo [{i}/{model_total}] {safe_echo(name)}\n")
         f.write(f'if exist "%DEST%\\{name}" goto {label}\n')
         f.write('set "FOUND=0"\n')
         f.write(f'set "TEMPFILE=%TEMP%\\topaz_test_{i:04d}.tmp"\n')
@@ -498,6 +500,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
         f.write(")\n")
 
+    f.write("echo.\n")
     f.write('if "%MISSING_COUNT%"=="0" (\n')
     f.write("    echo        All model files are present.\n")
     f.write(") else (\n")
@@ -506,6 +509,8 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write('    echo Missing list saved to: "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
     f.write("    echo ===========================================\n")
     f.write(")\n")
+
+    f.write("timeout /t 2 /nobreak >nul\n")
 
     f.write("echo.\n")
     f.write("echo ===========================================\n")
@@ -516,15 +521,21 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write(f'if not exist "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows" mkdir "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows"\n\n')
 
     for i, (name, url) in enumerate(NEUROSERVER_FILES, start=1):
-        f.write(f"echo [Neuroserver {i}/{len(NEUROSERVER_FILES)}] {name}\n")
+        f.write(f"echo [Neuroserver {i}/{neuro_total}] {name}\n")
         f.write(f'if exist "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows\\{name}" (\n')
         f.write("    echo Already exists. Skipping.\n")
         f.write(") else (\n")
-        f.write(f'    curl -L --fail --retry 2 --connect-timeout 5 -o "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows\\{name}" "{url}"\n')
-        f.write("    if errorlevel 1 (\n")
+        f.write(f'    curl -L --fail --range 0-0 --connect-timeout 5 --max-time 10 -o "%TEMP%\\topaz_neuro_test_{i}.tmp" "{url}" >nul 2>&1\n')
+        f.write("    if not errorlevel 1 (\n")
+        f.write(f'        curl -L --fail --retry 2 --connect-timeout 5 -o "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows\\{name}" "{url}"\n')
+        f.write("        if errorlevel 1 (\n")
+        f.write(f"            echo FAILED: {name}\n")
+        f.write(f'            del "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows\\{name}" >nul 2>&1\n')
+        f.write("        )\n")
+        f.write("    ) else (\n")
         f.write(f"        echo FAILED: {name}\n")
-        f.write(f'        del "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows\\{name}" >nul 2>&1\n')
         f.write("    )\n")
+        f.write(f'    del "%TEMP%\\topaz_neuro_test_{i}.tmp" >nul 2>&1\n')
         f.write(")\n")
         f.write("echo.\n\n")
     f.write("echo.\n")
@@ -533,7 +544,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo.\n")
     f.write("echo.\n")
 
-    f.write("timeout /t 3 /nobreak >nul\n")
+    f.write("timeout /t 2 /nobreak >nul\n")
 
     f.write("echo ===========================================\n")
     f.write("echo       Neuroserver Missing File Report\n")
@@ -549,6 +560,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         f.write(f"    echo    {safe_name}\n")
         f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Neuroserver_Error.txt"\n')
         f.write(")\n")
+    f.write("echo.\n")
 
     f.write('if "%NEURO_MISSING_COUNT%"=="0" (\n')
     f.write("    echo     All Neuroserver files are present.\n")
@@ -560,7 +572,57 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write(")\n")
     f.write("echo.\n")
 
-#    f.write("echo space for silverlight & silverlight 2.5"(\n')
+    f.write("timeout /t 2 /nobreak >nul\n")
+
+
+
+    f.write("echo ===========================================\n")
+    f.write("echo      Future Support - Starlight Models\n")
+    f.write("echo ===========================================\n")
+    f.write("echo Starlight 1.0 and Starlight 2.5 support\n")
+    f.write("echo is currently under investigation.\n")
+    f.write("echo.\n")
+    f.write("echo See the Python source for developer notes.\n")
+
+# ============================================================
+# FUTURE SUPPORT - STARLIGHT MODELS
+# ============================================================
+#
+# Starlight 1.0
+# -------------
+# Topaz Video AI downloads three archives before performing
+# the hardware compatibility check:
+#
+#   dependencies.zip   (~3.51 GB)
+#   models.zip         (~3.09 GB)
+#   runner.zip         (~7.80 MB)
+#
+# If these archives already exist in the expected location,
+# Topaz Video AI can install them completely offline.
+# After installation, Topaz automatically deletes the archives.
+#
+# The original download URLs for these files have not yet been
+# identified.
+#
+#
+# Starlight 2.5
+# -------------
+# Beginning with Topaz Video AI 1.6.1, installation uses the
+# Neuroserver package instead of the previous archive layout.
+#
+# Neuroserver is only downloaded after the installer verifies
+# that the GPU meets the hardware requirements.
+#
+# This behavior has been confirmed on an NVIDIA GeForce RTX 5070.
+#
+# Future versions of this project may add automatic preservation
+# of the original Starlight archives if their download locations
+# are discovered.
+# ============================================================
+
+    f.write("echo ===========================================\n")
+
+    f.write("echo.\n")
 
     f.write("echo ===========================================\n")
     f.write("echo Started : %STARTTIME%\n")
