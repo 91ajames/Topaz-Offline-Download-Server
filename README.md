@@ -24,7 +24,8 @@ This project recreates the expected download structure locally, allowing the sof
 
 ## Installation Time
 
-Offline Est: > 13 Minutes 
+Offline Est: > 13 Minutes
+
 Online Est: > 20-45 Minutes
 
 ---
