@@ -26,7 +26,7 @@ This project recreates the expected download structure locally, allowing the sof
 
 Offline Est: > 13 Minutes
 
-Online Est: > 20-45 Minutes
+Online Est: < 20-45 Minutes
 
 ---
 
