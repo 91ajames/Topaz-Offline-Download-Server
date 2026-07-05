@@ -1,9 +1,20 @@
+import os
 import subprocess
-
 from pathlib import Path
 
-VERSION = "5.5.0"
+GREEN = "\033[92m"
+RESET = "\033[0m"
+print(GREEN, end="")
+
+VERSION = "6.0.0"
 VERSION_FILE = VERSION.replace(" ", "_")
+
+os.system(f"title Topaz Model Downloader Creator v{VERSION}")
+
+ASTRA_VERSION = "20250415"
+ASTRA_RUNNER_V = "20250604"
+STARLIGHT_VERSION = "20260510.0"
+NEUROSERVER_VERSION = "20260601.1"
 
 MIRROR_ROOT = Path(r"C:\TopazMirror")
 DEST = MIRROR_ROOT / "v1"
@@ -13,11 +24,6 @@ TRACK = DEST / "track"
 BASE_URL = "http://models.topazlabs.com/v1"
 OUT_BAT = Path(fr"C:\TopazMirror\Topaz_Model_Downloader_{VERSION_FILE}.bat")
 ERROR_REPORT = r"%MIRROR_ROOT%\Topaz_Model_Downloader_Creator_Error.txt"
-NEUROSERVER_VERSION = "20260601.1"
-
-# Create required folders if they don't already exist
-for folder in (MIRROR_ROOT, DEST, TEST, TEST11, TRACK):
-    folder.mkdir(parents=True, exist_ok=True)
 
 FILES_RAW = r"""
 ‎apnb-v2-fp16-512x512-rev2-ox.tz2                                       
@@ -358,7 +364,23 @@ NEUROSERVER_FILES = [
     ),
 ]
 
-STARLIGHT_VERSION = "20260510.0"
+ASTRA_FILES = [
+    (
+        "dependencies.zip",
+        f"astra_support\\{ASTRA_VERSION}",
+        f"https://veai-models.topazlabs.com/astra_support/{ASTRA_VERSION}/dependencies.zip",
+    ),
+    (
+        "models.zip",
+        f"astra_support\\{ASTRA_VERSION}",
+        f"https://veai-models.topazlabs.com/astra_support/{ASTRA_VERSION}/models.zip",
+    ),
+    (
+        "runner.zip",
+        f"astra_support\\{ASTRA_RUNNER_V}",
+        f"https://veai-models.topazlabs.com/astra_support/{ASTRA_RUNNER_V}/runner.zip",
+    ),
+]
 
 STARLIGHT_FILES = [
     (
@@ -385,7 +407,8 @@ files = sorted(set(FILES), key=str.lower)
 model_total = len(files)
 neuro_total = len(NEUROSERVER_FILES)
 starlight_total = len(STARLIGHT_FILES)
-total = model_total + neuro_total
+astra_total = len(ASTRA_FILES)
+total = model_total + neuro_total + starlight_total + astra_total
 def safe_echo(text: str) -> str:
     return (
         text.replace("^", "^^")
@@ -397,15 +420,28 @@ def safe_echo(text: str) -> str:
             .replace(")", "^)")
     )
 
+for folder in (MIRROR_ROOT, DEST, TEST, TEST11, TRACK):
+    folder.mkdir(parents=True, exist_ok=True)
+
 with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("@echo off\n")
+    f.write('set "TOPAZ_DOWNLOADS_ONLINE=0"\n')
+    f.write('curl -L --fail --range 0-0 --connect-timeout 2 --max-time 3 -o "%TEMP%\\topaz_host_test.tmp" "http://models.topazlabs.com/v1/" >nul 2>&1\n')
+    f.write('if not errorlevel 1 set "TOPAZ_DOWNLOADS_ONLINE=1"\n')
+    f.write('curl -L --fail --range 0-0 --connect-timeout 2 --max-time 3 -o "%TEMP%\\topaz_host_test.tmp" "https://veai-models.topazlabs.com/astra_support/20250415/dependencies.zip" >nul 2>&1\n')
+    f.write('if not errorlevel 1 set "TOPAZ_DOWNLOADS_ONLINE=1"\n')
+    f.write('curl -L --fail --range 0-0 --connect-timeout 2 --max-time 3 -o "%TEMP%\\topaz_host_test.tmp" "https://video-models.topazlabs.com/neuroserver/20260601.1/windows/neuroserver.tar.xz" >nul 2>&1\n')
+    f.write('if not errorlevel 1 set "TOPAZ_DOWNLOADS_ONLINE=1"\n')
+    f.write('del "%TEMP%\\topaz_host_test.tmp" >nul 2>&1\n')
+    f.write("echo.\n")
     f.write(f"title Topaz Model Downloader - {VERSION}\n")
     f.write("color 0A\n")
     f.write("setlocal EnableDelayedExpansion\n")
     f.write('set "STARTTIME=%TIME%"\n')
     f.write(f'set "DEST={DEST}"\n')
     f.write(f'set "MIRROR_ROOT={MIRROR_ROOT}"\n')
-    f.write(f'set "BASE_URL={BASE_URL}"\n\n')
+    f.write('del "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt" >nul 2>&1\n')
+    f.write(f'set "BASE_URL={BASE_URL}"\n')
     f.write('set "HOST1=models.topazlabs.com"\n')
     f.write('set "HOST2=image-models.topazlabs.com"\n')
     f.write('set "HOST3=models-r2.topazlabs.com"\n')
@@ -427,7 +463,10 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write('if not exist "%MIRROR_ROOT%\\1.1\\test.txt" echo Connected!>"%MIRROR_ROOT%\\1.1\\test.txt"\n')
     f.write('if not exist "%DEST%\\track\\OK.txt" echo OK>"%DEST%\\track\\OK.txt"\n\n')
 
-    f.write('del "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt" >nul 2>&1\n')
+    f.write("set DOWNLOADS_ENABLED=1\n")
+    f.write('curl --silent --head --connect-timeout 3 --max-time 5 "https://veai-models.topazlabs.com/" >nul 2>&1\n')
+    f.write("if errorlevel 1 set DOWNLOADS_ENABLED=0\n")
+    f.write("echo.\n")
 
     f.write('cd /d "%DEST%"\n')
     f.write("echo Download folder:\n")
@@ -451,6 +490,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("goto START_DOWNLOAD\n\n")
 
     f.write(":START_DOWNLOAD\n")
+
     f.write("echo.\n")
     f.write("echo ===========================================\n")
     f.write("echo          Network check complete.\n")
@@ -458,6 +498,8 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo ===========================================\n")
     f.write("timeout /t 3 /nobreak >nul\n")
     f.write("echo.\n\n")
+
+#    f.write('if "%TOPAZ_DOWNLOADS_ONLINE%"=="1" (\n')
 
     for i, name in enumerate(files, start=1):
         label = f"SKIP_{i:04d}"
@@ -491,7 +533,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo.\n")
 
     f.write("echo.\n")
-    f.write("echo   Topaz Model Downloader Complete\n")
+    f.write("echo         Model Downloader Complete\n")
     f.write("echo.\n")
     f.write("echo.\n")
     f.write("echo.\n")
@@ -501,25 +543,96 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo ===========================================\n")
     f.write("echo         Model Missing File Report\n")
     f.write("echo ===========================================\n")
-    f.write("set MISSING_COUNT=0\n")
+    f.write("set MODEL_MISSING_COUNT=0\n")
     f.write("echo.\n")
 
     for name in files:
         safe_name = safe_echo(name)
         f.write(f'if not exist "%DEST%\\{name}" (\n')
-        f.write("    set /a MISSING_COUNT+=1\n")
+        f.write("    if !MODEL_MISSING_COUNT!==0 (\n")
+        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo Missing Model Files>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write("    )\n")
+        f.write("    set /a MODEL_MISSING_COUNT+=1\n")
         f.write(f"    echo    {safe_name}\n")
         f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
         f.write(")\n")
 
     f.write("echo.\n")
-    f.write('if "%MISSING_COUNT%"=="0" (\n')
+    f.write('if "%MODEL_MISSING_COUNT%"=="0" (\n')
     f.write("    echo        All model files are present.\n")
     f.write(") else (\n")
-    f.write("    echo ===========================================\n")
-    f.write("    echo Missing Files: %MISSING_COUNT%\n")
-    f.write('    echo Missing list saved to: "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+    f.write("    echo Missing Model Files: %MODEL_MISSING_COUNT% /325\n")
     f.write(")\n")
+    f.write("echo.\n")
+
+    f.write("timeout /t 2 /nobreak >nul\n")
+
+
+    f.write("echo ===========================================\n")
+    f.write("echo       Starlight 1.0 Downloader\n")
+    f.write("echo ===========================================\n")
+    f.write("echo.\n")
+
+    for i, (name, folder, url) in enumerate(ASTRA_FILES, start=1):
+        f.write(f"echo [Starlight 1.0 {i}/{astra_total}] {name}\n")
+        f.write(f'if not exist "%MIRROR_ROOT%\\{folder}" mkdir "%MIRROR_ROOT%\\{folder}"\n')
+        f.write(f'if exist "%MIRROR_ROOT%\\{folder}\\{name}" (\n')
+        f.write("    echo Already exists. Skipping.\n")
+        f.write(") else (\n")
+        f.write(f'    curl -L --fail --range 0-0 --connect-timeout 5 --max-time 10 -o "%TEMP%\\topaz_starlight1_test_{i}.tmp" "{url}" >nul 2>&1\n')
+        f.write("    if not errorlevel 1 (\n")
+        f.write(f'        curl -L --fail --retry 2 --connect-timeout 5 -o "%MIRROR_ROOT%\\{folder}\\{name}" "{url}"\n')
+        f.write("        if errorlevel 1 (\n")
+        f.write(f"            echo FAILED: {name}\n")
+        f.write(f'            del "%MIRROR_ROOT%\\{folder}\\{name}" >nul 2>&1\n')
+        f.write("        )\n")
+        f.write("    ) else (\n")
+        f.write(f"        echo FAILED: {name}\n")
+        f.write("    )\n")
+        f.write(f'    del "%TEMP%\\topaz_starlight1_test_{i}.tmp" >nul 2>&1\n')
+        f.write("    )\n")
+        f.write(")\n")
+        f.write("echo.\n\n")
+
+    f.write("echo.\n")
+    f.write("echo.\n")
+    f.write("echo      Starlight 1.0 Downloader Complete\n")
+    f.write("echo.\n")
+    f.write("echo.\n")
+    f.write("echo.\n\n")
+
+    f.write("timeout /t 2 /nobreak >nul\n")
+
+    f.write("echo ===========================================\n")
+    f.write("echo     Starlight 1.0 Missing File Report\n")
+    f.write("echo ===========================================\n")
+    f.write("set ASTRA_MISSING_COUNT=0\n")
+    f.write("echo.\n")
+
+    for name, folder, url in ASTRA_FILES:
+        safe_name = safe_echo(name)
+        f.write(f'if not exist "%MIRROR_ROOT%\\{folder}\\{name}" (\n')
+        f.write("    if !ASTRA_MISSING_COUNT!==0 (\n")
+        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo Missing Starlight 1.0 / Astra Support Files>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write("    )\n")
+        f.write("    set /a ASTRA_MISSING_COUNT+=1\n")
+        f.write(f"    echo    {safe_name}\n")
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write(")\n")
+
+    f.write("echo.\n")
+    f.write('if "!ASTRA_MISSING_COUNT!"=="0" (\n')
+    f.write("    echo     All Starlight 1.0 files are present.\n")
+    f.write(") else (\n")
+    f.write(f"    echo Missing !ASTRA_MISSING_COUNT! / {astra_total}\n")
+    f.write(")\n")
+    f.write("echo.\n")
 
     f.write("timeout /t 2 /nobreak >nul\n")
 
@@ -563,7 +676,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo ===========================================\n")
     f.write('echo.\n')
     f.write("set NEURO_MISSING_COUNT=0\n")
-    f.write("    echo        All model files are present.\n")
+
     for name, url in NEUROSERVER_FILES:
         safe_name = safe_echo(name)
         f.write(f'if not exist "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows\\{name}" (\n')
@@ -577,47 +690,25 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         f.write(f"    echo    {safe_name}\n")
         f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
         f.write(")\n")
-    f.write('echo.\n')
+
+    f.write("echo.\n")
+    f.write('if "%NEURO_MISSING_COUNT%"=="0" (\n')
+    f.write("    echo        All Neuro files are present.\n")
+    f.write(") else (\n")
+    f.write("    echo Missing %NEURO_MISSING_COUNT% / 2 \n")
+    f.write(")\n")
+    f.write("echo.\n")
+
     f.write("timeout /t 2 /nobreak >nul\n")
 
-    f.write("echo ===========================================\n")
-    f.write("echo      Future Support - Starlight Models\n")
-    f.write("echo ===========================================\n")
-    f.write("echo Starlight 1.0 support\n")
-    f.write("echo is currently under investigation.\n")
-    f.write("echo.\n")
-    f.write("echo See the Python source for developer notes.\n")
 
-# ============================================================
-# FUTURE SUPPORT - STARLIGHT MODELS
-# ============================================================
-#
-# Starlight 1.0
-# -------------
-# Topaz Video AI downloads three archives before performing
-# the hardware compatibility check:
-#
-#   dependencies.zip   (~3.51 GB)
-#   models.zip         (~3.09 GB)
-#   runner.zip         (~7.80 MB)
-#
-# If these archives already exist in the expected location,
-# Topaz Video AI can install them completely offline.
-# After installation, Topaz automatically deletes the archives.
-#
-# The original download URLs for these files have not yet been
-# identified.
-#
-#
     starlight_total = len(STARLIGHT_FILES)
 
     f.write("echo ===========================================\n")
     f.write("echo       Topaz Starlight 2.5 Downloader\n")
     f.write("echo ===========================================\n")
     f.write("echo.\n")
-
     f.write(f'if not exist "%MIRROR_ROOT%\\slp-2.5\\{STARLIGHT_VERSION}\\win" mkdir "%MIRROR_ROOT%\\slp-2.5\\{STARLIGHT_VERSION}\\win"\n\n')
-
     for i, (name, url) in enumerate(STARLIGHT_FILES, start=1):
         f.write(f"echo [Starlight {i}/{starlight_total}] {name}\n")
         f.write(f'if exist "%MIRROR_ROOT%\\slp-2.5\\{STARLIGHT_VERSION}\\win\\{name}" (\n')
@@ -644,6 +735,8 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo.\n")
     f.write("echo.\n")
 
+    f.write("timeout /t 2 /nobreak >nul\n")
+
     f.write("echo ===========================================\n")
     f.write("echo      Starlight 2.5 Missing File Report\n")
     f.write("echo ===========================================\n")
@@ -665,12 +758,10 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         f.write(")\n")
 
     f.write('if "%STARLIGHT_MISSING_COUNT%"=="0" (\n')
-    f.write("    echo       Starlight 2.5 file are present.\n")
+    f.write("    echo      Starlight 2.5 file is present.\n")
     f.write(") else (\n")
     f.write('echo.\n')
-    f.write("    echo ===========================================\n")
-    f.write("    echo Missing Starlight Files: %STARLIGHT_MISSING_COUNT%\n")
-    f.write('    echo Missing list saved to: "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+    f.write("    echo Missing %STARLIGHT_MISSING_COUNT% / 1\n")
     f.write(")\n")
     f.write("echo.\n")
 
@@ -680,12 +771,15 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo Started : %STARTTIME%\n")
     f.write("echo Finished: %TIME%\n")
     f.write(f"echo Files   : {total}\n")
+    f.write('if exist "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt" (\n')
+    f.write('    echo Missing list saved to: "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+    f.write(')\n')
     f.write("echo ===========================================\n")
     f.write("echo.\n")
     f.write("echo    Topaz Offline Download Server\n")
     f.write(f"echo               {VERSION}\n")
     f.write("echo.\n")
-    f.write("echo       Thank Github 91ajames\n")
+    f.write("echo  Created by Github user 91ajames\n")
     f.write("echo.\n")
     f.write("echo ===========================================\n")
     f.write("echo.\n")
@@ -750,6 +844,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write('echo !HOST_IP! models-r2.topazlabs.com\n')
     f.write('echo !HOST_IP! models-bal.topazlabs.com\n')
     f.write('echo !HOST_IP! video-models.topazlabs.com\n')
+    f.write('echo !HOST_IP! veai-models.topazlabs.com\n')
     f.write('echo.\n')
     f.write("echo ===========================================\n")
     f.write('echo.\n')
@@ -763,7 +858,6 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
 
     f.write(':END_TOPAZ_SERVER\n')
     f.write("echo.\n")
-    f.write("pause\n")
 print(f"Created: {OUT_BAT}")
 print(f"Files added: {total}")
 
@@ -771,13 +865,19 @@ try:
     run_now = input("\nRun the generated BAT now? (Y/N): ").strip().lower()
 
     if run_now in ("y", "yes"):
-
-        subprocess.run(f'cmd /k "{OUT_BAT}"', shell=True)
+        subprocess.run(f'cmd /c "{OUT_BAT}"', shell=True)
     else:
         print("\nBAT was not launched.")
+
+except KeyboardInterrupt:
+    print("\n\nOperation cancelled by user.")
+    print("\033[0m", end="")
+    raise SystemExit(0)
 
 except Exception as e:
     print("\nERROR while trying to launch BAT:")
     print(e)
+    input("\nPress Enter to exit...")
 
-input("\nPress Enter to exit...")
+os.system("title Command Prompt")
+print(RESET, end="")
