@@ -28,7 +28,7 @@ This project recreates the expected download structure locally, allowing the sof
 
 * **Model files:** 325
 * **Neuroserver:** 2
-* **StarLight 1.0:** 3 - Coming Soon!
+* **StarLight 1.0:** 3
 * **StarLight 2.5:** 1
 * **Approximate size:** 92.4 GB
 
