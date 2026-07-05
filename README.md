@@ -22,6 +22,11 @@ Even when the correct AI model files are already present, Topaz installers and a
 
 This project recreates the expected download structure locally, allowing the software to retrieve model files from your own server whenever possible.
 
+## Installation Time
+
+Offline Est: > 13 Minutes 
+Online Est: > 20-45 Minutes
+
 ---
 
 ## Repository Statistics
