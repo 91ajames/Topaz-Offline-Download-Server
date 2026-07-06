@@ -33,6 +33,8 @@ Online Est: < 20-45 Minutes
 
 ## Repository Statistics
 
+* **GPU TESTED:** 5070
+
 * **Model files:** 325
 * **StarLight 1.0:** 3
 * **Neuroserver:** 2
@@ -44,11 +46,11 @@ Online Est: < 20-45 Minutes
 ## Intended Uses
 
 * Offline installation
+* Local backup offline server
 * Windows deployment (OOBE/Sysprep)
 * Virtual machines
-* Local backup server
 * Software preservation
-* Archival of legacy Topaz releases
+* Archival of Legacy & New Topaz Releases
 
 ---
 
