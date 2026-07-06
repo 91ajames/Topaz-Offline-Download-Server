@@ -13,7 +13,7 @@ This project allows you to install and restore Topaz AI models from a local serv
 * Supports multiple Topaz products and versions
 * Preserves models that may no longer be distributed
 * Eliminates repeated downloads after system reinstalls
-* Error reporting of files and 404 from backup server pin pointing file location in v6.0.1
+* Error reporting of files and 404 from backup server pin pointing file location in v6.1.0
 
 ---
 
