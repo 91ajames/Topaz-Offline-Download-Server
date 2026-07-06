@@ -1,6 +1,6 @@
 # Topaz Offline Download Server
 
-A local mirror for **Topaz Photo**, **Topaz Gigapixel**, **Topaz Video AI** and related AI model & GPU files.
+A local mirror for **Topaz Photo**, **Topaz Gigapixel**, **Topaz Video** and related AI model & GPU files.
 
 This project allows you to install and restore Topaz AI models from a local server instead of downloading them from the Internet each time. It is intended for offline installations, system rebuilds, custom Windows images, and long-term software preservation.
 
