@@ -519,7 +519,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write('set "HOST4=models-bal.topazlabs.com"\n\n')
 
     f.write("echo ===========================================\n")
-    f.write("echo         Topaz Model Downloader\n")
+    f.write("echo         Topaz Offline Download\n")
     f.write(f"echo                {VERSION}\n")
     f.write("echo ===========================================\n")
     f.write("echo.\n\n")
