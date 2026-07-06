@@ -6,10 +6,10 @@ GREEN = "\033[92m"
 RESET = "\033[0m"
 print(GREEN, end="")
 
-VERSION = "6.0.0"
+VERSION = "6.1.0"
 VERSION_FILE = VERSION.replace(" ", "_")
 
-os.system(f"title Topaz Model Downloader Creator v{VERSION}")
+os.system(f"title Topaz Offline Download Creator v{VERSION}")
 
 ASTRA_VERSION = "20250415"
 ASTRA_RUNNER_V = "20250604"
@@ -22,8 +22,8 @@ TEST = MIRROR_ROOT / "_test"
 TEST11 = MIRROR_ROOT / "1.1"
 TRACK = DEST / "track"
 BASE_URL = "http://models.topazlabs.com/v1"
-OUT_BAT = Path(fr"C:\TopazMirror\Topaz_Model_Downloader_{VERSION_FILE}.bat")
-ERROR_REPORT = r"%MIRROR_ROOT%\Topaz_Model_Downloader_Creator_Error.txt"
+OUT_BAT = Path(fr"C:\TopazMirror\Topaz_Offline_Download_{VERSION_FILE}.bat")
+ERROR_REPORT = r"%MIRROR_ROOT%\Topaz_Offline_Download_Creator_Error.txt"
 
 FILES_RAW = r"""
 ‎apnb-v2-fp16-512x512-rev2-ox.tz2                                       
@@ -353,17 +353,6 @@ FILES_RAW = r"""
 ‎WhiteBalanceData-v2.bin                                                
 """
 
-NEUROSERVER_FILES = [
-    (
-        "neuroserver-deps.tar.xz",
-        f"https://video-models.topazlabs.com/neuroserver/{NEUROSERVER_VERSION}/windows/neuroserver-deps.tar.xz",
-    ),
-    (
-        "neuroserver.tar.xz",
-        f"https://video-models.topazlabs.com/neuroserver/{NEUROSERVER_VERSION}/windows/neuroserver.tar.xz",
-    ),
-]
-
 ASTRA_FILES = [
     (
         "dependencies.zip",
@@ -379,6 +368,17 @@ ASTRA_FILES = [
         "runner.zip",
         f"astra_support\\{ASTRA_RUNNER_V}",
         f"https://veai-models.topazlabs.com/astra_support/{ASTRA_RUNNER_V}/runner.zip",
+    ),
+]
+
+NEUROSERVER_FILES = [
+    (
+        "neuroserver-deps.tar.xz",
+        f"https://video-models.topazlabs.com/neuroserver/{NEUROSERVER_VERSION}/windows/neuroserver-deps.tar.xz",
+    ),
+    (
+        "neuroserver.tar.xz",
+        f"https://video-models.topazlabs.com/neuroserver/{NEUROSERVER_VERSION}/windows/neuroserver.tar.xz",
     ),
 ]
 
@@ -423,6 +423,77 @@ def safe_echo(text: str) -> str:
 for folder in (MIRROR_ROOT, DEST, TEST, TEST11, TRACK):
     folder.mkdir(parents=True, exist_ok=True)
 
+SERVER_PY = MIRROR_ROOT / "Topaz_Repeater_Server.py"
+
+known_paths = set()
+
+for name in files:
+    known_paths.add(f"/v1/{name}")
+
+for name, folder, url in ASTRA_FILES:
+    folder_url = folder.replace("\\", "/")
+    known_paths.add(f"/{folder_url}/{name}")
+
+for name, url in NEUROSERVER_FILES:
+    known_paths.add(f"/neuroserver/{NEUROSERVER_VERSION}/windows/{name}")
+
+for name, url in STARLIGHT_FILES:
+    known_paths.add(f"/slp-2.5/{STARLIGHT_VERSION}/win/{name}")
+
+known_paths.update([
+    "/_test/models-bal-test.txt",
+    "/1.1/test.txt",
+    "/v1/track/OK.txt",
+])
+
+SERVER_PY.write_text(f'''\
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import unquote, urlparse
+from pathlib import Path
+
+ROOT = Path(r"{MIRROR_ROOT}")
+ERROR_REPORT = ROOT / "Topaz_Offline_Download_Creator_Error.txt"
+
+KNOWN_PATHS = {sorted(known_paths)!r}
+logged_404s = set()
+
+class TopazMirrorHandler(SimpleHTTPRequestHandler):
+    def send_error(self, code, message=None, explain=None):
+        if code == 404:
+            path = unquote(urlparse(self.path).path)
+            print("404 request:", path)
+
+            if path not in KNOWN_PATHS and path not in logged_404s:
+                logged_404s.add(path)
+
+                with ERROR_REPORT.open("a", encoding="utf-8") as report:
+                    if len(logged_404s) == 1:
+                        report.write("\\n")
+                        report.write("===========================================\\n")
+                        report.write("Unknown 404 Requests From Topaz\\n")
+                        report.write("===========================================\\n")
+                        report.write("\\n")
+                    report.write(path + "\\n")
+
+        super().send_error(code, message, explain)
+
+if __name__ == "__main__":
+    import os
+    os.chdir(ROOT)
+
+    print("404 Logging Enabled")
+    print()
+    print("Serving Topaz Repeater Server on port 80...")
+    print("___________________________________________")
+    print()
+
+    try:
+        ThreadingHTTPServer(("", 80), TopazMirrorHandler).serve_forever()
+    except KeyboardInterrupt:
+        print()
+        print("Topaz Repeater Server stopped.")
+''', encoding="utf-8")
+
 with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("@echo off\n")
     f.write('set "TOPAZ_DOWNLOADS_ONLINE=0"\n')
@@ -434,13 +505,13 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write('if not errorlevel 1 set "TOPAZ_DOWNLOADS_ONLINE=1"\n')
     f.write('del "%TEMP%\\topaz_host_test.tmp" >nul 2>&1\n')
     f.write("echo.\n")
-    f.write(f"title Topaz Model Downloader - {VERSION}\n")
+    f.write(f"title Topaz Offline Download Creator - {VERSION}\n")
     f.write("color 0A\n")
     f.write("setlocal EnableDelayedExpansion\n")
     f.write('set "STARTTIME=%TIME%"\n')
     f.write(f'set "DEST={DEST}"\n')
     f.write(f'set "MIRROR_ROOT={MIRROR_ROOT}"\n')
-    f.write('del "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt" >nul 2>&1\n')
+    f.write('del "%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt" >nul 2>&1\n')
     f.write(f'set "BASE_URL={BASE_URL}"\n')
     f.write('set "HOST1=models.topazlabs.com"\n')
     f.write('set "HOST2=image-models.topazlabs.com"\n')
@@ -550,14 +621,14 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         safe_name = safe_echo(name)
         f.write(f'if not exist "%DEST%\\{name}" (\n')
         f.write("    if !MODEL_MISSING_COUNT!==0 (\n")
-        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo Missing Model Files>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo Missing Model Files>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write("    )\n")
         f.write("    set /a MODEL_MISSING_COUNT+=1\n")
         f.write(f"    echo    {safe_name}\n")
-        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write(")\n")
 
     f.write("echo.\n")
@@ -616,14 +687,14 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         safe_name = safe_echo(name)
         f.write(f'if not exist "%MIRROR_ROOT%\\{folder}\\{name}" (\n')
         f.write("    if !ASTRA_MISSING_COUNT!==0 (\n")
-        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo Missing Starlight 1.0 / Astra Support Files>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo Missing Starlight 1.0 / Astra Support Files>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write("    )\n")
         f.write("    set /a ASTRA_MISSING_COUNT+=1\n")
         f.write(f"    echo    {safe_name}\n")
-        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write(")\n")
 
     f.write("echo.\n")
@@ -681,14 +752,14 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         safe_name = safe_echo(name)
         f.write(f'if not exist "%MIRROR_ROOT%\\neuroserver\\{NEUROSERVER_VERSION}\\windows\\{name}" (\n')
         f.write("    if %NEURO_MISSING_COUNT%==0 (\n")
-        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo Missing Neuroserver Files>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo Missing Neuroserver Files>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write("    )\n")
         f.write("    set /a NEURO_MISSING_COUNT+=1\n")
         f.write(f"    echo    {safe_name}\n")
-        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write(")\n")
 
     f.write("echo.\n")
@@ -747,14 +818,14 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
         safe_name = safe_echo(name)
         f.write(f'if not exist "%MIRROR_ROOT%\\slp-2.5\\{STARLIGHT_VERSION}\\win\\{name}" (\n')
         f.write("    if %STARLIGHT_MISSING_COUNT%==0 (\n")
-        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo Missing Starlight 2.5 File>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
-        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo Missing Starlight 2.5 File>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write("    )\n")
         f.write("    set /a STARLIGHT_MISSING_COUNT+=1\n")
         f.write(f"    echo    {safe_name}\n")
-        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
         f.write(")\n")
 
     f.write('if "%STARLIGHT_MISSING_COUNT%"=="0" (\n')
@@ -771,8 +842,8 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo Started : %STARTTIME%\n")
     f.write("echo Finished: %TIME%\n")
     f.write(f"echo Files   : {total}\n")
-    f.write('if exist "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt" (\n')
-    f.write('    echo Missing list saved to: "%MIRROR_ROOT%\\Topaz_Model_Downloader_Creator_Error.txt"\n')
+    f.write('if exist "%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt" (\n')
+    f.write('    echo Missing list saved to: "%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
     f.write(')\n')
     f.write("echo ===========================================\n")
     f.write("echo.\n")
@@ -783,14 +854,14 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo.\n")
     f.write("echo ===========================================\n")
     f.write("echo.\n")
-    f.write('set /p STARTSERVER=Start the Topaz Mirror Server now? (Y/N): \n')
+    f.write('set /p STARTSERVER=Start the Topaz Repeater Server now? (Y/N): \n')
     f.write('if /I "%STARTSERVER%"=="Y" goto START_TOPAZ_SERVER\n')
     f.write('if /I "%STARTSERVER%"=="YES" goto START_TOPAZ_SERVER\n')
     f.write('goto SKIP_TOPAZ_SERVER\n\n')
 
     f.write(':START_TOPAZ_SERVER\n')
     f.write('echo.\n')
-    f.write('echo Starting Topaz Mirror Server...\n')
+    f.write('echo Starting Topaz Repeater Server...\n')
     f.write('echo.\n')
     f.write("echo ===========================================\n")
     f.write('echo.\n')
@@ -849,11 +920,11 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo ===========================================\n")
     f.write('echo.\n')
     f.write('cd /d "C:\\TopazMirror"\n')
-    f.write('py -3.14 -m http.server 80\n')
+    f.write('py -3.14 "%MIRROR_ROOT%\\Topaz_Repeater_Server.py"\n')
     f.write('goto END_TOPAZ_SERVER\n\n')
 
     f.write(':SKIP_TOPAZ_SERVER\n')
-    f.write('echo Topaz Mirror Server was not started.\n')
+    f.write('echo Topaz Repeater Server was not started.\n')
     f.write('goto END_TOPAZ_SERVER\n\n')
 
     f.write(':END_TOPAZ_SERVER\n')
