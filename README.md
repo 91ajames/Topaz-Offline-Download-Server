@@ -62,22 +62,7 @@ Archive download source will be implemented once discontinued from Topaz.
 
 ## Not Possible at this time
 
-Topaz Sharpen AI
-
-## UnTested Legacy Softwares
-
-Adjust AI
-
-Mask AI
-
-Jpeg to Raw AI
-
-DeNoise AI
-
-Sharpen AI
-
-Plugins
-
+Topaz Sharpen AI Added but Manual Installation Required
 
 ![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz%20Model%20Downloader%205.5.0.png)
 
