@@ -60,11 +60,14 @@ Preserve the availability of Topaz applications for future installations, even i
 
 Archive download source will be implemented once discontinued from Topaz.
 
-## Is Possible at this time
+## What Is Possible at this time?
 
-Topaz Sharpen AI Added but Manual Installation Required
+HTTPS/443 support confirmed for legacy Sharpen AI.
+Sharpen AI requires the local mirror certificate to be trusted by Windows.
+If the certificate is not installed in Trusted Root Certification Authorities, TLS fails with unknown CA and model download detection is disabled.
+No certificate pinning was observed during testing.
 
-but you dig hard enough, you'll be able to access the json file to achieve this offline without manually installation.
+Update the script at a later time.
 
 ---
 
