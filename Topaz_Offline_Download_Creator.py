@@ -6,7 +6,7 @@ GREEN = "\033[92m"
 RESET = "\033[0m"
 print(GREEN, end="")
 
-VERSION = "6.1.0"
+VERSION = "6.2.0"
 VERSION_FILE = VERSION.replace(" ", "_")
 
 os.system(f"title Topaz Offline Download Creator v{VERSION}")
@@ -389,6 +389,52 @@ STARLIGHT_FILES = [
     ),
 ]
 
+
+# ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+# Unsupported port 80 server at this time. Obtainable through port 80 but Sharpen pings port 443
+
+SHARPEN_UNSUPPORTED_FILES = [
+    (
+        "shl-v2-fp16-512x512-ov.tz",
+        r"v2\JSON_SHARPEN\774312aa-cf1d-497d-a44e-626c4f261475",
+        "https://veai-models.topazlabs.com/v2/JSON_SHARPEN/774312aa-cf1d-497d-a44e-626c4f261475/shl-v2-fp16-512x512-ov.tz",
+    ),
+    (
+        "shn-v1-fp16-512x512-ov.tz",
+        r"v2\JSON_SHARPEN\d788c026-6150-40a3-b45f-0cc59ecef14f",
+        "https://veai-models.topazlabs.com/v2/JSON_SHARPEN/d788c026-6150-40a3-b45f-0cc59ecef14f/shn-v1-fp16-512x512-ov.tz",
+    ),
+    (
+        "sll-v1-fp16-512x512-ov.tz",
+        r"v2\JSON_SHARPEN\c271ef73-dc51-438b-be92-b0e0e7f50dc8",
+        "https://veai-models.topazlabs.com/v2/JSON_SHARPEN/c271ef73-dc51-438b-be92-b0e0e7f50dc8/sll-v1-fp16-512x512-ov.tz",
+    ),
+    (
+        "sln-v1-fp16-512x512-ov.tz",
+        r"v2\JSON_SHARPEN\a6f21932-7ee2-4f9f-b84f-0345bdbc635c",
+        "https://veai-models.topazlabs.com/v2/JSON_SHARPEN/a6f21932-7ee2-4f9f-b84f-0345bdbc635c/sln-v1-fp16-512x512-ov.tz",
+    ),
+    (
+        "slsp-v3-fp16-512x512-ov.tz",
+        r"v2\JSON_SHARPEN\ec647613-ca5c-4e71-b768-ea5f3ca48dc3",
+        "https://veai-models.topazlabs.com/v2/JSON_SHARPEN/ec647613-ca5c-4e71-b768-ea5f3ca48dc3/slsp-v3-fp16-512x512-ov.tz",
+    ),
+    (
+        "sml-v2-fp16-512x512-ov.tz",
+        r"v2\JSON_SHARPEN\51a13000-00e8-4787-832c-85e0a27164cb",
+        "https://veai-models.topazlabs.com/v2/JSON_SHARPEN/51a13000-00e8-4787-832c-85e0a27164cb/sml-v2-fp16-512x512-ov.tz",
+    ),
+    (
+        "smn-v1-fp16-512x512-ov.tz",
+        r"v2\JSON_SHARPEN\8943a095-63f6-41c2-bc0b-0475101aed2e",
+        "https://veai-models.topazlabs.com/v2/JSON_SHARPEN/8943a095-63f6-41c2-bc0b-0475101aed2e/smn-v1-fp16-512x512-ov.tz",
+    ),
+]
+
+
+# ///////////////////////////////////////////////////////////////////////////////////////////////////
+
 # Build the embedded filename list
 FILES = []
 
@@ -408,7 +454,8 @@ model_total = len(files)
 neuro_total = len(NEUROSERVER_FILES)
 starlight_total = len(STARLIGHT_FILES)
 astra_total = len(ASTRA_FILES)
-total = model_total + neuro_total + starlight_total + astra_total
+sharpen_unsupported_total = len(SHARPEN_UNSUPPORTED_FILES)
+total = model_total + neuro_total + starlight_total + astra_total + sharpen_unsupported_total
 def safe_echo(text: str) -> str:
     return (
         text.replace("^", "^^")
@@ -443,7 +490,6 @@ for name, url in STARLIGHT_FILES:
 known_paths.update([
     "/_test/models-bal-test.txt",
     "/1.1/test.txt",
-    "/v1/track/OK.txt",
 ])
 
 SERVER_PY.write_text(f'''\
@@ -458,7 +504,27 @@ KNOWN_PATHS = {sorted(known_paths)!r}
 logged_404s = set()
 
 class TopazMirrorHandler(SimpleHTTPRequestHandler):
+
+    def do_GET(self):
+        path = unquote(urlparse(self.path).path)
+
+        if path == "/v1/track":
+#            print("Telemetry request:", path)
+            print(f"API request: {{path}}")
+
+            body = b'{{"success":true}}'
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        return super().do_GET()
+
     def send_error(self, code, message=None, explain=None):
+
         if code == 404:
             path = unquote(urlparse(self.path).path)
             print("404 request:", path)
@@ -496,15 +562,6 @@ if __name__ == "__main__":
 
 with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("@echo off\n")
-    f.write('set "TOPAZ_DOWNLOADS_ONLINE=0"\n')
-    f.write('curl -L --fail --range 0-0 --connect-timeout 2 --max-time 3 -o "%TEMP%\\topaz_host_test.tmp" "http://models.topazlabs.com/v1/" >nul 2>&1\n')
-    f.write('if not errorlevel 1 set "TOPAZ_DOWNLOADS_ONLINE=1"\n')
-    f.write('curl -L --fail --range 0-0 --connect-timeout 2 --max-time 3 -o "%TEMP%\\topaz_host_test.tmp" "https://veai-models.topazlabs.com/astra_support/20250415/dependencies.zip" >nul 2>&1\n')
-    f.write('if not errorlevel 1 set "TOPAZ_DOWNLOADS_ONLINE=1"\n')
-    f.write('curl -L --fail --range 0-0 --connect-timeout 2 --max-time 3 -o "%TEMP%\\topaz_host_test.tmp" "https://video-models.topazlabs.com/neuroserver/20260601.1/windows/neuroserver.tar.xz" >nul 2>&1\n')
-    f.write('if not errorlevel 1 set "TOPAZ_DOWNLOADS_ONLINE=1"\n')
-    f.write('del "%TEMP%\\topaz_host_test.tmp" >nul 2>&1\n')
-    f.write("echo.\n")
     f.write(f"title Topaz Offline Download Creator - {VERSION}\n")
     f.write("color 0A\n")
     f.write("setlocal EnableDelayedExpansion\n")
@@ -519,7 +576,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write('set "HOST4=models-bal.topazlabs.com"\n\n')
 
     f.write("echo ===========================================\n")
-    f.write("echo         Topaz Offline Download\n")
+    f.write("echo         Topaz Offline Downloader\n")
     f.write(f"echo                {VERSION}\n")
     f.write("echo ===========================================\n")
     f.write("echo.\n\n")
@@ -532,7 +589,6 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
 
     f.write('if not exist "%MIRROR_ROOT%\\_test\\models-bal-test.txt" echo Connected!>"%MIRROR_ROOT%\\_test\\models-bal-test.txt"\n')
     f.write('if not exist "%MIRROR_ROOT%\\1.1\\test.txt" echo Connected!>"%MIRROR_ROOT%\\1.1\\test.txt"\n')
-    f.write('if not exist "%DEST%\\track\\OK.txt" echo OK>"%DEST%\\track\\OK.txt"\n\n')
 
     f.write("set DOWNLOADS_ENABLED=1\n")
     f.write('curl --silent --head --connect-timeout 3 --max-time 5 "https://veai-models.topazlabs.com/" >nul 2>&1\n')
@@ -569,8 +625,6 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("echo ===========================================\n")
     f.write("timeout /t 3 /nobreak >nul\n")
     f.write("echo.\n\n")
-
-#    f.write('if "%TOPAZ_DOWNLOADS_ONLINE%"=="1" (\n')
 
     for i, name in enumerate(files, start=1):
         label = f"SKIP_{i:04d}"
@@ -839,6 +893,75 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write("timeout /t 2 /nobreak >nul\n")
 
     f.write("echo ===========================================\n")
+    f.write("echo   Unsupported Legacy Sharpen AI Downloads\n")
+    f.write("echo        HTTPS/443 Required by App\n")
+    f.write("echo ===========================================\n")
+    f.write("echo.\n")
+
+    for i, (name, folder, url) in enumerate(SHARPEN_UNSUPPORTED_FILES, start=1):
+        f.write(f"echo [Sharpen AI Unsupported {i}/{sharpen_unsupported_total}] {name}\n")
+        f.write(f'if not exist "%MIRROR_ROOT%\\{folder}" mkdir "%MIRROR_ROOT%\\{folder}"\n')
+        f.write(f'if exist "%MIRROR_ROOT%\\{folder}\\{name}" (\n')
+        f.write("    echo Already exists. Skipping.\n")
+        f.write(") else (\n")
+        f.write(f'    curl -L --fail --range 0-0 --connect-timeout 5 --max-time 10 -o "%TEMP%\\topaz_sharpen_test_{i}.tmp" "{url}" >nul 2>&1\n')
+        f.write("    if not errorlevel 1 (\n")
+        f.write(f'        curl -L --fail --retry 2 --connect-timeout 5 -o "%MIRROR_ROOT%\\{folder}\\{name}" "{url}"\n')
+        f.write("        if errorlevel 1 (\n")
+        f.write(f"            echo FAILED: {name}\n")
+        f.write(f'            del "%MIRROR_ROOT%\\{folder}\\{name}" >nul 2>&1\n')
+        f.write("        )\n")
+        f.write("    ) else (\n")
+        f.write(f"        echo FAILED: {name}\n")
+        f.write("    )\n")
+        f.write(f'    del "%TEMP%\\topaz_sharpen_test_{i}.tmp" >nul 2>&1\n')
+        f.write(")\n")
+        f.write("echo.\n\n")
+
+    f.write("echo.\n")
+    f.write("echo   Unsupported Legacy Sharpen AI Complete\n")
+    f.write("echo.\n")
+    f.write("echo   NOTE: Unsupported Legacy Feature.\n")
+    f.write("echo   Files download correctly, but Topaz Sharpen AI\n")
+    f.write("echo   requires HTTPS (port 443) for automatic model\n")
+    f.write("echo   retrieval. Until HTTPS support is available,\n")
+    f.write("echo   manually copy the downloaded files from:\n")
+    f.write("echo.\n")
+    f.write("echo   C:\\TopazMirror\\v2\\JSON_SHARPEN\n")
+    f.write("echo                  to\n")
+    f.write("echo   C:\\ProgramData\\Topaz Labs LLC\\Topaz Sharpen AI\\models\n")
+    f.write("echo.\n")
+    f.write("timeout /t 2 /nobreak >nul\n")
+
+    f.write("echo ===========================================\n")
+    f.write("echo   Unsupported L Sharpen AI Missing Report\n")
+    f.write("echo ===========================================\n")
+    f.write("set SHARPEN_MISSING_COUNT=0\n")
+    f.write("echo.\n")
+
+    for name, folder, url in SHARPEN_UNSUPPORTED_FILES:
+        safe_name = safe_echo(name)
+        f.write(f'if not exist "%MIRROR_ROOT%\\{folder}\\{name}" (\n')
+        f.write("    if !SHARPEN_MISSING_COUNT!==0 (\n")
+        f.write('        echo.>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo Missing Unsupported Sharpen AI Files>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write('        echo ===========================================>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write("    )\n")
+        f.write("    set /a SHARPEN_MISSING_COUNT+=1\n")
+        f.write(f"    echo    {safe_name}\n")
+        f.write(f'    echo {safe_name}>>"%MIRROR_ROOT%\\Topaz_Offline_Download_Creator_Error.txt"\n')
+        f.write(")\n")
+
+    f.write("echo.\n")
+    f.write('if "!SHARPEN_MISSING_COUNT!"=="0" (\n')
+    f.write("    echo     All Sharpen AI files are present.\n")
+    f.write(") else (\n")
+    f.write(f"    echo Missing !SHARPEN_MISSING_COUNT! / {sharpen_unsupported_total}\n")
+    f.write(")\n")
+    f.write("echo.\n")
+
+    f.write("echo ===========================================\n")
     f.write("echo Started : %STARTTIME%\n")
     f.write("echo Finished: %TIME%\n")
     f.write(f"echo Files   : {total}\n")
@@ -877,8 +1000,8 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write(')\n')
     f.write('echo.\n')
     f.write('if "!IP_COUNT!"=="0" (\n')
-    f.write('    echo No IPv4 addresses detected. Using fallback: 192.168.25.1\n')
-    f.write('    set "HOST_IP=192.168.25.1"\n')
+    f.write('    echo No IPv4 addresses detected. Using fallback: 127.0.0.1\n')
+    f.write('    set "HOST_IP=127.0.0.1"\n')
     f.write('    goto HOST_IP_SELECTED\n')
     f.write(')\n\n')
 
@@ -916,6 +1039,7 @@ with OUT_BAT.open("w", encoding="utf-8", newline="\r\n") as f:
     f.write('echo !HOST_IP! models-bal.topazlabs.com\n')
     f.write('echo !HOST_IP! video-models.topazlabs.com\n')
     f.write('echo !HOST_IP! veai-models.topazlabs.com\n')
+    f.write('echo !HOST_IP! api.topaz-labs.net\n')
     f.write('echo.\n')
     f.write("echo ===========================================\n")
     f.write('echo.\n')
