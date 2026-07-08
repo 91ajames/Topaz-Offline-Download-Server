@@ -60,9 +60,11 @@ Preserve the availability of Topaz applications for future installations, even i
 
 Archive download source will be implemented once discontinued from Topaz.
 
-## Not Possible at this time
+## Is Possible at this time
 
 Topaz Sharpen AI Added but Manual Installation Required
+
+but you dig hard enough, you'll be able to access the json file to achieve this offline without manually installation.
 
 ---
 
