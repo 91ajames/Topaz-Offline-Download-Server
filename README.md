@@ -67,7 +67,7 @@ Sharpen AI requires the local mirror certificate to be trusted by Windows.
 If the certificate is not installed in Trusted Root Certification Authorities, TLS fails with unknown CA and model download detection is disabled.
 No certificate pinning was observed during testing.
 
-Update the script at a later time.
+Update the script once finished. v7.0.0
 
 ---
 
