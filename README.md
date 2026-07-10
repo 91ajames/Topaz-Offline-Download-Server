@@ -46,7 +46,8 @@ Online Est: < 20-45 Minutes
 * **StarLight 1.0:** 3
 * **Neuroserver:** 2
 * **StarLight 2.5:** 1
-* **Approximate size:** 92.4 GB
+* **Sharpen:** 94 - V 7.0.0
+* **Approximate size:** 98.4 GB - V 7.0.0
 
 ---
 
