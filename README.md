@@ -1,3 +1,10 @@
+Due to some certain events that has come up, I'm off holding this project till next week and a half.
+
+
+---
+
+---
+
 # Topaz Offline Download Server
 
 A local mirror for **Topaz Photo**, **Topaz Gigapixel**, **Topaz Video** and related AI model & GPU files.
