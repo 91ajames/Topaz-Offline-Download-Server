@@ -72,7 +72,7 @@ No other source implemented once discontinued from Topaz. And if Adobe doesn't b
 v7.0.0 has been rebuilt extensively to recreate what the program offers without running into errors.
 
 
-# Capture source was by obtaining through logs and sniffing my computer. Programs are the best Spyware while PC Loads and IDLE
+## Capture source was by obtaining through logs and sniffing my computer. Programs are the best Spyware while PC Loads and IDLE
 
 What's in you're wallet?
 
