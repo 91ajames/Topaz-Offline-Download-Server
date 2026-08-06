@@ -33,6 +33,9 @@ Online Est: < 20-45 Minutes
 
 ## Repository Statistics
 
+
+* **Windows, OSX MacOS, Linux** Support
+
 * **GPU TESTED:** 5090
 
 * **Video:** 127
