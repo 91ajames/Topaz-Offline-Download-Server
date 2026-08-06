@@ -1,10 +1,3 @@
-# Due to some certain events that has come up, I'm off holding this project till next week and a half.
-
-
----
-
----
-
 # Topaz Offline Download Server
 
 A local mirror for **Topaz Photo**, **Topaz Gigapixel**, **Topaz Video** and related AI model & GPU files.
@@ -40,42 +33,48 @@ Online Est: < 20-45 Minutes
 
 ## Repository Statistics
 
-* **GPU TESTED:** 5070
+* **GPU TESTED:** 5090
 
-* **Model files:** 325
-* **StarLight 1.0:** 3
-* **Neuroserver:** 2
+* **Video:** 127
+* **GigaPixel:** 97
+* **Photo:** 126
+* **Photo AI:** 98
+* **Sharpen:** 98
+* **Raw Model:** 150
+* **Video AI Xtra:** 3
+* **Video Xtra:** 5
 * **StarLight 2.5:** 1
-* **Sharpen:** 94 - V 7.0.0
-* **Approximate size:** 98.4 GB - V 7.0.0
+
+* **Total Files:** 705
+* **Approximate size:** 150.52 - 166.56 GB - V 7.0.0
+
+* **Unavailble** 1 Video AI
 
 ---
 
 ## Intended Uses
 
-* Offline installation
-* Local backup offline server
-* Windows deployment (OOBE/Sysprep)
-* Virtual machines
-* Software preservation
+* Offline Installation
+* Local Model Offline Server
+* Windows Deployment (OOBE/Sysprep)
+* Virtual Machines
+* Software Preservation
 * Archival of Legacy & New Topaz Releases
 
 ---
 
 ## Goal
 
-Preserve the availability of Topaz applications for future installations, even if official download sources change or become unavailable.
+Preserve the availability of Topaz applications for future installations, even if official download sources change or # become Unavailable.
 
-Archive download source will be implemented once discontinued from Topaz.
+No other source implemented once discontinued from Topaz. And if Adobe doesn't buy them out.
 
-## What Is Possible at this time?
+v7.0.0 has been rebuilt extensively to recreate what the program offers without running into errors.
 
-HTTPS/443 support confirmed for legacy Sharpen AI.
-Sharpen AI requires the local mirror certificate to be trusted by Windows.
-If the certificate is not installed in Trusted Root Certification Authorities, TLS fails with unknown CA and model download detection is disabled.
-No certificate pinning was observed during testing.
 
-Update the script once finished. v7.0.0
+# Capture source was by obtaining through logs and sniffing my computer. Programs are the best Spyware while PC Loads and IDLE
+
+What's in you're wallet?
 
 ---
 
