@@ -78,7 +78,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Photo 1.6.1:** 126
 - **Photo AI 4.0.1:** 98
 - **Sharpen AI 4.1.0:** 98
-- **Raw Models:** 132
+- **Raw Models:** 132  -  (Will be removed into other inventory in future updates)
 - **Video AI 7.1.5 Extra Packages:** 6
 - **Video 1.6.1 Extra Packages:** 5
 - **Starlight 2.5 Extra Packages:** 1
