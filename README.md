@@ -213,6 +213,15 @@ Major changes include:
 
 The original 6.2.0 inventory was preserved during the rebuild. All 338 download paths represented by 6.2.0 remain represented in 7.0.0, while the current inventory has expanded to 606 unique physical files and 777 logical inventory entries.
 
+---
+
+## Local Access
+
+Access through `localhost` or a direct IP address is intentionally disabled while the server is running.
+
+This behavior is by design and there is no setting, toggle, or on/off switch to enable it.
+
+
 
 ---
 
