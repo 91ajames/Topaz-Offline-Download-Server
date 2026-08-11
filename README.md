@@ -216,8 +216,4 @@ The original 6.2.0 inventory was preserved during the rebuild. All 338 download 
 
 ---
 
-I'll update these at a later time.
-
 ![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz_Offline_Download_Creator_7.0.0.png)
-
-![github-small](https://raw.githubusercontent.com/91ajames/Topaz-Offline-Mirror-Server/refs/heads/main/TopazMirrorServer.png)
