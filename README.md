@@ -210,3 +210,20 @@ Major changes include:
 - Explicit SUCCESS / INCOMPLETE / FAILED / CANCELLED exit codes
 
 The original 6.2.0 inventory was preserved during the rebuild. All 338 download paths represented by 6.2.0 remain represented in 7.0.0, while the current inventory has expanded to 606 unique physical files and 777 logical inventory entries.
+
+
+# Capture source was by obtaining through logs and sniffing my computer. Programs are the best Spyware while PC Loads and IDLE
+
+What's in you're wallet?
+
+---
+
+I'll update these at a later time.
+
+![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz%20Model%20Downloader%205.5.0.png)
+
+![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz%20Model%20Downloader%205.0.3.png)
+
+![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz%20Model%20Downloader%205.0.0.png)
+
+![github-small](https://raw.githubusercontent.com/91ajames/Topaz-Offline-Mirror-Server/refs/heads/main/TopazMirrorServer.png)
