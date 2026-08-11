@@ -174,6 +174,8 @@ The inventory was assembled through direct observation of Topaz application beha
 
 Captured URLs, protocols, hosts, paths, file sizes, and hashes are preserved as accurately as possible rather than assuming that similarly named resources are interchangeable.
 
+What's in you're wallet?
+
 ---
 
 ## Goal
@@ -211,10 +213,6 @@ Major changes include:
 
 The original 6.2.0 inventory was preserved during the rebuild. All 338 download paths represented by 6.2.0 remain represented in 7.0.0, while the current inventory has expanded to 606 unique physical files and 777 logical inventory entries.
 
-
-### Capture source was by obtaining through logs and sniffing my computer. Programs are the best Spyware while PC Loads and IDLE
-
-What's in you're wallet?
 
 ---
 
