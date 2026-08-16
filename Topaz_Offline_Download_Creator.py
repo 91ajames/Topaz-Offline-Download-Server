@@ -22,14 +22,8 @@ import zlib
 import lzma
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, urljoin
 CURRENT_OS = platform.system().lower()
-
-CURL_COMMAND = (
-    "curl.exe"
-    if CURRENT_OS == "windows"
-    else "curl"
-)
 
 GREEN = "\033[92m"
 RESET = "\033[0m"
@@ -61,7 +55,7 @@ sys.excepthook = _creator_uncaught_exception
 print(GREEN, end="")
 
 VERSION = "7.0.0"
-BUILD = 260
+BUILD = 261
 VERSION_FILE = VERSION.replace(" ", "_")
 
 if sys.version_info < (3, 10):
@@ -713,81 +707,83 @@ HIDDEN_EASTER_EGG_ARGUMENTS = frozenset({
 
 
 def print_creator_help() -> None:
-    creator_name = Path(sys.argv[0]).name or "creator.py"
+    """Print the compact command map for the creator and generated programs."""
 
-    print("Topaz Offline Download Creator command-line reference")
+    def help_row(label: str, description: str) -> None:
+        print(f"  {label:<38} | {description}")
+
+    print("Topaz Offline Download Creator - Command-Line Reference")
+    print("=" * 64)
     print()
     print("Creator source file:")
-    print(f"  {creator_name}")
-    print(f"    python {creator_name}")
-    print("        Create and validate the shared Topaz offline mirror package.")
-    print(f"    python {creator_name} -h")
-    print(f"    python {creator_name} --help")
-    print("        Display this command-line reference.")
-    print(f"    python {creator_name} --self-test")
-    print("        Run the consolidated developer regression/self-test harness.")
-    print("        Includes host/application route-ownership regression testing.")
+    print("  ~Creator")
+    help_row("  No arguments", "Create and validate the shared Topaz offline mirror package.")
+    help_row("  -h, --help", "Display this command-line reference.")
+    help_row("  --self-test", "Run the consolidated developer regression/self-test harness.")
     print()
     print("Generated SHA-256 verifier:")
-    print("  Config/Topaz_Offline_Download_Creator_SHA256_Verifier.py")
-    print("    No arguments")
-    print("        Validate the pinned manifests and verify the mirror inventory.")
-    print("    --validate-only")
-    print("        Validate the pinned manifest set without scanning mirror files.")
-    print("    -h, --help")
-    print("        Display verifier help.")
+    print("  ~SHA256_Verifier.py")
+    help_row("  No arguments", "Verify the pinned manifests and complete mirror inventory.")
+    help_row("  -h, --help", "Display verifier help.")
+    help_row("  --validate-only", "Validate the pinned manifest set without scanning mirror files.")
     print()
     print("Generated downloader:")
-    print("  Config/Topaz_Offline_Download_Creator_Downloader.py")
-    print("    No arguments")
-    print("        Run the downloader as a standalone program.")
-    print("    --launcher-mode")
-    print("        Run under the generated installer launcher.")
-    print("    --validate-only")
-    print("        Validate the embedded inventory without downloading.")
-    print("    -h, --help")
-    print("        Display downloader help.")
+    print("  ~Downloader.py")
+    help_row("  No arguments", "Run the downloader as a standalone program.")
+    help_row("  -h, --help", "Display downloader help.")
+    help_row("  --validate-only", "Validate the embedded inventory without downloading.")
+    help_row("  --launcher-mode", "Run under the generated platform launcher.")
+    help_row("  --repair-only", "Internal launcher mode: process only SHA-256 repair targets.")
+    help_row("  --repair-network-check", "Internal launcher preflight for repair download capability.")
     print()
     print("Generated repeater server:")
-    print("  Config/Topaz_Offline_Download_Creator_Server_Repeater.py")
-    print("    No command-line options")
-    print("        Run directly to start the local HTTP/HTTPS replay server.")
+    print("  ~Server_Repeater.py")
+    help_row("  No arguments", "Run directly to start the local HTTP/HTTPS replay server.")
+    print("  Internal launcher options:")
+    help_row("  --certificate-preflight", "Prepare and validate certificate state before network setup.")
+    help_row("  --install-certificate-elevated", "Install the approved pending certificate after Unix elevation.")
+    help_row("  --launcher-prestart-display", "Display the Unix repeater pre-start dialogue without elevation.")
+    help_row("  --launcher-prepared-start", "Start the Unix repeater after launcher approval and pre-start dialogue.")
+    help_row("  --launcher-prepared", "Start after launcher certificate/network preparation.")
     print()
     print("Generated interactive launchers:")
-    print(f"  Config/Topaz_Offline_Download_Creator_{VERSION_FILE}.bat")
-    print(f"  Config/Topaz_Offline_Download_Creator_{VERSION_FILE}.sh")
-    print(f"  Config/Topaz_Offline_Download_Creator_{VERSION_FILE}.command")
-    print("    No command-line options")
-    print("        Run the platform launcher for download, verification, repair, and server startup.")
+    print(f"  Config/~Creator_{VERSION_FILE}.bat")
+    print(f"  Config/~Creator_{VERSION_FILE}.sh")
+    print(f"  Config/~Creator_{VERSION_FILE}.command")
+    help_row("  No arguments", "Run download, verification, repair, and server startup.")
     print()
-    print("Source configuration (not command-line arguments):")
-    print("  SHOW_DEVELOPER_VALIDATION")
-    print("  DEBUG_CERTIFICATE")
-    print("  DEBUG_SKIP_FILE_SHA256_SCAN")
-    print("  REDACT_SENSITIVE_HEADERS")
-    print("  LOG_REQUEST_BODIES")
-    print("  REDACT_REQUEST_BODIES")
+    print("Certificate removal helpers:")
+    print("  Certs/~Remove_Cert.bat")
+    print("  Certs/~Remove_Cert.sh")
+    print("  Certs/~Remove_Cert.command")
+    help_row("  No arguments", "Manually remove the managed local HTTPS certificate.")
+    print("  Internal helper options:")
+    help_row("  --managed-by-repeater", "Managed cleanup state; internal use only.")
+    help_row("  --elevated-child", "Windows elevation state; internal use only.")
     print()
-    print("Easter eggs:")
-    print("  --life")
-    print("  --airheads")
-    print("  --dude")
-    print("  --mirror")
-    print("  --topaz")
-    print("  --super")
-    print("  --42")
-    print("  --game")
-    print("  --stop")
+    print("Source configuration:")
+    help_row("  SHOW_DEVELOPER_VALIDATION", "Enable developer validation output.")
+    help_row("  DEBUG_CERTIFICATE", "Enable certificate debugging behavior.")
+    help_row("  DEBUG_SKIP_FILE_SHA256_SCAN", "Skip SHA-256 file scanning for debugging.")
+    help_row("  REDACT_SENSITIVE_HEADERS", "Redact sensitive request headers.")
+    help_row("  LOG_REQUEST_BODIES", "Enable request-body logging.")
+    help_row("  REDACT_REQUEST_BODIES", "Redact sensitive request-body content.")
+    print()
+    print("Easter Eggs:")
+    for option in (
+        "--life", "--airheads", "--dude", "--mirror", "--topaz",
+        "--super", "--42", "--game", "--stop",
+    ):
+        print(f"  {option}")
     print()
     print("Error Codes:")
-    print("  0   SUCCESS")
-    print("      Operation completed successfully.")
-    print("  1   INCOMPLETE")
-    print("      Download, inventory, or integrity work remains incomplete.")
-    print("  2   FAILED")
-    print("      Fatal configuration, manifest, validation, or program error.")
-    print("  130 CANCELLED")
-    print("      Operation was cancelled by the user, including Ctrl+C.")
+    help_row("0    SUCCESS", "Operation completed successfully.")
+    print()
+    help_row("1    INCOMPLETE", "Download, inventory, or integrity work remains incomplete.")
+    print()
+    help_row("2    FAILED", "Fatal configuration, manifest, validation, or program error.")
+    print()
+    help_row("130  CANCELLED", "Operation was cancelled by the user, including Ctrl+C.")
     print()
     print("The creator uses one shared mirror and fixed known-good API replay.")
 
@@ -1039,6 +1035,24 @@ LEGACY_SHA256_MANIFEST_FILE = (
 SERVER_ASSET_MANIFEST_FILE = (
     MANIFEST_ROOT / "Topaz_Offline_Download_Creator_Server_Assets_Manifest.json"
 )
+DISCOVERED_INVENTORY_FILE = (
+    MANIFEST_ROOT / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+)
+DISCOVERED_ASSETS_FILE = (
+    MANIFEST_ROOT / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+)
+# Runtime discovery never rewrites the frozen V2 snapshot/index files.
+# These side manifests persist newly learned inventory and support assets.
+DISCOVERED_INVENTORY_SCHEMA = "topaz-offline-discovered-inventory-v2"
+DISCOVERED_ASSETS_SCHEMA = "topaz-offline-discovered-assets-v2"
+DISCOVERED_SCHEMA_VERSION = 2
+DISCOVERED_INVENTORY_SUFFIXES = frozenset({
+    ".bin", ".data", ".pb", ".txt", ".tz", ".tz2", ".tz3",
+    ".xml", ".xz", ".yaml", ".zip",
+})
+# Compatibility alias retained only for existing internal helper names while the
+# public artifact is now the discovered-assets side manifest.
+RECOVERED_ASSETS_REPORT_FILE = DISCOVERED_ASSETS_FILE
 
 def portable_display_path(path: Path | str) -> str:
     """Return a short display path relative to the creator location."""
@@ -3170,10 +3184,17 @@ set "TOPAZ_CERT_HELPER=%~f0"
 set "TOPAZ_CERT_ARGS=--elevated-child"
 if "%TOPAZ_MANAGED_BY_REPEATER%"=="1" set "TOPAZ_CERT_ARGS=--elevated-child --managed-by-repeater"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ErrorActionPreference='Stop'; try {{ $p=Start-Process -FilePath $env:TOPAZ_CERT_HELPER -ArgumentList $env:TOPAZ_CERT_ARGS -Verb RunAs -Wait -PassThru; exit $p.ExitCode }} catch {{ Write-Error $_; exit 1 }}"
+    "$ErrorActionPreference='Stop'; try {{ $p=Start-Process -FilePath $env:TOPAZ_CERT_HELPER -ArgumentList $env:TOPAZ_CERT_ARGS -Verb RunAs -Wait -PassThru; exit $p.ExitCode }} catch {{ if ($_.Exception.NativeErrorCode -eq 1223) {{ exit 1223 }}; Write-Error $_; exit 1 }}"
 set "TOPAZ_ELEVATION_CODE=%ERRORLEVEL%"
 set "TOPAZ_CERT_HELPER="
 set "TOPAZ_CERT_ARGS="
+if "%TOPAZ_ELEVATION_CODE%"=="1223" (
+    echo.
+    echo Administrator rights were not granted.
+    echo The cleanup helper and certificate files were retained for retry.
+    echo.
+    exit /b 1
+)
 if not "%TOPAZ_ELEVATION_CODE%"=="0" (
     echo.
     echo Administrator relaunch or certificate cleanup failed.
@@ -3476,10 +3497,21 @@ def create_linux_certificate_files() -> None:
 
     if debian_family:
         trust_anchor = "/usr/local/share/ca-certificates/topaz-offline-mirror.crt"
-        update_command = "update-ca-certificates"
+        update_command = "update-ca-certificates --fresh"
+        derived_anchor_check = r'''
+if [ -e "/etc/ssl/certs/topaz-offline-mirror.pem" ] || [ -L "/etc/ssl/certs/topaz-offline-mirror.pem" ]; then
+    CERT_REMOVE_FAILED=1
+    echo "WARNING: A derived Topaz certificate link is still present: /etc/ssl/certs/topaz-offline-mirror.pem" >&2
+fi
+if find /etc/ssl/certs -maxdepth 1 -type l -lname '*topaz-offline-mirror*' -print -quit 2>/dev/null | grep -q .; then
+    CERT_REMOVE_FAILED=1
+    echo "WARNING: A derived Topaz certificate symlink is still present in /etc/ssl/certs." >&2
+fi
+'''
     elif redhat_family:
         trust_anchor = "/etc/pki/ca-trust/source/anchors/topaz-offline-mirror.crt"
         update_command = "update-ca-trust"
+        derived_anchor_check = ""
     else:
         raise RuntimeError(
             "Unsupported Linux certificate-store layout. Supported families are "
@@ -3504,15 +3536,20 @@ if ! sudo rm -f -- "$TRUST_ANCHOR"; then
     CERT_REMOVE_FAILED=1
 fi
 
-if ! sudo {update_command}; then
+CA_UPDATE_OUTPUT=""
+if ! CA_UPDATE_OUTPUT="$(sudo {update_command} 2>&1)"; then
     CERT_REMOVE_FAILED=1
+    echo "WARNING: Linux trust-store update failed." >&2
+    if [ -n "$CA_UPDATE_OUTPUT" ]; then
+        printf '%s\\n' "$CA_UPDATE_OUTPUT" >&2
+    fi
 fi
 
 if sudo test -e "$TRUST_ANCHOR"; then
     CERT_REMOVE_FAILED=1
     echo "WARNING: The Topaz certificate trust anchor is still present: $TRUST_ANCHOR" >&2
 fi
-
+{derived_anchor_check}
 if [ "$CERT_REMOVE_FAILED" -ne 0 ]; then
     echo "The Linux trust store was not fully updated or could not be verified." >&2
     echo "Local certificate files, history, and this cleanup utility were retained for retry." >&2
@@ -3941,6 +3978,35 @@ def validate_destination_collisions(
                 )
 
             report_lines.append("")
+
+    # Append-only discovery architecture note. Existing collision sections above
+    # remain unchanged; new information is always added at the report tail.
+    report_lines.extend([
+        "============================================================",
+        "Discovered Inventory / Asset Classification",
+        "============================================================",
+        "",
+        "Discovered Inventory:",
+        "  Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json",
+        "",
+        "Accepted Inventory Extensions:",
+        *[f"  {suffix}" for suffix in sorted(DISCOVERED_INVENTORY_SUFFIXES)],
+        "",
+        "Discovered Assets:",
+        "  Topaz_Offline_Download_Creator_Discovered_Assets.v2.json",
+        "",
+        "Recovered files that pass recovery validation and use an accepted",
+        "inventory extension are recorded in the discovered inventory side manifest.",
+        "Those records participate in logical and unique physical inventory totals",
+        "without modifying the frozen V2 snapshot/index files.",
+        "",
+        "Other successfully recovered static files are recorded as discovered assets",
+        "and remain separate from model/package inventory totals.",
+        "",
+        "Destination paths already owned by the frozen V2 or supplemental inventory",
+        "are not duplicated by discovered inventory data.",
+        "",
+    ])
 
     _atomic_write_managed_text(
         DESTINATION_COLLISION_REPORT,
@@ -4463,8 +4529,70 @@ def load_sharpen_manifest_files(app_state_file: Path) -> list[dict]:
 
 
 
-for folder in (TOPAZ_SERVER_ROOT, MIRROR_ROOT, DEST, TEST, TEST11, TRACK, CERT_DIR, CONFIG_DIR, APP_STATE_DIR, SHARPEN_JSON_ROOT, MANIFEST_ROOT):
+def path_is_link_like(path: Path) -> bool:
+    """Return whether an existing path is a symlink, junction, or reparse point."""
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction):
+        try:
+            if is_junction():
+                return True
+        except OSError:
+            return True
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(reparse_flag and attributes & reparse_flag)
+
+
+def mirror_path_has_link_component(path: Path) -> bool:
+    """Reject link-like components below Mirror while allowing Mirror itself."""
+    try:
+        relative = path.relative_to(MIRROR_ROOT)
+    except ValueError:
+        return True
+    candidates = (
+        MIRROR_ROOT.joinpath(*relative.parts[:index])
+        for index in range(1, len(relative.parts) + 1)
+    )
+    return any(
+        os.path.lexists(candidate) and path_is_link_like(candidate)
+        for candidate in candidates
+    )
+
+
+def ensure_mirror_directory(directory: Path) -> None:
+    """Create/validate a real directory chain below Mirror without following links."""
+    try:
+        relative = directory.relative_to(MIRROR_ROOT)
+    except ValueError as error:
+        raise RuntimeError(f"Mirror directory escaped Mirror: {directory}") from error
+    current = MIRROR_ROOT
+    for component in relative.parts:
+        current = current / component
+        if os.path.lexists(current):
+            if path_is_link_like(current) or not current.is_dir():
+                raise RuntimeError(f"Mirror directory contains a link-like component: {directory}")
+            continue
+        try:
+            current.mkdir()
+        except FileExistsError:
+            if path_is_link_like(current) or not current.is_dir():
+                raise RuntimeError(
+                    f"Mirror directory contains a link-like component: {directory}"
+                ) from None
+
+
+for folder in (TOPAZ_SERVER_ROOT, MIRROR_ROOT, CERT_DIR, CONFIG_DIR, MANIFEST_ROOT):
     folder.mkdir(parents=True, exist_ok=True)
+for folder in (DEST, TEST, TEST11, TRACK, APP_STATE_DIR, SHARPEN_JSON_ROOT):
+    ensure_mirror_directory(folder)
 
 
 def write_known_embedded_support_asset(
@@ -4481,8 +4609,8 @@ def write_known_embedded_support_asset(
     if hashlib.sha256(payload).hexdigest().upper() != expected_sha256:
         raise RuntimeError(f"Embedded {label} SHA-256 is invalid.")
 
-    if destination.is_symlink():
-        raise RuntimeError(f"Refusing symbolic-link embedded support asset: {destination}")
+    if mirror_path_has_link_component(destination):
+        raise RuntimeError(f"Refusing link-like embedded support asset: {destination}")
     if destination.is_file():
         try:
             if (
@@ -6362,9 +6490,11 @@ def server_support_asset_paths() -> list[Path]:
 
 
 def server_asset_record(path: Path, *, source: str, source_url: str = "") -> dict:
+    if mirror_path_has_link_component(path):
+        raise RuntimeError(f"Refusing link-like Server Asset path: {path}")
     resolved = path.resolve()
     resolved.relative_to(MIRROR_ROOT.resolve())
-    relative = resolved.relative_to(MIRROR_ROOT.resolve()).as_posix()
+    relative = path.relative_to(MIRROR_ROOT).as_posix()
     raw = path.read_bytes()
     record = {
         "relative_path": relative,
@@ -6562,7 +6692,20 @@ def merge_recovered_asset_records(existing: dict, incoming: dict) -> dict:
     return merged
 
 
-def write_server_asset_manifest(extra_record: dict | None = None) -> None:
+def current_v2_physical_path_keys() -> set[str]:
+    """Return case-folded destinations owned by the current authoritative V2 inventory."""
+    return {
+        record["relative_path"].casefold()
+        for record in validated_v2_physical_records()
+    }
+
+
+def write_server_asset_manifest(
+    extra_record: dict | None = None,
+    *,
+    v2_owned_keys: set[str] | None = None,
+    discovered_owned_keys: set[str] | None = None,
+) -> None:
     records_by_path: dict[str, dict] = {}
     for path in server_support_asset_paths():
         if not path.is_file():
@@ -6570,18 +6713,29 @@ def write_server_asset_manifest(extra_record: dict | None = None) -> None:
         record = server_asset_record(path, source="embedded_support")
         records_by_path[record["relative_path"].casefold()] = record
 
-    # The current embedded baseline is authoritative for its destinations.
-    # Historical recovered_404/downloaded_support provenance may describe the
-    # same file from an older build, but it must never reclassify a file
-    # that is now a permanent embedded support asset.
+    # Current embedded support and the authoritative V2 inventory own their
+    # destinations. Historical dynamic provenance may describe a path that was
+    # recovered in an older build and later promoted into either inventory;
+    # such stale dynamic records must not survive the manifest rebuild.
     embedded_baseline_keys = set(records_by_path)
+    if v2_owned_keys is None:
+        v2_owned_keys = current_v2_physical_path_keys()
+    if discovered_owned_keys is None:
+        discovered_owned_keys = {
+            record["relative_path"].casefold()
+            for record in load_discovered_inventory_records()
+        }
 
     for raw_record in trusted_previous_server_asset_records(announce_invalid=True):
         current = normalized_dynamic_server_asset_record(raw_record)
         if current is None:
             continue
         key = current["relative_path"].casefold()
-        if key in embedded_baseline_keys:
+        if (
+            key in embedded_baseline_keys
+            or key in v2_owned_keys
+            or key in discovered_owned_keys
+        ):
             continue
         existing = records_by_path.get(key)
         if existing is not None:
@@ -6615,7 +6769,11 @@ def write_server_asset_manifest(extra_record: dict | None = None) -> None:
             else:
                 incoming.pop("source_urls", None)
         key = relative.casefold()
-        if key not in embedded_baseline_keys:
+        if (
+            key not in embedded_baseline_keys
+            and key not in v2_owned_keys
+            and key not in discovered_owned_keys
+        ):
             existing = records_by_path.get(key)
             if existing is not None:
                 incoming = merge_recovered_asset_records(existing, incoming)
@@ -6655,17 +6813,373 @@ def write_server_asset_manifest(extra_record: dict | None = None) -> None:
         raise
 
 
-def record_recovered_server_asset(url: str, destination: Path) -> None:
-    known_primary = {
-        record["relative_path"].casefold()
-        for record in validated_v2_physical_records()
+
+def current_base_inventory_path_keys() -> set[str]:
+    """Return V2 + supplemental physical paths owned by the frozen/base inventory."""
+    keys = current_v2_physical_path_keys()
+    keys.update(
+        str(record["relative_path"]).replace("\\", "/").strip("/").casefold()
+        for record in VIDEO_AI_715_CAPTURED_PACKAGE_RECORDS
+    )
+    return keys
+
+
+def canonical_discovered_payload(records: list[dict]) -> bytes:
+    """Return deterministic bytes for one discovered side-manifest file list."""
+    return json.dumps(
+        records,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def normalize_discovered_record(raw_record: object, *, inventory: bool) -> dict:
+    """Validate one persistent discovered inventory/asset record."""
+    if not isinstance(raw_record, dict):
+        raise RuntimeError("Discovered manifest contains a non-object record.")
+    relative, _parts = validate_manifest_relative_path(
+        raw_record.get("relative_path"),
+        entry_description="discovered inventory path" if inventory else "discovered asset path",
+    )
+    suffix = PurePosixPath(relative).suffix.casefold()
+    if inventory and suffix not in DISCOVERED_INVENTORY_SUFFIXES:
+        raise RuntimeError(f"Discovered inventory extension is not approved: {relative}")
+    if not inventory and suffix in DISCOVERED_INVENTORY_SUFFIXES:
+        raise RuntimeError(f"Discovered asset belongs in discovered inventory: {relative}")
+    try:
+        size_bytes = int(raw_record.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("Discovered record has an invalid byte count.") from error
+    sha256 = str(raw_record.get("sha256", "") or "").upper()
+    if size_bytes <= 0 or not re.fullmatch(r"[0-9A-F]{64}", sha256):
+        raise RuntimeError(f"Discovered record has invalid integrity metadata: {relative}")
+    urls: list[str] = []
+    for raw_url in recovered_asset_source_urls(raw_record):
+        normalized_url = normalized_recovered_asset_source_url(
+            raw_url,
+            expected_relative=relative,
+        )
+        if normalized_url is None:
+            raise RuntimeError(f"Discovered record has invalid source URL: {relative}")
+        if normalized_url not in urls:
+            urls.append(normalized_url)
+    if not urls:
+        raise RuntimeError(f"Discovered record has no source URL: {relative}")
+    record = {
+        "relative_path": relative,
+        "size_bytes": size_bytes,
+        "sha256": sha256,
+        "source": "recovered_404",
+        "source_url": urls[0],
     }
-    relative = destination.resolve().relative_to(MIRROR_ROOT.resolve()).as_posix()
-    if relative.casefold() in known_primary:
+    if len(urls) > 1:
+        record["source_urls"] = urls
+    return record
+
+
+def merge_discovered_records(existing: dict, incoming: dict) -> dict:
+    """Merge URL ownership for one discovered physical path without changing bytes."""
+    if (
+        int(existing["size_bytes"]) != int(incoming["size_bytes"])
+        or str(existing["sha256"]).upper() != str(incoming["sha256"]).upper()
+    ):
+        raise RuntimeError(
+            "Discovered destination collision has conflicting bytes: "
+            + str(incoming.get("relative_path", ""))
+        )
+    urls = recovered_asset_source_urls(existing)
+    for value in recovered_asset_source_urls(incoming):
+        if value not in urls:
+            urls.append(value)
+    merged = dict(existing)
+    merged["source_url"] = urls[0]
+    if len(urls) > 1:
+        merged["source_urls"] = urls
+    else:
+        merged.pop("source_urls", None)
+    return merged
+
+
+def load_discovered_manifest(path: Path, *, inventory: bool) -> list[dict]:
+    """Load one discovered side manifest without requiring its payload files to exist."""
+    if not path.exists():
+        return []
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError(f"Discovered manifest path is unsafe: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"Unable to read discovered manifest: {path.name}: {error}") from error
+    schema = DISCOVERED_INVENTORY_SCHEMA if inventory else DISCOVERED_ASSETS_SCHEMA
+    count_field = "logical_entries" if inventory else "asset_count"
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != schema
+        or payload.get("schema_version") != DISCOVERED_SCHEMA_VERSION
+        or payload.get("mirror_relative_root") != "Mirror"
+        or str(payload.get("hash_algorithm", "")).upper() != "SHA256"
+    ):
+        raise RuntimeError(f"Unsupported discovered manifest schema: {path.name}")
+    records = payload.get("files")
+    if not isinstance(records, list):
+        raise RuntimeError(f"Discovered manifest file list is invalid: {path.name}")
+    expected_payload = str(payload.get("records_payload_sha256", "") or "").upper()
+    actual_payload = hashlib.sha256(canonical_discovered_payload(records)).hexdigest().upper()
+    if not re.fullmatch(r"[0-9A-F]{64}", expected_payload) or expected_payload != actual_payload:
+        raise RuntimeError(f"Discovered manifest checksum failed: {path.name}")
+    normalized = [normalize_discovered_record(record, inventory=inventory) for record in records]
+    normalized.sort(key=lambda item: item["relative_path"].casefold())
+    unique_paths = {record["relative_path"].casefold() for record in normalized}
+    if len(unique_paths) != len(normalized):
+        raise RuntimeError(f"Discovered manifest contains duplicate physical paths: {path.name}")
+    if inventory:
+        if payload.get("accepted_extensions") != sorted(DISCOVERED_INVENTORY_SUFFIXES):
+            raise RuntimeError("Discovered inventory extension policy failed.")
+        logical_entries = sum(len(recovered_asset_source_urls(record)) for record in normalized)
+        if int(payload.get("logical_entries", -1)) != logical_entries:
+            raise RuntimeError("Discovered inventory logical count failed.")
+        if int(payload.get("unique_physical_files", -1)) != len(normalized):
+            raise RuntimeError("Discovered inventory physical count failed.")
+    elif int(payload.get(count_field, -1)) != len(normalized):
+        raise RuntimeError("Discovered asset count failed.")
+    return normalized
+
+
+def load_discovered_inventory_records() -> list[dict]:
+    """Return persistent discovered model/package records not promoted into the base inventory."""
+    base_keys = current_base_inventory_path_keys()
+    return [
+        record
+        for record in load_discovered_manifest(DISCOVERED_INVENTORY_FILE, inventory=True)
+        if record["relative_path"].casefold() not in base_keys
+    ]
+
+
+def load_discovered_asset_records() -> list[dict]:
+    """Return persistent discovered support assets."""
+    return load_discovered_manifest(DISCOVERED_ASSETS_FILE, inventory=False)
+
+
+def write_discovered_manifest(records: list[dict], *, inventory: bool) -> None:
+    """Atomically persist one discovered side manifest."""
+    normalized = [normalize_discovered_record(record, inventory=inventory) for record in records]
+    by_path: dict[str, dict] = {}
+    for record in normalized:
+        key = record["relative_path"].casefold()
+        if key in by_path:
+            by_path[key] = merge_discovered_records(by_path[key], record)
+        else:
+            by_path[key] = record
+    if inventory:
+        base_keys = current_base_inventory_path_keys()
+        by_path = {key: value for key, value in by_path.items() if key not in base_keys}
+    records = sorted(by_path.values(), key=lambda item: item["relative_path"].casefold())
+    path = DISCOVERED_INVENTORY_FILE if inventory else DISCOVERED_ASSETS_FILE
+    if not records:
+        path.unlink(missing_ok=True)
         return
+    payload_bytes = canonical_discovered_payload(records)
+    payload = {
+        "schema": DISCOVERED_INVENTORY_SCHEMA if inventory else DISCOVERED_ASSETS_SCHEMA,
+        "schema_version": DISCOVERED_SCHEMA_VERSION,
+        "creator_version": VERSION,
+        "creator_build": BUILD,
+        "generated_utc": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "mirror_relative_root": "Mirror",
+        "hash_algorithm": "SHA256",
+        "records_payload_sha256": hashlib.sha256(payload_bytes).hexdigest().upper(),
+        "files": records,
+    }
+    if inventory:
+        payload["logical_entries"] = sum(len(recovered_asset_source_urls(record)) for record in records)
+        payload["unique_physical_files"] = len(records)
+        payload["accepted_extensions"] = sorted(DISCOVERED_INVENTORY_SUFFIXES)
+    else:
+        payload["asset_count"] = len(records)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.parent.is_symlink() or path.is_symlink():
+        raise RuntimeError(f"Refusing unsafe discovered manifest path: {path}")
+    if path.exists() and not path.is_file():
+        raise RuntimeError(f"Discovered manifest destination is not a file: {path}")
+    descriptor, staged_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".stage", dir=str(path.parent)
+    )
+    staged = Path(staged_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(staged, path)
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def prune_discovered_inventory_promoted_to_base() -> int:
+    """Remove side-inventory records now owned by the frozen/base inventory."""
+    records = load_discovered_manifest(DISCOVERED_INVENTORY_FILE, inventory=True)
+    if not records:
+        return 0
+    base_keys = current_base_inventory_path_keys()
+    retained = [
+        record
+        for record in records
+        if record["relative_path"].casefold() not in base_keys
+    ]
+    removed = len(records) - len(retained)
+    if removed:
+        write_discovered_manifest(retained, inventory=True)
+    return removed
+
+
+def record_discovered_inventory(url: str, destination: Path) -> None:
+    """Persist one successfully recovered model/package file in the side inventory."""
+    relative = destination.resolve().relative_to(MIRROR_ROOT.resolve()).as_posix()
+    if relative.casefold() in current_base_inventory_path_keys():
+        return
+    incoming = server_asset_record(destination, source="recovered_404", source_url=url)
+    records = load_discovered_inventory_records()
+    records.append(incoming)
+    write_discovered_manifest(records, inventory=True)
+
+
+def record_discovered_asset(url: str, destination: Path) -> None:
+    """Persist one successfully recovered support asset beside the runtime Server Assets manifest."""
+    incoming = server_asset_record(destination, source="recovered_404", source_url=url)
+    records = load_discovered_asset_records()
+    records.append(incoming)
+    write_discovered_manifest(records, inventory=False)
+
+
+def discovered_inventory_counts() -> tuple[int, int]:
+    """Return logical and unique physical counts for the persistent discovered inventory."""
+    records = load_discovered_inventory_records()
+    return (
+        sum(len(recovered_asset_source_urls(record)) for record in records),
+        len(records),
+    )
+
+
+def discovered_inventory_logical_records() -> list[dict]:
+    """Expand discovered physical records to one logical record per captured source URL."""
+    logical: list[dict] = []
+    for record in load_discovered_inventory_records():
+        for url in recovered_asset_source_urls(record):
+            logical.append({
+                "url": url,
+                "relative_path": record["relative_path"],
+                "size_bytes": int(record["size_bytes"]),
+                "sha256": str(record["sha256"]).upper(),
+                "source": "discovered_inventory",
+            })
+    return logical
+
+
+def record_recovered_discovery(url: str, destination: Path) -> None:
+    """Classify one recovered unknown file into inventory or support-asset discovery."""
+    suffix = destination.suffix.casefold()
+    if suffix in DISCOVERED_INVENTORY_SUFFIXES:
+        record_discovered_inventory(url, destination)
+        return
+    record_discovered_asset(url, destination)
     write_server_asset_manifest(
         server_asset_record(destination, source="recovered_404", source_url=url)
     )
+
+
+def record_recovered_server_asset(url: str, destination: Path) -> None:
+    """Compatibility wrapper for the new discovered inventory/asset classifier."""
+    record_recovered_discovery(url, destination)
+
+
+# Backward-compatible internal helper names now target the discovered-assets side manifest.
+RECOVERED_ASSETS_REPORT_SCHEMA = DISCOVERED_SCHEMA_VERSION
+RECOVERED_ASSETS_REPORT_TYPE = DISCOVERED_ASSETS_SCHEMA
+
+
+def canonical_recovered_assets_report_payload(records: list[dict]) -> bytes:
+    """Compatibility wrapper for discovered-assets deterministic payload bytes."""
+    return canonical_discovered_payload(records)
+
+
+def normalize_recovered_assets_report_record(raw_record: dict) -> dict:
+    """Compatibility wrapper for one discovered support-asset record."""
+    return normalize_discovered_record(raw_record, inventory=False)
+
+
+def load_recovered_assets_report_records() -> list[dict]:
+    """Compatibility wrapper returning persistent discovered support assets."""
+    return load_discovered_asset_records()
+
+
+def remove_recovered_assets_report() -> None:
+    """Remove the discovered-assets side manifest without following links."""
+    path = DISCOVERED_ASSETS_FILE
+    if path.parent.exists() and path.parent.is_symlink():
+        raise RuntimeError("Refusing unsafe discovered-assets directory.")
+    if path.is_symlink():
+        raise RuntimeError("Refusing unsafe discovered-assets path.")
+    if path.exists() and not path.is_file():
+        raise RuntimeError("Discovered-assets destination is not a file.")
+    path.unlink(missing_ok=True)
+
+
+def write_recovered_assets_report(records: list[dict]) -> None:
+    """Compatibility wrapper persisting discovered support assets."""
+    write_discovered_manifest(records, inventory=False)
+
+
+def sync_recovered_assets_report_from_server_assets(
+    v2_owned_keys: set[str] | None = None,
+) -> None:
+    """Migrate trusted recovered Server Assets into the two discovery side manifests."""
+    if v2_owned_keys is None:
+        v2_owned_keys = current_base_inventory_path_keys()
+
+    inventory_records = load_discovered_inventory_records()
+    inventory_by_path = {
+        record["relative_path"].casefold(): record
+        for record in inventory_records
+    }
+    asset_records = load_discovered_asset_records()
+    asset_by_path = {
+        record["relative_path"].casefold(): record
+        for record in asset_records
+    }
+    inventory_changed = False
+    assets_changed = False
+
+    for raw_record in trusted_previous_server_asset_records(announce_invalid=True):
+        current = normalized_dynamic_server_asset_record(raw_record)
+        if current is None or current.get("source") != "recovered_404":
+            continue
+        key = current["relative_path"].casefold()
+        if key in v2_owned_keys:
+            continue
+        inventory = (
+            PurePosixPath(current["relative_path"]).suffix.casefold()
+            in DISCOVERED_INVENTORY_SUFFIXES
+        )
+        normalized = normalize_discovered_record(current, inventory=inventory)
+        target = inventory_by_path if inventory else asset_by_path
+        existing = target.get(key)
+        merged = (
+            merge_discovered_records(existing, normalized)
+            if existing is not None
+            else normalized
+        )
+        if existing != merged:
+            target[key] = merged
+            if inventory:
+                inventory_changed = True
+            else:
+                assets_changed = True
+
+    if inventory_changed:
+        write_discovered_manifest(list(inventory_by_path.values()), inventory=True)
+    if assets_changed:
+        write_discovered_manifest(list(asset_by_path.values()), inventory=False)
 
 
 def trusted_recovered_server_asset_record(destination: Path) -> dict | None:
@@ -6680,6 +7194,19 @@ def trusted_recovered_server_asset_record(destination: Path) -> dict | None:
             and raw_record.get("source") == "recovered_404"
         ):
             return normalized_dynamic_server_asset_record(raw_record)
+    return None
+
+
+def trusted_discovered_record(destination: Path) -> dict | None:
+    """Return persistent discovered metadata for one destination, if known."""
+    try:
+        relative = destination.resolve().relative_to(MIRROR_ROOT.resolve()).as_posix()
+    except (OSError, ValueError):
+        return None
+    key = relative.casefold()
+    for record in (*load_discovered_inventory_records(), *load_discovered_asset_records()):
+        if record["relative_path"].casefold() == key:
+            return record
     return None
 
 # ============================================================
@@ -7102,7 +7629,10 @@ def write_v2_sha256_assets() -> None:
             "Overall logical inventory count does not match the V2 + supplemental inventory: "
             f"{download_logical_total} != {expected_overall_logical}."
         )
-    expected_overall_physical = len(physical_records) + len(captured_paths)
+    expected_overall_physical = len({
+        str(record["relative_path"]).replace("\\", "/").casefold()
+        for record in current_logical_inventory_records()
+    } | set(captured_paths))
     if overall_unique_physical_files != expected_overall_physical:
         raise RuntimeError(
             "Overall physical inventory count does not match the V2 + supplemental inventory: "
@@ -7113,18 +7643,36 @@ def write_v2_sha256_assets() -> None:
             f"Expected one missing inventory metadata entry, found {missing_inventory_metadata}."
         )
 
+    discovered_records = load_discovered_inventory_records()
+    discovered_logical = sum(
+        len(recovered_asset_source_urls(record))
+        for record in discovered_records
+    )
+    discovered_physical = len(discovered_records)
+    discovered_unique_bytes = sum(int(record["size_bytes"]) for record in discovered_records)
+    discovered_logical_bytes = sum(
+        int(record["size_bytes"]) * len(recovered_asset_source_urls(record))
+        for record in discovered_records
+    )
+    live_logical_total = download_logical_total + discovered_logical
+    live_physical_total = overall_unique_physical_files + discovered_physical
+    live_logical_bytes = overall_logical_size_bytes + discovered_logical_bytes
+    live_unique_bytes = overall_unique_size_bytes + discovered_unique_bytes
+
     print("Inventory Summary:")
     print(f"  Snapshot Manifests          : {len(snapshots)}")
-    print(f"  Logical Inventory Entries   : {download_logical_total}")
+    print(f"  Logical Inventory Entries   : {live_logical_total}")
     print(
         "  Known Logical Inventory Size: "
-        f"{overall_logical_size_bytes / (1024 ** 3):.2f} GB"
+        f"{live_logical_bytes / (1024 ** 3):.2f} GB"
     )
-    print(f"  Unique Physical Files       : {overall_unique_physical_files}")
+    print(f"  Unique Physical Files       : {live_physical_total}")
     print(
         "  Known Unique Physical Size  : "
-        f"{overall_unique_size_bytes / (1024 ** 3):.2f} GB"
+        f"{live_unique_bytes / (1024 ** 3):.2f} GB"
     )
+    print(f"  Discovered Inventory Entries: {discovered_logical}")
+    print(f"  Discovered Asset Files      : {len(load_discovered_asset_records())}")
     print("  Manifest Index              : ~Manifest_Index.v2.json")
     print(f"  Missing Inventory Metadata  : {missing_inventory_metadata}")
     print()
@@ -7163,13 +7711,13 @@ def write_portable_sha256_verifier() -> None:
         })
     )
     expected_verifier_logical = verified_logical_total + len(VIDEO_AI_715_CAPTURED_PACKAGE_RECORDS)
-    expected_verifier_physical = (
-        len(validated_v2_physical_records())
-        + len({
-            str(record["relative_path"]).replace("\\", "/").casefold()
-            for record in VIDEO_AI_715_CAPTURED_PACKAGE_RECORDS
-        })
-    )
+    expected_verifier_physical = len({
+        str(record["relative_path"]).replace("\\", "/").casefold()
+        for record in current_logical_inventory_records()
+    } | {
+        str(record["relative_path"]).replace("\\", "/").casefold()
+        for record in VIDEO_AI_715_CAPTURED_PACKAGE_RECORDS
+    })
     if download_logical_total != expected_verifier_logical:
         raise RuntimeError(
             "Verifier logical inventory does not match the V2 + supplemental inventory."
@@ -7179,8 +7727,19 @@ def write_portable_sha256_verifier() -> None:
             "Verifier physical inventory does not match the V2 + supplemental inventory."
         )
 
+    expected_snapshot_sha256_literal = "{\n" + "\n".join(
+        f"    {filename!r}: (\n        {digest!r}\n    ),"
+        for filename, digest in sorted(expected_snapshot_sha256.items())
+    ) + "\n}"
+
     verifier_source = rf'''#!/usr/bin/env python3
 # Generated by Topaz Offline Download Creator {VERSION} Build {BUILD}.
+
+"""Verify the pinned Topaz offline mirror inventory and file integrity."""
+
+# The generated public filename is intentionally stable and descriptive.
+# This generated verifier intentionally remains one cohesive integrity-checking module.
+# pylint: disable=invalid-name,too-many-lines
 
 import hashlib
 import json
@@ -7203,13 +7762,31 @@ MIRROR_ROOT = SERVER_ROOT / "Mirror"
 V2_ROOT = SERVER_ROOT / "Manifests"
 INDEX_PATH = V2_ROOT / "Topaz_Offline_Download_Creator_Manifest_Index.v2.json"
 REPAIR_PATH = SERVER_ROOT / "Manifests" / "Topaz_Offline_Download_Creator_SHA256_Repair.json"
+DISCOVERED_INVENTORY_PATH = (
+    SERVER_ROOT / "Manifests" / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+)
+DISCOVERED_ASSETS_PATH = (
+    SERVER_ROOT / "Manifests" / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+)
+SERVER_ASSET_MANIFEST_PATH = (
+    SERVER_ROOT / "Manifests" / "Topaz_Offline_Download_Creator_Server_Assets_Manifest.json"
+)
+DISCOVERED_INVENTORY_SCHEMA = "topaz-offline-discovered-inventory-v2"
+DISCOVERED_ASSETS_SCHEMA = "topaz-offline-discovered-assets-v2"
+DISCOVERED_SCHEMA_VERSION = 2
+DISCOVERED_INVENTORY_SUFFIXES = frozenset({{
+    ".bin", ".data", ".pb", ".txt", ".tz", ".tz2", ".tz3",
+    ".xml", ".xz", ".yaml", ".zip",
+}})
 ERROR_REPORT = SERVER_ROOT / "Topaz_Offline_Download_Creator_Error.txt"
 SNAPSHOT_SCHEMA = "topaz-offline-snapshot-manifest-v2"
 INDEX_SCHEMA = "topaz-offline-manifest-index-v2"
 EXPECTED_INDEX_SHA256 = {expected_index_sha256!r}
-EXPECTED_SNAPSHOT_SHA256 = json.loads({json.dumps(expected_snapshot_sha256, sort_keys=True)!r})
+EXPECTED_SNAPSHOT_SHA256 = {expected_snapshot_sha256_literal}
 DEBUG_SKIP_FILE_SHA256_SCAN = {DEBUG_SKIP_FILE_SHA256_SCAN!r}
-SUPPLEMENTAL_RECORDS = json.loads({supplemental_verifier_json!r})
+SUPPLEMENTAL_RECORDS = json.loads(
+    {supplemental_verifier_json!r}
+)
 ALLOWED_HOSTS = {{
     "video-models.topazlabs.com",
     "image-models.topazlabs.com",
@@ -7234,20 +7811,27 @@ def validate_report_url(value: object) -> str | None:
         return None
     if host not in ALLOWED_HOSTS:
         return None
-    if parsed.scheme == "http":
-        if host != "models.topazlabs.com" or port not in (None, 80):
-            return None
-    elif parsed.scheme == "https":
-        if port not in (None, 443):
-            return None
-    else:
-        return None
-    if parsed.username or parsed.password or parsed.fragment:
+
+    scheme_allowed = (
+        parsed.scheme == "http"
+        and host == "models.topazlabs.com"
+        and port in {{None, 80}}
+    ) or (
+        parsed.scheme == "https"
+        and port in {{None, 443}}
+    )
+    if (
+        not scheme_allowed
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+    ):
         return None
     return url
 
 
 def display_path(path: Path) -> str:
+    """Return a stable user-facing path relative to the package root when possible."""
     try:
         relative = path.resolve().relative_to(SERVER_ROOT.parent.resolve())
     except ValueError:
@@ -7256,20 +7840,25 @@ def display_path(path: Path) -> str:
 
 
 def canonical_json_bytes(value: object) -> bytes:
+    """Serialize JSON deterministically for pinned payload hashing."""
     return json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
 
 
 def sha256_file(path: Path) -> str:
+    """Return the uppercase SHA-256 digest of a file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+        while True:
+            if not (chunk := handle.read(8 * 1024 * 1024)):
+                break
             digest.update(chunk)
     return digest.hexdigest().upper()
 
 
 def read_json(path: Path, *, description: str) -> dict:
+    """Read a required JSON object and convert parse failures to RuntimeError."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -7280,6 +7869,7 @@ def read_json(path: Path, *, description: str) -> dict:
 
 
 def normalize_relative_path(value: object) -> str:
+    """Validate and normalize a safe mirror-relative POSIX path."""
     text = str(value or "").replace("\\", "/").strip()
     if not text or text.startswith("/") or re.match(r"^[A-Za-z]:", text):
         raise RuntimeError(f"Unsafe manifest path: {{value!r}}")
@@ -7290,6 +7880,7 @@ def normalize_relative_path(value: object) -> str:
 
 
 def validate_url(value: object):
+    """Validate an authoritative manifest URL and return it with its parsed form."""
     url = str(value or "").strip()
     parsed = urlparse(url)
     host = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
@@ -7299,26 +7890,33 @@ def validate_url(value: object):
         port = parsed.port
     except ValueError as error:
         raise RuntimeError(f"Invalid v2 manifest port: {{url}}") from error
-    if parsed.scheme.lower() == "http":
+
+    scheme = parsed.scheme.lower()
+    if scheme not in {{"http", "https"}}:
+        raise RuntimeError(
+            f"Unsupported manifest URL scheme: {{parsed.scheme or '<missing>'}}"
+        )
+    if scheme == "http":
         if host != "models.topazlabs.com":
             raise RuntimeError("Only the historical raw-model host may use HTTP.")
-        if port not in (None, 80):
+        if port not in {{None, 80}}:
             raise RuntimeError(f"Unexpected HTTP manifest port: {{port}}")
-    elif parsed.scheme.lower() == "https":
-        if port not in (None, 443):
-            raise RuntimeError(f"Unexpected HTTPS manifest port: {{port}}")
-    else:
-        raise RuntimeError(f"Unsupported manifest URL scheme: {{parsed.scheme or '<missing>'}}")
+    if scheme == "https" and port not in {{None, 443}}:
+        raise RuntimeError(f"Unexpected HTTPS manifest port: {{port}}")
     if parsed.username or parsed.password or parsed.fragment:
         raise RuntimeError(f"Unsafe manifest URL: {{url}}")
     return url, parsed
 
 
-def load_inventory() -> tuple[dict, list[dict]]:
+def load_manifest_index() -> tuple[dict, list[dict]]:
+    """Load and validate the pinned V2 manifest index."""
     if sha256_file(INDEX_PATH) != EXPECTED_INDEX_SHA256:
-        raise RuntimeError("Manifest v2 index does not match build {BUILD}.")
+        raise RuntimeError("Manifest v2 index does not match build 261.")
     index = read_json(INDEX_PATH, description="manifest v2 index")
-    if index.get("schema") != INDEX_SCHEMA or int(index.get("manifest_format", 0) or 0) != 2:
+    if (
+        index.get("schema") != INDEX_SCHEMA
+        or int(index.get("manifest_format", 0) or 0) != 2
+    ):
         raise RuntimeError("Unsupported manifest v2 index schema.")
     if str(index.get("hash_algorithm", "")).upper() != "SHA256":
         raise RuntimeError("Manifest v2 index hash algorithm is invalid.")
@@ -7327,179 +7925,548 @@ def load_inventory() -> tuple[dict, list[dict]]:
         raise RuntimeError("Manifest v2 index has no snapshot manifests.")
     if int(index.get("manifest_count", -1)) != len(entries):
         raise RuntimeError("Manifest v2 index count is invalid.")
-    expected_entries_hash = str(index.get("manifests_payload_sha256", "")).upper()
-    actual_entries_hash = hashlib.sha256(canonical_json_bytes(entries)).hexdigest().upper()
-    if not re.fullmatch(r"[0-9A-F]{{64}}", expected_entries_hash) or actual_entries_hash != expected_entries_hash:
+    expected_entries_hash = str(
+        index.get("manifests_payload_sha256", "")
+    ).upper()
+    actual_entries_hash = hashlib.sha256(
+        canonical_json_bytes(entries)
+    ).hexdigest().upper()
+    if (
+        not re.fullmatch(r"[0-9A-F]{{64}}", expected_entries_hash)
+        or actual_entries_hash != expected_entries_hash
+    ):
         raise RuntimeError("Manifest v2 index payload checksum failed.")
+    return index, entries
 
-    logical_count = 0
-    logical_size = 0
-    physical: dict[str, dict] = {{}}
-    logical_counts: dict[str, int] = {{}}
-    urls_by_path: dict[str, set[str]] = {{}}
 
-    for position, entry in enumerate(entries, start=1):
-        if not isinstance(entry, dict):
-            raise RuntimeError(f"Invalid manifest v2 index entry {{position}}.")
-        filename = str(entry.get("file", ""))
-        if not filename or Path(filename).name != filename or not filename.endswith(".v2.json"):
-            raise RuntimeError(f"Unsafe manifest v2 filename: {{filename!r}}")
-        snapshot_path = V2_ROOT / filename
-        expected_snapshot_hash = EXPECTED_SNAPSHOT_SHA256.get(filename)
-        if expected_snapshot_hash is None:
-            raise RuntimeError(f"Unpinned manifest v2 snapshot: {{filename}}")
-        if sha256_file(snapshot_path) != expected_snapshot_hash:
-            raise RuntimeError(f"Manifest v2 snapshot does not match build {BUILD}: {{filename}}")
-        payload = read_json(snapshot_path, description=filename)
-        if payload.get("schema") != SNAPSHOT_SCHEMA or int(payload.get("manifest_format", 0) or 0) != 2:
-            raise RuntimeError(f"Unsupported v2 snapshot schema: {{filename}}")
-        if str(payload.get("hash_algorithm", "")).upper() != "SHA256":
-            raise RuntimeError(f"Invalid v2 snapshot hash algorithm: {{filename}}")
-        files = payload.get("files")
-        if not isinstance(files, list) or not files:
-            raise RuntimeError(f"V2 snapshot has no file list: {{filename}}")
-        expected_files_hash = str(payload.get("files_payload_sha256", "")).upper()
-        actual_files_hash = hashlib.sha256(canonical_json_bytes(files)).hexdigest().upper()
-        if not re.fullmatch(r"[0-9A-F]{{64}}", expected_files_hash) or actual_files_hash != expected_files_hash:
-            raise RuntimeError(f"V2 snapshot payload checksum failed: {{filename}}")
-        if expected_files_hash != str(entry.get("files_payload_sha256", "")).upper():
-            raise RuntimeError(f"V2 index snapshot checksum mismatch: {{filename}}")
-        if len(files) != int(payload.get("logical_entries", -1)) or len(files) != int(entry.get("logical_entries", -1)):
-            raise RuntimeError(f"V2 snapshot logical count failed: {{filename}}")
-        if str(payload.get("snapshot_name", "")) != str(entry.get("snapshot_name", "")):
-            raise RuntimeError(f"V2 snapshot identity mismatch: {{filename}}")
+def validate_snapshot_source(entry: dict, payload: dict, filename: str) -> None:
+    """Validate an optional source manifest pinned by one V2 snapshot."""
+    if (source_relative := entry.get("source_relative_path")) is None:
+        return
+    normalized_source = normalize_relative_path(source_relative)
+    source = payload.get("source", {{}})
+    if (
+        normalized_source != source.get("mirror_relative_path")
+        or Path(str(source.get("file", ""))).name != str(source.get("file", ""))
+        or PurePosixPath(normalized_source).name != str(source.get("file", ""))
+    ):
+        raise RuntimeError(f"Unsafe or mismatched source manifest: {{filename}}")
+    source_path = MIRROR_ROOT.joinpath(*PurePosixPath(normalized_source).parts)
+    expected_source_size = int(entry.get("source_size_bytes", -1))
+    expected_source_sha = str(entry.get("source_sha256", "")).upper()
+    if not source_path.is_file():
+        raise RuntimeError(f"Source manifest is missing: {{normalized_source}}")
+    if source_path.stat().st_size != expected_source_size:
+        raise RuntimeError(f"Source manifest byte count failed: {{normalized_source}}")
+    if sha256_file(source_path) != expected_source_sha:
+        raise RuntimeError(f"Source manifest SHA-256 failed: {{normalized_source}}")
 
-        source_relative = entry.get("source_relative_path")
-        if source_relative is not None:
-            normalized_source = normalize_relative_path(source_relative)
-            source = payload.get("source", {{}})
-            if (
-                normalized_source != source.get("mirror_relative_path")
-                or Path(str(source.get("file", ""))).name != str(source.get("file", ""))
-                or PurePosixPath(normalized_source).name != str(source.get("file", ""))
-            ):
-                raise RuntimeError(f"Unsafe or mismatched source manifest: {{filename}}")
-            source_path = MIRROR_ROOT.joinpath(*PurePosixPath(normalized_source).parts)
-            expected_source_size = int(entry.get("source_size_bytes", -1))
-            expected_source_sha = str(entry.get("source_sha256", "")).upper()
-            if not source_path.is_file():
-                raise RuntimeError(f"Source manifest is missing: {{normalized_source}}")
-            if source_path.stat().st_size != expected_source_size:
-                raise RuntimeError(f"Source manifest byte count failed: {{normalized_source}}")
-            if sha256_file(source_path) != expected_source_sha:
-                raise RuntimeError(f"Source manifest SHA-256 failed: {{normalized_source}}")
 
-        snapshot_unique: dict[str, tuple[int, str]] = {{}}
-        snapshot_size = 0
-        for raw in files:
-            if not isinstance(raw, dict):
-                raise RuntimeError(f"Invalid v2 file record: {{filename}}")
-            _url, parsed_url = validate_url(raw.get("url"))
-            relative = normalize_relative_path(raw.get("relative_path"))
-            url_path = parsed_url.path.lstrip("/")
-            if url_path != relative:
-                raise RuntimeError(
-                    f"Manifest URL/path mismatch: {{url_path}} != {{relative}}"
-                )
-            try:
-                size = int(raw.get("size_bytes", 0) or 0)
-            except (TypeError, ValueError) as error:
-                raise RuntimeError(f"Invalid expected size: {{relative}}") from error
-            sha256 = str(raw.get("sha256", "")).upper()
-            if size <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", sha256):
-                raise RuntimeError(f"Invalid v2 file record: {{relative}}")
-            key = relative.casefold()
-            integrity = (size, sha256)
-            previous_snapshot = snapshot_unique.get(key)
-            if previous_snapshot is not None and previous_snapshot != integrity:
-                raise RuntimeError(f"V2 snapshot integrity conflict: {{relative}}")
-            if previous_snapshot is None:
-                snapshot_unique[key] = integrity
-                snapshot_size += size
-            previous = physical.get(key)
-            if previous is not None and (
-                int(previous["size_bytes"]) != size or str(previous["sha256"]) != sha256
-            ):
-                raise RuntimeError(f"Cross-manifest v2 integrity conflict: {{relative}}")
-            if previous is None:
-                physical[key] = {{
-                    "relative_path": relative,
-                    "size_bytes": size,
-                    "sha256": sha256,
-                }}
-            urls_by_path.setdefault(key, set()).add(str(raw.get("url")))
-            logical_counts[key] = logical_counts.get(key, 0) + 1
-            logical_count += 1
-            logical_size += size
+def load_pinned_snapshot(entry: object, position: int) -> tuple[dict, str, dict]:
+    """Load one pinned snapshot after validating its index entry and file hash."""
+    if not isinstance(entry, dict):
+        raise RuntimeError(f"Invalid manifest v2 index entry {{position}}.")
+    filename = str(entry.get("file", ""))
+    if (
+        not filename
+        or Path(filename).name != filename
+        or not filename.endswith(".v2.json")
+    ):
+        raise RuntimeError(f"Unsafe manifest v2 filename: {{filename!r}}")
+    snapshot_path = V2_ROOT / filename
+    if (expected_snapshot_hash := EXPECTED_SNAPSHOT_SHA256.get(filename)) is None:
+        raise RuntimeError(f"Unpinned manifest v2 snapshot: {{filename}}")
+    if sha256_file(snapshot_path) != expected_snapshot_hash:
+        raise RuntimeError(
+            f"Manifest v2 snapshot does not match build {BUILD}: {{filename}}"
+        )
+    payload = read_json(snapshot_path, description=filename)
+    return entry, filename, payload
 
-        if len(snapshot_unique) != int(payload.get("unique_physical_files", -1)):
-            raise RuntimeError(f"V2 snapshot physical count failed: {{filename}}")
-        if len(snapshot_unique) != int(entry.get("unique_physical_files", -1)):
-            raise RuntimeError(f"V2 index snapshot physical count failed: {{filename}}")
-        if snapshot_size != int(payload.get("expected_total_size_bytes", -1)):
-            raise RuntimeError(f"V2 snapshot size total failed: {{filename}}")
 
-    records = sorted(physical.values(), key=lambda item: item["relative_path"].casefold())
+def validate_snapshot_payload(entry: dict, filename: str, payload: dict) -> list[dict]:
+    """Validate snapshot schema, file payload checksum, identity, and source pinning."""
+    if (
+        payload.get("schema") != SNAPSHOT_SCHEMA
+        or int(payload.get("manifest_format", 0) or 0) != 2
+    ):
+        raise RuntimeError(f"Unsupported v2 snapshot schema: {{filename}}")
+    if str(payload.get("hash_algorithm", "")).upper() != "SHA256":
+        raise RuntimeError(f"Invalid v2 snapshot hash algorithm: {{filename}}")
+    files = payload.get("files")
+    if not isinstance(files, list) or not files:
+        raise RuntimeError(f"V2 snapshot has no file list: {{filename}}")
+
+    expected_files_hash = str(payload.get("files_payload_sha256", "")).upper()
+    actual_files_hash = hashlib.sha256(
+        canonical_json_bytes(files)
+    ).hexdigest().upper()
+    if (
+        not re.fullmatch(r"[0-9A-F]{{64}}", expected_files_hash)
+        or actual_files_hash != expected_files_hash
+    ):
+        raise RuntimeError(f"V2 snapshot payload checksum failed: {{filename}}")
+    if expected_files_hash != str(entry.get("files_payload_sha256", "")).upper():
+        raise RuntimeError(f"V2 index snapshot checksum mismatch: {{filename}}")
+    if (
+        len(files) != int(payload.get("logical_entries", -1))
+        or len(files) != int(entry.get("logical_entries", -1))
+    ):
+        raise RuntimeError(f"V2 snapshot logical count failed: {{filename}}")
+    if str(payload.get("snapshot_name", "")) != str(entry.get("snapshot_name", "")):
+        raise RuntimeError(f"V2 snapshot identity mismatch: {{filename}}")
+    validate_snapshot_source(entry, payload, filename)
+    return files
+
+
+def load_snapshot_manifest(entry: object, position: int) -> tuple[str, dict, list[dict]]:
+    """Load and validate one snapshot referenced by the V2 index."""
+    validated_entry, filename, payload = load_pinned_snapshot(entry, position)
+    files = validate_snapshot_payload(validated_entry, filename, payload)
+    return filename, payload, files
+
+
+def validated_v2_record(raw: object, filename: str) -> tuple[str, str, int, str, str]:
+    """Validate one V2 file record and return its normalized integrity fields."""
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"Invalid v2 file record: {{filename}}")
+    url, parsed_url = validate_url(raw.get("url"))
+    relative = normalize_relative_path(raw.get("relative_path"))
+    if (url_path := parsed_url.path.lstrip("/")) != relative:
+        raise RuntimeError(f"Manifest URL/path mismatch: {{url_path}} != {{relative}}")
+    try:
+        size = int(raw.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid expected size: {{relative}}") from error
+    sha256 = str(raw.get("sha256", "")).upper()
+    if size <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", sha256):
+        raise RuntimeError(f"Invalid v2 file record: {{relative}}")
+    return relative, relative.casefold(), size, sha256, url
+
+
+def merge_v2_record(
+    state: dict,
+    relative: str,
+    size: int,
+    sha256: str,
+    url: str,
+) -> None:
+    """Merge one validated V2 file into the cross-snapshot physical inventory."""
+    key = relative.casefold()
+    previous = state["physical"].get(key)
+    if previous is not None and (
+        int(previous["size_bytes"]) != size
+        or str(previous["sha256"]) != sha256
+    ):
+        raise RuntimeError(f"Cross-manifest v2 integrity conflict: {{relative}}")
+    if previous is None:
+        state["physical"][key] = {{
+            "relative_path": relative,
+            "size_bytes": size,
+            "sha256": sha256,
+        }}
+    state["urls_by_path"].setdefault(key, set()).add(url)
+    state["logical_counts"][key] = state["logical_counts"].get(key, 0) + 1
+    state["logical_count"] += 1
+    state["logical_size"] += size
+
+
+def validate_snapshot_files(filename: str, files: list[dict], state: dict) -> tuple[int, int]:
+    """Validate one snapshot's records and merge them into inventory state."""
+    snapshot_unique: dict[str, tuple[int, str]] = {{}}
+    snapshot_size = 0
+    for raw in files:
+        relative, key, size, sha256, url = validated_v2_record(raw, filename)
+        integrity = (size, sha256)
+        previous_snapshot = snapshot_unique.get(key)
+        if previous_snapshot is not None and previous_snapshot != integrity:
+            raise RuntimeError(f"V2 snapshot integrity conflict: {{relative}}")
+        if previous_snapshot is None:
+            snapshot_unique[key] = integrity
+            snapshot_size += size
+        merge_v2_record(state, relative, size, sha256, url)
+    return len(snapshot_unique), snapshot_size
+
+
+def validate_snapshot_totals(payload: dict, entry: dict, filename: str,
+                             snapshot_unique_count: int, snapshot_size: int) -> None:
+    """Validate per-snapshot physical counts and total byte size."""
+    if snapshot_unique_count != int(payload.get("unique_physical_files", -1)):
+        raise RuntimeError(f"V2 snapshot physical count failed: {{filename}}")
+    if snapshot_unique_count != int(entry.get("unique_physical_files", -1)):
+        raise RuntimeError(f"V2 index snapshot physical count failed: {{filename}}")
+    if snapshot_size != int(payload.get("expected_total_size_bytes", -1)):
+        raise RuntimeError(f"V2 snapshot size total failed: {{filename}}")
+
+
+def validate_inventory_totals(index: dict, state: dict, records: list[dict]) -> None:
+    """Validate aggregate V2 physical hashes, counts, aliases, and byte totals."""
     physical_hash = hashlib.sha256(canonical_json_bytes(records)).hexdigest().upper()
     if physical_hash != str(index.get("physical_records_payload_sha256", "")).upper():
         raise RuntimeError("Manifest v2 physical inventory checksum failed.")
     unique_size = sum(int(item["size_bytes"]) for item in records)
     expected = {{
-        "logical_entries": logical_count,
+        "logical_entries": state["logical_count"],
         "unique_physical_files": len(records),
-        "logical_inventory_size_bytes": logical_size,
+        "logical_inventory_size_bytes": state["logical_size"],
         "unique_physical_size_bytes": unique_size,
-        "repeated_logical_paths": sum(1 for count in logical_counts.values() if count > 1),
-        "repeated_logical_references": logical_count - len(records),
-        "approved_host_alias_paths": sum(1 for urls in urls_by_path.values() if len(urls) > 1),
+        "repeated_logical_paths": sum(
+            1 for count in state["logical_counts"].values() if count > 1
+        ),
+        "repeated_logical_references": state["logical_count"] - len(records),
+        "approved_host_alias_paths": sum(
+            1 for urls in state["urls_by_path"].values() if len(urls) > 1
+        ),
     }}
     for field, actual in expected.items():
         if int(index.get(field, -1)) != actual:
             raise RuntimeError(f"Manifest v2 index field failed: {{field}}")
-    # Keep progress tied to the dynamic logical-entry inventory while hashing
-    # each shared physical file only once.
+
+
+def annotate_logical_references(records: list[dict], state: dict) -> None:
+    """Attach dynamic logical-reference counts to each unique physical record."""
     for record in records:
-        record["_logical_references"] = logical_counts[
+        record["_logical_references"] = state["logical_counts"][
             record["relative_path"].casefold()
         ]
+
+
+def load_inventory() -> tuple[dict, list[dict]]:
+    """Load and fully validate the pinned V2 manifest inventory."""
+    index, entries = load_manifest_index()
+    state = {{
+        "logical_count": 0,
+        "logical_size": 0,
+        "physical": {{}},
+        "logical_counts": {{}},
+        "urls_by_path": {{}},
+    }}
+    for position, entry in enumerate(entries, start=1):
+        filename, payload, files = load_snapshot_manifest(entry, position)
+        snapshot_unique_count, snapshot_size = validate_snapshot_files(
+            filename,
+            files,
+            state,
+        )
+        validate_snapshot_totals(
+            payload,
+            entry,
+            filename,
+            snapshot_unique_count,
+            snapshot_size,
+        )
+
+    records = sorted(
+        state["physical"].values(),
+        key=lambda item: item["relative_path"].casefold(),
+    )
+    validate_inventory_totals(index, state, records)
+    annotate_logical_references(records, state)
     return index, records
 
 
+def _discovered_source_urls(record: dict) -> list[str]:
+    """Return unique captured URLs for one discovered physical record."""
+    values: list[str] = []
+    if (primary := str(record.get("source_url", "") or "").strip()):
+        values.append(primary)
+    aliases = record.get("source_urls", [])
+    if isinstance(aliases, list):
+        for value in aliases:
+            text = str(value or "").strip()
+            if text and text not in values:
+                values.append(text)
+    return values
+
+
+def _load_discovered_payload(path: Path, schema: str) -> tuple[dict, list[dict]]:
+    """Load and checksum-validate one optional discovered side manifest."""
+    if not path.exists():
+        return {{}}, []
+    if path_is_link_like(path) or not path.is_file():
+        raise RuntimeError(f"Discovered manifest path is unsafe: {{path.name}}")
+    payload = read_json(path, description=path.name)
+    if (
+        payload.get("schema") != schema
+        or payload.get("schema_version") != DISCOVERED_SCHEMA_VERSION
+        or payload.get("mirror_relative_root") != "Mirror"
+        or str(payload.get("hash_algorithm", "")).upper() != "SHA256"
+    ):
+        raise RuntimeError(f"Unsupported discovered manifest schema: {{path.name}}")
+    files = payload.get("files")
+    if not isinstance(files, list):
+        raise RuntimeError(f"Discovered manifest file list is invalid: {{path.name}}")
+    canonical = json.dumps(
+        files, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    expected = str(payload.get("records_payload_sha256", "") or "").upper()
+    if (
+        not re.fullmatch(r"[0-9A-F]{{64}}", expected)
+        or hashlib.sha256(canonical).hexdigest().upper() != expected
+    ):
+        raise RuntimeError(f"Discovered manifest checksum failed: {{path.name}}")
+    return payload, files
+
+
+def _validate_discovered_source_urls(urls: list[str], relative: str) -> None:
+    """Require discovered logical source URLs to match one mirror-relative path."""
+    if not urls:
+        raise RuntimeError(f"Discovered inventory has no source URL: {{relative}}")
+    for value in urls:
+        _url, parsed = validate_url(value)
+        if parsed.query or parsed.path != "/" + relative:
+            raise RuntimeError(f"Discovered inventory URL/path mismatch: {{relative}}")
+
+
+def _normalize_discovered_inventory_record(
+    raw: object,
+    position: int,
+    base_paths: set[str],
+    seen: set[str],
+) -> tuple[dict, int]:
+    """Validate one discovered physical record and return its logical-reference count."""
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"Invalid discovered inventory record {{position}}.")
+    relative = normalize_relative_path(raw.get("relative_path"))
+    if PurePosixPath(relative).suffix.casefold() not in DISCOVERED_INVENTORY_SUFFIXES:
+        raise RuntimeError(f"Unapproved discovered inventory extension: {{relative}}")
+    key = relative.casefold()
+    if key in base_paths:
+        raise RuntimeError(f"Discovered inventory duplicates base inventory: {{relative}}")
+    if key in seen:
+        raise RuntimeError(f"Duplicate discovered inventory path: {{relative}}")
+    seen.add(key)
+    try:
+        size_bytes = int(raw.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid discovered inventory size: {{relative}}") from error
+    sha256 = str(raw.get("sha256", "") or "").upper()
+    if size_bytes <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", sha256):
+        raise RuntimeError(f"Invalid discovered inventory integrity metadata: {{relative}}")
+    if raw.get("source") != "recovered_404":
+        raise RuntimeError(f"Invalid discovered inventory source: {{relative}}")
+    urls = _discovered_source_urls(raw)
+    _validate_discovered_source_urls(urls, relative)
+    return {{
+        "relative_path": relative,
+        "size_bytes": size_bytes,
+        "sha256": sha256,
+        "_logical_references": len(urls),
+        "_discovered": True,
+    }}, len(urls)
+
+
+def load_discovered_inventory_records(
+    v2_records: list[dict], supplemental_records: list[dict],
+) -> tuple[list[dict], int]:
+    """Load discovered model/package records as additional authoritative inventory."""
+    payload, files = _load_discovered_payload(
+        DISCOVERED_INVENTORY_PATH, DISCOVERED_INVENTORY_SCHEMA
+    )
+    if files and payload.get("accepted_extensions") != sorted(DISCOVERED_INVENTORY_SUFFIXES):
+        raise RuntimeError("Discovered inventory extension policy failed.")
+    base_paths = {{
+        str(record["relative_path"]).casefold()
+        for record in (*v2_records, *supplemental_records)
+    }}
+    seen: set[str] = set()
+    normalized: list[dict] = []
+    logical_entries = 0
+    for position, raw in enumerate(files, start=1):
+        record, reference_count = _normalize_discovered_inventory_record(
+            raw, position, base_paths, seen
+        )
+        normalized.append(record)
+        logical_entries += reference_count
+    if files:
+        if int(payload.get("logical_entries", -1)) != logical_entries:
+            raise RuntimeError("Discovered inventory logical count failed.")
+        if int(payload.get("unique_physical_files", -1)) != len(normalized):
+            raise RuntimeError("Discovered inventory physical count failed.")
+    return normalized, logical_entries
+
+def canonical_server_asset_payload(records: list[dict]) -> bytes:
+    """Return the canonical bytes protected by the Server Assets manifest checksum."""
+    return json.dumps(
+        records, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+
+
+def _normalize_server_asset_record(
+    raw: object,
+    position: int,
+    seen: set[str],
+) -> dict:
+    """Validate one trusted Server Assets record without reading its payload file."""
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"Invalid server asset record {{position}}.")
+    relative = normalize_relative_path(raw.get("relative_path"))
+    if (key := relative.casefold()) in seen:
+        raise RuntimeError(f"Duplicate server asset path: {{relative}}")
+    seen.add(key)
+    try:
+        size_bytes = int(raw.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid server asset size: {{relative}}") from error
+    sha256 = str(raw.get("sha256", "") or "").upper()
+    if size_bytes <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", sha256):
+        raise RuntimeError(f"Invalid server asset integrity metadata: {{relative}}")
+    source = str(raw.get("source", "") or "")
+    if source not in {{"embedded_support", "downloaded_support", "recovered_404"}}:
+        raise RuntimeError(f"Invalid server asset source: {{relative}}")
+    return {{
+        "relative_path": relative,
+        "size_bytes": size_bytes,
+        "sha256": sha256,
+        "source": source,
+    }}
+
+
+def load_server_asset_records() -> list[dict]:
+    """Load and structurally validate the trusted Server Assets manifest."""
+    if path_is_link_like(SERVER_ASSET_MANIFEST_PATH) or not SERVER_ASSET_MANIFEST_PATH.is_file():
+        raise RuntimeError("Server Assets manifest path is missing or unsafe.")
+    payload = read_json(
+        SERVER_ASSET_MANIFEST_PATH,
+        description=SERVER_ASSET_MANIFEST_PATH.name,
+    )
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("mirror_relative_root") != "Mirror"
+        or str(payload.get("hash_algorithm", "")).upper() != "SHA256"
+    ):
+        raise RuntimeError("Unsupported Server Assets manifest schema.")
+    files = payload.get("files")
+    if not isinstance(files, list) or not files:
+        raise RuntimeError("Server Assets manifest file list is invalid.")
+    if int(payload.get("asset_count", -1)) != len(files):
+        raise RuntimeError("Server Assets manifest count failed.")
+    expected = str(payload.get("records_payload_sha256", "") or "").upper()
+    actual = hashlib.sha256(canonical_server_asset_payload(files)).hexdigest().upper()
+    if not re.fullmatch(r"[0-9A-F]{{64}}", expected) or expected != actual:
+        raise RuntimeError("Server Assets manifest checksum failed.")
+    seen: set[str] = set()
+    return [
+        _normalize_server_asset_record(raw, position, seen)
+        for position, raw in enumerate(files, start=1)
+    ]
+
+
+def _normalize_discovered_asset_record(raw: object, position: int) -> dict:
+    """Validate one discovered support-asset provenance record."""
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"Invalid discovered asset record {{position}}.")
+    relative = normalize_relative_path(raw.get("relative_path"))
+    if PurePosixPath(relative).suffix.casefold() in DISCOVERED_INVENTORY_SUFFIXES:
+        raise RuntimeError(f"Discovered asset belongs in inventory: {{relative}}")
+    try:
+        size_bytes = int(raw.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid discovered asset size: {{relative}}") from error
+    sha256 = str(raw.get("sha256", "") or "").upper()
+    if size_bytes <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", sha256):
+        raise RuntimeError(f"Invalid discovered asset integrity metadata: {{relative}}")
+    if raw.get("source") != "recovered_404":
+        raise RuntimeError(f"Invalid discovered asset source: {{relative}}")
+    urls = _discovered_source_urls(raw)
+    _validate_discovered_source_urls(urls, relative)
+    return {{
+        "relative_path": relative,
+        "size_bytes": size_bytes,
+        "sha256": sha256,
+        "source": "recovered_404",
+    }}
+
+
+def load_discovered_asset_records(server_asset_records: list[dict]) -> list[dict]:
+    """Validate discovered asset provenance against the trusted Server Assets set."""
+    payload, files = _load_discovered_payload(
+        DISCOVERED_ASSETS_PATH, DISCOVERED_ASSETS_SCHEMA
+    )
+    if not files:
+        return []
+    if int(payload.get("asset_count", -1)) != len(files):
+        raise RuntimeError("Discovered asset count failed.")
+    trusted_by_path = {{
+        str(record["relative_path"]).casefold(): record
+        for record in server_asset_records
+    }}
+    normalized: list[dict] = []
+    seen: set[str] = set()
+    for position, raw in enumerate(files, start=1):
+        record = _normalize_discovered_asset_record(raw, position)
+        if (key := record["relative_path"].casefold()) in seen:
+            raise RuntimeError(f"Duplicate discovered asset path: {{record['relative_path']}}")
+        seen.add(key)
+        trusted = trusted_by_path.get(key)
+        if trusted is None or (
+            int(trusted["size_bytes"]) != int(record["size_bytes"])
+            or str(trusted["sha256"]).upper() != str(record["sha256"]).upper()
+        ):
+            raise RuntimeError(
+                "Discovered asset does not match Server Assets: "
+                f"{{record['relative_path']}}"
+            )
+        normalized.append(record)
+    return normalized
+
+
+def discovered_asset_file_count(
+    server_asset_records: list[dict] | None = None,
+) -> int:
+    """Return the validated discovered support-asset provenance count."""
+    if server_asset_records is None:
+        server_asset_records = load_server_asset_records()
+    return len(load_discovered_asset_records(server_asset_records))
+
+
+def normalize_supplemental_record(
+    raw: object, position: int, v2_paths: set[str], seen: set[str],
+) -> dict:
+    """Validate and normalize one supplemental package record."""
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"Invalid supplemental package record {{position}}.")
+    relative = normalize_relative_path(raw.get("relative_path"))
+    try:
+        size = int(raw.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(
+            f"Invalid supplemental package size: {{relative}}"
+        ) from error
+    if size < 0:
+        raise RuntimeError(f"Invalid supplemental package size: {{relative}}")
+
+    key = relative.casefold()
+    if key in seen:
+        raise RuntimeError(f"Duplicate supplemental package path: {{relative}}")
+    if key in v2_paths:
+        raise RuntimeError(f"Supplemental package overlaps V2 inventory: {{relative}}")
+    seen.add(key)
+
+    # Zero explicitly marks the one unresolved-size supplemental package.
+    if size <= 0 and key != "astra_support/20250825/models.zip":
+        raise RuntimeError(
+            f"Unexpected unknown-size supplemental package: {{relative}}"
+        )
+    return {{"relative_path": relative, "size_bytes": size}}
+
+
 def validate_supplemental_inventory(v2_records: list[dict]) -> list[dict]:
+    """Validate the single supplemental package outside the V2 hash inventory."""
     if len(SUPPLEMENTAL_RECORDS) != 1:
         raise RuntimeError("Supplemental package inventory must contain one record.")
     v2_paths = {{
         str(record["relative_path"]).casefold()
         for record in v2_records
     }}
-    normalized: list[dict] = []
     seen: set[str] = set()
-    unknown_size_count = 0
-    for position, raw in enumerate(SUPPLEMENTAL_RECORDS, start=1):
-        if not isinstance(raw, dict):
-            raise RuntimeError(f"Invalid supplemental package record {{position}}.")
-        relative = normalize_relative_path(raw.get("relative_path"))
-        try:
-            size = int(raw.get("size_bytes", 0) or 0)
-        except (TypeError, ValueError) as error:
-            raise RuntimeError(
-                f"Invalid supplemental package size: {{relative}}"
-            ) from error
-        if size < 0:
-            raise RuntimeError(f"Invalid supplemental package size: {{relative}}")
-        key = relative.casefold()
-        if key in seen:
-            raise RuntimeError(f"Duplicate supplemental package path: {{relative}}")
-        if key in v2_paths:
-            raise RuntimeError(f"Supplemental package overlaps V2 inventory: {{relative}}")
-        seen.add(key)
-        if size == 0:
-            unknown_size_count += 1
-            if relative.casefold() != "astra_support/20250825/models.zip":
-                raise RuntimeError(
-                    f"Unexpected unknown-size supplemental package: {{relative}}"
-                )
-        normalized.append({{"relative_path": relative, "size_bytes": size}})
+    normalized = [
+        normalize_supplemental_record(raw, position, v2_paths, seen)
+        for position, raw in enumerate(SUPPLEMENTAL_RECORDS, start=1)
+    ]
+    unknown_size_count = sum(
+        1 for record in normalized if int(record["size_bytes"]) <= 0
+    )
     if unknown_size_count != 1:
         raise RuntimeError(
             f"Expected one unknown-size supplemental package, found {{unknown_size_count}}."
@@ -7507,13 +8474,65 @@ def validate_supplemental_inventory(v2_records: list[dict]) -> list[dict]:
     return normalized
 
 
-def supplemental_file_failure(record: dict) -> tuple[str, str]:
-    relative = str(record["relative_path"])
-    expected_size = int(record["size_bytes"])
-    path = MIRROR_ROOT.joinpath(*PurePosixPath(relative).parts)
+def supplemental_zip_failure(path: Path) -> tuple[str, str]:
+    """Return ZIP-content failure details for a supplemental package."""
     try:
-        resolved = path.resolve()
-        resolved.relative_to(MIRROR_ROOT.resolve())
+        with zipfile.ZipFile(path) as archive:
+            bad_member = archive.testzip()
+    except (
+        OSError, RuntimeError, zipfile.BadZipFile, zlib.error,
+        lzma.LZMAError,
+    ) as error:
+        return "content_mismatch", str(error) or "not a valid ZIP"
+    if bad_member is not None:
+        return "content_mismatch", f"bad ZIP member: {{bad_member}}"
+    return "", ""
+
+
+def path_is_link_like(path: Path) -> bool:
+    """Return whether one existing path is a symlink, junction, or reparse point."""
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction):
+        try:
+            if is_junction():
+                return True
+        except OSError:
+            return True
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(reparse_flag and attributes & reparse_flag)
+
+
+def mirror_path_has_link_component(path: Path) -> bool:
+    """Reject any link-like component below Mirror, including the final path."""
+    try:
+        relative = path.relative_to(MIRROR_ROOT)
+    except ValueError:
+        return True
+    candidates = (
+        MIRROR_ROOT.joinpath(*relative.parts[:index])
+        for index in range(1, len(relative.parts) + 1)
+    )
+    return any(
+        os.path.lexists(candidate) and path_is_link_like(candidate)
+        for candidate in candidates
+    )
+
+
+def supplemental_path_failure(path: Path, expected_size: int) -> tuple[str, str]:
+    """Return path/read/size failure details for one supplemental package."""
+    if mirror_path_has_link_component(path):
+        return "unsafe_path", "link-like path component"
+    try:
+        path.resolve().relative_to(MIRROR_ROOT.resolve())
     except (OSError, ValueError):
         return "unsafe_path", ""
     if path.is_symlink() or not path.is_file():
@@ -7522,22 +8541,27 @@ def supplemental_file_failure(record: dict) -> tuple[str, str]:
         actual_size = path.stat().st_size
     except OSError as error:
         return "read_error", str(error)
-    if expected_size > 0 and actual_size != expected_size:
+    if actual_size <= 0 or (
+        expected_size > 0 and actual_size != expected_size
+    ):
         return "size_mismatch", str(actual_size)
-    if actual_size <= 0:
-        return "size_mismatch", str(actual_size)
+    return "", ""
+
+
+def supplemental_file_failure(record: dict) -> tuple[str, str]:
+    """Return a failure reason and detail for one supplemental package."""
+    relative = str(record["relative_path"])
+    path = MIRROR_ROOT.joinpath(*PurePosixPath(relative).parts)
+    reason, detail = supplemental_path_failure(path, int(record["size_bytes"]))
+    if reason:
+        return reason, detail
     if path.suffix.casefold() == ".zip":
-        try:
-            with zipfile.ZipFile(path) as archive:
-                bad_member = archive.testzip()
-        except (OSError, RuntimeError, zipfile.BadZipFile, zlib.error, lzma.LZMAError) as error:
-            return "content_mismatch", str(error) or "not a valid ZIP"
-        if bad_member is not None:
-            return "content_mismatch", f"bad ZIP member: {{bad_member}}"
+        return supplemental_zip_failure(path)
     return "", ""
 
 
 def report_path_is_safe(path: Path) -> bool:
+    """Return whether the report path is absent or an existing regular file."""
     try:
         return stat.S_ISREG(path.lstat().st_mode)
     except FileNotFoundError:
@@ -7547,6 +8571,7 @@ def report_path_is_safe(path: Path) -> bool:
 
 
 def open_regular_error_report_fd(path: Path, flags: int, mode: int = 0o600) -> int:
+    """Open the error report without following links and verify the resulting file."""
     if not report_path_is_safe(path):
         raise OSError(f"Unsafe error report path: {{path}}")
     flags |= getattr(os, "O_CLOEXEC", 0)
@@ -7562,6 +8587,7 @@ def open_regular_error_report_fd(path: Path, flags: int, mode: int = 0o600) -> i
 
 
 def append_error(lines: list[str]) -> bool:
+    """Append verifier failure details to the managed error report."""
     try:
         ERROR_REPORT.parent.mkdir(parents=True, exist_ok=True)
         fd = open_regular_error_report_fd(
@@ -7610,14 +8636,12 @@ def count_reported_entries(report_file: Path) -> tuple[int, int]:
     for line in lines:
         value = line.strip()
         if value.startswith(unresolved_prefix):
-            url = validate_report_url(value[len(unresolved_prefix):].strip())
-            if url is not None:
+            if (url := validate_report_url(value[len(unresolved_prefix):].strip())) is not None:
                 reported_urls.add(url)
             continue
 
         if value.startswith(fixed_prefix):
-            url = validate_report_url(value[len(fixed_prefix):].strip())
-            if url is None:
+            if (url := validate_report_url(value[len(fixed_prefix):].strip())) is None:
                 continue
             reported_urls.add(url)
             recovered_urls.add(url)
@@ -7625,7 +8649,13 @@ def count_reported_entries(report_file: Path) -> tuple[int, int]:
     return len(reported_urls), len(recovered_urls)
 
 
+def recovered_assets_report_entry_count() -> int:
+    """Compatibility alias for the discovered support-asset side manifest count."""
+    return discovered_asset_file_count()
+
+
 def safe_remove_repair_list() -> None:
+    """Remove stale/actionable schema-3 repair state from its reserved path."""
     repair_parent = REPAIR_PATH.parent
     if repair_parent.exists() and (
         repair_parent.is_symlink() or not repair_parent.is_dir()
@@ -7643,17 +8673,15 @@ def safe_remove_repair_list() -> None:
     REPAIR_PATH.unlink(missing_ok=True)
 
 
-def write_repair_list(index: dict, failures: list[dict]) -> None:
-    if not failures:
-        safe_remove_repair_list()
-        return
+def build_repair_payload(index: dict, failures: list[dict]) -> dict:
+    """Build the deterministic integrity metadata for a repair request."""
     canonical_failures = json.dumps(
         failures,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    payload = {{
+    return {{
         "schema_version": 3,
         "creator_build": {BUILD},
         "generated_utc": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -7661,6 +8689,10 @@ def write_repair_list(index: dict, failures: list[dict]) -> None:
         "failures_payload_sha256": hashlib.sha256(canonical_failures).hexdigest().upper(),
         "failures": failures,
     }}
+
+
+def validate_repair_destination() -> None:
+    """Create and validate the managed repair-list destination."""
     REPAIR_PATH.parent.mkdir(parents=True, exist_ok=True)
     if REPAIR_PATH.parent.is_symlink():
         raise RuntimeError(
@@ -7675,6 +8707,37 @@ def write_repair_list(index: dict, failures: list[dict]) -> None:
             f"SHA-256 repair-list destination is not a regular file: {{REPAIR_PATH}}"
         )
 
+
+def fsync_repair_directory() -> None:
+    """Best-effort fsync of the repair-list parent directory after replacement."""
+    try:
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        directory_descriptor = os.open(REPAIR_PATH.parent, directory_flags)
+    except OSError:
+        return
+    try:
+        os.fsync(directory_descriptor)
+    except OSError:
+        pass
+    finally:
+        os.close(directory_descriptor)
+
+
+def remove_temporary_repair_file(temporary_name: str) -> None:
+    """Best-effort cleanup of a staged repair-list file."""
+    try:
+        os.unlink(temporary_name)
+    except OSError:
+        pass
+
+
+def write_repair_list(index: dict, failures: list[dict]) -> None:
+    """Atomically write or remove the V2 SHA-256 repair request."""
+    if not failures:
+        safe_remove_repair_list()
+        return
+    payload = build_repair_payload(index, failures)
+    validate_repair_destination()
     fd, temporary_name = tempfile.mkstemp(
         prefix=REPAIR_PATH.name + ".",
         suffix=".tmp",
@@ -7686,27 +8749,14 @@ def write_repair_list(index: dict, failures: list[dict]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary_name, REPAIR_PATH)
-        try:
-            directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-            directory_descriptor = os.open(REPAIR_PATH.parent, directory_flags)
-        except OSError:
-            directory_descriptor = -1
-        if directory_descriptor >= 0:
-            try:
-                os.fsync(directory_descriptor)
-            except OSError:
-                pass
-            finally:
-                os.close(directory_descriptor)
+        fsync_repair_directory()
     except BaseException:
-        try:
-            os.unlink(temporary_name)
-        except OSError:
-            pass
+        remove_temporary_repair_file(temporary_name)
         raise
 
 
 def format_elapsed(seconds: float) -> str:
+    """Format elapsed seconds as HH:MM:SS.microseconds."""
     total_microseconds = int(round(seconds * 1_000_000))
     hours, remainder = divmod(total_microseconds, 3_600_000_000)
     minutes, remainder = divmod(remainder, 60_000_000)
@@ -7714,12 +8764,33 @@ def format_elapsed(seconds: float) -> str:
     return f"{{hours:02d}}:{{minutes:02d}}:{{secs:02d}}.{{micros:06d}}"
 
 
+VALIDATION_LABEL_WIDTH = len("File/Content Integrity Result")
+
+
+def validation_line(label: str, value: object) -> str:
+    """Format verifier/launcher-style status labels with aligned colons."""
+    return f"{{label:<{{VALIDATION_LABEL_WIDTH}}}}: {{value}}"
+
+
+def display_validation_heading() -> None:
+    """Display the boundary between ZIP checks and SHA/download validation."""
+    print()
+    print("=" * 43)
+    print("     File SHA and Download Validation")
+    print("=" * 43)
+    print()
+
+
 def parse_arguments(argv: list[str]) -> bool:
+    """Parse verifier CLI arguments and return whether validation-only mode is active."""
     if argv in (["-h"], ["--help"]):
         print("Usage: python Topaz_Offline_Download_Creator_SHA256_Verifier.py [--validate-only]")
         print()
         print("Without arguments, verifies the complete manifest inventory.")
-        print("--validate-only validates the pinned build-{BUILD} manifest set only.")
+        print(
+            "--validate-only validates frozen, supplemental, discovered, "
+            "and Server Asset manifests."
+        )
         raise SystemExit(0)
     if not argv:
         return False
@@ -7740,110 +8811,138 @@ def parse_arguments(argv: list[str]) -> bool:
     raise SystemExit(2)
 
 
-def main() -> int:
-    validate_only = parse_arguments(sys.argv[1:])
-    if not validate_only:
-        # Clear any repair request from an earlier verifier run before loading
-        # the current manifest set. A configuration failure must never reuse it.
-        safe_remove_repair_list()
-    index, records = load_inventory()
-    supplemental_records = validate_supplemental_inventory(records)
-    if validate_only:
-        print("Portable SHA-256 verifier validation: PASSED")
-        return 0
+def v2_path_failure(path: Path, expected_size: int) -> tuple[str, str]:
+    """Return path/read/size failure details before SHA-256 verification."""
+    if mirror_path_has_link_component(path):
+        return "unsafe_path", "link-like path component"
+    try:
+        path.resolve().relative_to(MIRROR_ROOT.resolve())
+    except (OSError, ValueError):
+        return "unsafe_path", ""
+    if not path.is_file():
+        return "missing", ""
+    try:
+        actual_size = path.stat().st_size
+    except OSError as error:
+        return "read_error", str(error)
+    if actual_size != expected_size:
+        return "size_mismatch", str(actual_size)
+    return "", ""
 
-    started = time.monotonic()
+
+def v2_hash_failure(path: Path, expected_sha256: str) -> tuple[str, str]:
+    """Return SHA-256 failure details for a size-validated V2 file."""
+    if DEBUG_SKIP_FILE_SHA256_SCAN:
+        return "", ""
+    try:
+        actual_hash = sha256_file(path)
+    except OSError as error:
+        return "read_error", str(error)
+    if actual_hash != expected_sha256:
+        return "hash_mismatch", actual_hash
+    return "", ""
+
+
+def verify_v2_file(record: dict) -> tuple[str, str]:
+    """Return failure reason/detail for one authoritative V2 physical file."""
+    relative = record["relative_path"]
+    path = MIRROR_ROOT.joinpath(*PurePosixPath(relative).parts)
+    reason, actual = v2_path_failure(path, int(record["size_bytes"]))
+    if reason:
+        return reason, actual
+    return v2_hash_failure(path, str(record["sha256"]))
+
+
+def display_verification_progress(processed: int, total: int) -> None:
+    """Refresh the logical-entry progress display when SHA-256 scanning is active."""
+    if not DEBUG_SKIP_FILE_SHA256_SCAN:
+        print(
+            "\r" + validation_line("Verifying File Set", f"{{processed}} / {{total}}"),
+            end="",
+            flush=True,
+        )
+
+
+def verify_server_asset_records(records: list[dict]) -> dict:
+    """Verify separately counted Server Assets and return failures plus counters."""
+    result = {{
+        "failures": [],
+        "failure_lines": [],
+        "validated": 0,
+        "sha256_validated": 0,
+    }}
+    for record in records:
+        reason, actual = verify_v2_file(record)
+        if not reason:
+            result["validated"] += 1
+            result["sha256_validated"] += 1
+            continue
+        result["failures"].append({{
+            "relative_path": record["relative_path"],
+            "reason": reason,
+            "expected_size": record["size_bytes"],
+            "expected_sha256": record["sha256"],
+            "actual": actual,
+        }})
+        result["failure_lines"].append(
+            f"{{reason}}: {{record['relative_path']}} "
+            f"(server asset; actual={{actual}})"
+        )
+    return result
+
+
+def verify_inventory(
+    records: list[dict],
+    supplemental_records: list[dict],
+    server_asset_records: list[dict],
+    logical_record_count: int,
+) -> dict:
+    """Verify model/package inventory plus the separately counted Server Assets."""
+    result = {{
+        "failures": [],
+        "supplemental_failures": [],
+        "server_asset_failures": [],
+        "failure_lines": [],
+    }}
     processed_logical_entries = 0
     validated_logical_entries = 0
-    failures: list[dict] = []
-    supplemental_failures: list[dict] = []
-    failure_lines: list[str] = []
-    v2_logical_record_count = int(index["logical_entries"])
-    logical_record_count = v2_logical_record_count + len(supplemental_records)
-    physical_record_count = len(records) + len(supplemental_records)
-
-    print("=" * 43)
-    print(" Topaz Offline Mirror SHA-256 Verification")
-    print("=" * 43)
-    print()
-    print("Mirror Root: ~/TopazServer/Mirror")
-    print()
+    sha256_validated_logical_entries = 0
     if DEBUG_SKIP_FILE_SHA256_SCAN:
-        print("Verifying File Set: SHA-256 SKIPPED")
+        print(validation_line("Verifying File Set", "SHA-256 SKIPPED"))
     else:
-        print(f"Verifying File Set: 0 / {{logical_record_count}}", end="", flush=True)
+        print(
+            validation_line("Verifying File Set", f"0 / {{logical_record_count}}"),
+            end="",
+            flush=True,
+        )
 
     for record in records:
-        relative = record["relative_path"]
-        expected_size = record["size_bytes"]
-        expected_sha = record["sha256"]
+        reason, actual = verify_v2_file(record)
         logical_references = int(record.get("_logical_references", 1))
-        path = MIRROR_ROOT.joinpath(*PurePosixPath(relative).parts)
-        reason = ""
-        actual = ""
-        try:
-            resolved = path.resolve()
-            resolved.relative_to(MIRROR_ROOT.resolve())
-        except (OSError, ValueError):
-            reason = "unsafe_path"
-        else:
-            if not path.is_file():
-                reason = "missing"
-            else:
-                try:
-                    actual_size = path.stat().st_size
-                except OSError as error:
-                    reason = "read_error"
-                    actual = str(error)
-                else:
-                    if actual_size != expected_size:
-                        reason = "size_mismatch"
-                        actual = str(actual_size)
-                    elif not DEBUG_SKIP_FILE_SHA256_SCAN:
-                        try:
-                            digest = hashlib.sha256()
-                            with path.open("rb") as handle:
-                                for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
-                                    digest.update(chunk)
-                            actual_hash = digest.hexdigest().upper()
-                        except OSError as error:
-                            reason = "read_error"
-                            actual = str(error)
-                        else:
-                            if actual_hash != expected_sha:
-                                reason = "hash_mismatch"
-                                actual = actual_hash
-
         processed_logical_entries += logical_references
         if not reason:
             validated_logical_entries += logical_references
-        if not DEBUG_SKIP_FILE_SHA256_SCAN:
-            print(
-                f"\rVerifying File Set: {{processed_logical_entries}} / {{logical_record_count}}",
-                end="", flush=True,
-            )
-
+            sha256_validated_logical_entries += logical_references
+        display_verification_progress(processed_logical_entries, logical_record_count)
         if reason:
             failure = {{
-                "relative_path": relative,
+                "relative_path": record["relative_path"],
                 "reason": reason,
-                "expected_size": expected_size,
-                "expected_sha256": expected_sha,
+                "expected_size": record["size_bytes"],
+                "expected_sha256": record["sha256"],
                 "actual": actual,
             }}
-            failures.append(failure)
-            failure_lines.append(f"{{reason}}: {{relative}} (actual={{actual}})")
+            result["failures"].append(failure)
+            result["failure_lines"].append(
+                f"{{reason}}: {{record['relative_path']}} (actual={{actual}})"
+            )
 
     for record in supplemental_records:
         reason, actual = supplemental_file_failure(record)
         processed_logical_entries += 1
         if not reason:
             validated_logical_entries += 1
-        if not DEBUG_SKIP_FILE_SHA256_SCAN:
-            print(
-                f"\rVerifying File Set: {{processed_logical_entries}} / {{logical_record_count}}",
-                end="", flush=True,
-            )
+        display_verification_progress(processed_logical_entries, logical_record_count)
         if reason:
             failure = {{
                 "relative_path": record["relative_path"],
@@ -7851,66 +8950,182 @@ def main() -> int:
                 "expected_size": record["size_bytes"],
                 "actual": actual,
             }}
-            supplemental_failures.append(failure)
-            failure_lines.append(
+            result["supplemental_failures"].append(failure)
+            result["failure_lines"].append(
                 f"{{reason}}: {{record['relative_path']}} "
                 f"(supplemental package; actual={{actual}})"
             )
 
+    server_asset_result = verify_server_asset_records(server_asset_records)
+    result["server_asset_failures"].extend(server_asset_result["failures"])
+    result["failure_lines"].extend(server_asset_result["failure_lines"])
+
     if not DEBUG_SKIP_FILE_SHA256_SCAN:
         print()
-
     if processed_logical_entries != logical_record_count:
         raise RuntimeError(
             "Verifier file-set counter did not cover the complete logical inventory: "
             f"{{processed_logical_entries}} != {{logical_record_count}}"
         )
+    result["processed"] = processed_logical_entries
+    result["validated"] = validated_logical_entries
+    result["sha256_validated"] = sha256_validated_logical_entries
+    result["sha256_expected"] = sum(
+        int(record.get("_logical_references", 1)) for record in records
+    )
+    result["server_assets_validated"] = server_asset_result["validated"]
+    result["server_assets_sha256_validated"] = server_asset_result["sha256_validated"]
+    return result
 
-    write_repair_list(index, failures)
-    total_failures = len(failures) + len(supplemental_failures)
+
+def report_verification_result(
+    index: dict,
+    result: dict,
+    logical_record_count: int,
+    physical_record_count: int,
+    started: float,
+) -> int:
+    """Write model repair state, print combined integrity, and return the exit code."""
+    write_repair_list(index, result["failures"])
+    total_failures = (
+        len(result["failures"])
+        + len(result["supplemental_failures"])
+        + len(result["server_asset_failures"])
+    )
     elapsed = format_elapsed(time.monotonic() - started)
     reported_found_count, reported_fixed_count = count_reported_entries(ERROR_REPORT)
+    discovered_inventory_entries = int(result.get("discovered_logical_count", 0))
+    discovered_assets = int(result.get("discovered_asset_count", 0))
+    server_asset_count = int(result.get("server_asset_count", 0))
 
     print()
-    print(f"Logical Inventory Entries: {{logical_record_count}}")
-    print(f"Unique Physical Files    : {{physical_record_count}}")
-    print(f"Reported Found           : {{reported_found_count}}")
-    print(f"Reported Fixed           : {{reported_fixed_count}}")
+    print(validation_line("Logical Inventory Entries", logical_record_count))
+    print(validation_line("Unique Physical Files", physical_record_count))
+    print(validation_line("Server Asset Files", server_asset_count))
+    print(validation_line("Reported Found", reported_found_count))
+    print(validation_line("Reported Fixed", reported_fixed_count))
     print(
-        f"Verified File Set        : "
-        f"{{validated_logical_entries}} / {{logical_record_count}}"
+        validation_line(
+            "Verified File Set",
+            f"{{result['validated']}} / {{logical_record_count}}",
+        )
     )
-    print(f"Failures                 : {{total_failures}}")
-    print(f"Elapsed                  : {{elapsed}}")
-    print("Manifest Index           : ~Manifest_Index.v2.json")
+    print(validation_line("Failures", total_failures))
+    print(validation_line("Elapsed", elapsed))
+    print(validation_line("Manifest Index", "~Manifest_Index.v2.json"))
+    if discovered_inventory_entries:
+        print(validation_line("Discovered Inventory Entries", discovered_inventory_entries))
+        print(
+            validation_line(
+                "Found Discovered Inventory",
+                "~Discovered_Inventory.v2.json",
+            )
+        )
+    if discovered_assets:
+        print(validation_line("Discovered Asset Files", discovered_assets))
+        print(
+            validation_line(
+                "Found Discovered Assets",
+                "~Discovered_Assets.v2.json",
+            )
+        )
+    if discovered_inventory_entries or discovered_assets:
+        print("Report File(s) to Script Creator")
     print()
 
     if DEBUG_SKIP_FILE_SHA256_SCAN:
-        print("SHA-256 Integrity Result: SKIPPED")
+        print(validation_line("SHA-256 Integrity Result", "SKIPPED"))
         if total_failures:
-            append_error(failure_lines)
-            print("File/Content Integrity Result: FAILED")
-            if failures:
-                print(f"Repair list              : {{display_path(REPAIR_PATH)}}")
+            append_error(result["failure_lines"])
+            print(validation_line("File/Content Integrity Result", "FAILED"))
             return 1
-        print("File/Content Integrity Result: SUCCESS")
+        print(validation_line("File/Content Integrity Result", "SUCCESS"))
         return 0
 
-    if failures:
-        append_error(failure_lines)
-        print("SHA-256 Integrity Result: FAILED")
-        print("SHA-256 verification failed.")
-        print("File/Content Integrity Result: FAILED")
-        print(f"Repair list              : {{display_path(REPAIR_PATH)}}")
+    inventory_sha_expected = int(result.get("sha256_expected", 0))
+    inventory_sha_validated = int(result.get("sha256_validated", 0))
+    server_sha_expected = server_asset_count
+    server_sha_validated = int(result.get("server_assets_sha256_validated", 0))
+    print(
+        validation_line(
+            "Inventory SHA-256 Verified",
+            f"{{inventory_sha_validated}} / {{inventory_sha_expected}}",
+        )
+    )
+    print(
+        validation_line(
+            "Server Asset SHA-256 Verified",
+            f"{{server_sha_validated}} / {{server_sha_expected}}",
+        )
+    )
+    hash_failures = [*result["failures"], *result["server_asset_failures"]]
+    sha256_result = (
+        "FAILED"
+        if (
+            any(
+                failure.get("reason") in {{"hash_mismatch", "read_error"}}
+                for failure in hash_failures
+            )
+            or inventory_sha_validated != inventory_sha_expected
+            or server_sha_validated != server_sha_expected
+        )
+        else "SUCCESS"
+    )
+    print(validation_line("SHA-256 Integrity Result", sha256_result))
+    if total_failures:
+        append_error(result["failure_lines"])
+        print(validation_line("File/Content Integrity Result", "FAILED"))
         return 1
-
-    print("SHA-256 Integrity Result: SUCCESS")
-    if supplemental_failures:
-        append_error(failure_lines)
-        print("File/Content Integrity Result: FAILED")
-        return 1
-    print("File/Content Integrity Result: SUCCESS")
+    print(validation_line("File/Content Integrity Result", "SUCCESS"))
     return 0
+
+
+def main() -> int:
+    """Validate configuration, verify the mirror inventory, and report the result."""
+    if not (validate_only := parse_arguments(sys.argv[1:])):
+        # Clear any repair request from an earlier verifier run before loading
+        # the current manifest set. A configuration failure must never reuse it.
+        safe_remove_repair_list()
+    index, records = load_inventory()
+    supplemental_records = validate_supplemental_inventory(records)
+    discovered_records, discovered_logical_count = load_discovered_inventory_records(
+        records, supplemental_records
+    )
+    server_asset_records = load_server_asset_records()
+    discovered_asset_records = load_discovered_asset_records(server_asset_records)
+    if validate_only:
+        print("Portable SHA-256 verifier validation: PASSED")
+        return 0
+
+    display_validation_heading()
+    started = time.monotonic()
+    records = sorted(
+        [*records, *discovered_records],
+        key=lambda item: item["relative_path"].casefold(),
+    )
+    v2_logical_record_count = int(index["logical_entries"])
+    logical_record_count = (
+        v2_logical_record_count
+        + len(supplemental_records)
+        + discovered_logical_count
+    )
+    physical_record_count = len(records) + len(supplemental_records)
+    result = verify_inventory(
+        records,
+        supplemental_records,
+        server_asset_records,
+        logical_record_count,
+    )
+    result["discovered_logical_count"] = discovered_logical_count
+    result["server_asset_count"] = len(server_asset_records)
+    result["discovered_asset_count"] = len(discovered_asset_records)
+    return report_verification_result(
+        index,
+        result,
+        logical_record_count,
+        physical_record_count,
+        started,
+    )
 
 
 if __name__ == "__main__":
@@ -7918,21 +9133,25 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except KeyboardInterrupt:
         print("\nSHA-256 verification stopped by user.")
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except Exception as error:
+        # Intentional CLI safety boundary: unexpected verifier/configuration
+        # failures must fail closed with exit 2 instead of exposing a traceback.
         # Every exit-2 path invalidates any repair request, including failures
         # that occur after a scan has temporarily written one.
         try:
             safe_remove_repair_list()
-        except Exception as cleanup_error:
+        except Exception as cleanup_error:  # pylint: disable=broad-exception-caught
+            # Intentional best-effort cleanup boundary: cleanup failure must
+            # never replace or hide the original verifier/configuration failure.
             print(
                 f"WARNING: Unable to clear SHA-256 repair list: {{cleanup_error}}",
                 file=sys.stderr,
             )
         print(f"\nERROR: {{error}}", file=sys.stderr)
-        # Exit 1 is reserved for a completed scan with a fresh repair list.
+        # Exit 1 identifies a completed scan with one or more integrity failures.
         # Exit 2 identifies manifest, configuration, or verifier failures.
-        raise SystemExit(2)
+        raise SystemExit(2) from None
 '''
     compile(verifier_source, str(OUT_PORTABLE_SHA256_VERIFIER), "exec")
     OUT_PORTABLE_SHA256_VERIFIER.write_text(
@@ -7950,6 +9169,8 @@ if __name__ == "__main__":
         record_developer_check("Portable SHA-256 verifier")
 
 
+prune_discovered_inventory_promoted_to_base()
+sync_recovered_assets_report_from_server_assets()
 write_v2_sha256_assets()
 write_server_asset_manifest()
 write_portable_sha256_verifier()
@@ -8040,9 +9261,23 @@ REPEATER_MODEL_ROUTE_RECORDS_JSON = json.dumps(
     separators=(",", ":"),
 )
 
-REPEATER_CERTIFICATE_SUPPORT_SOURCE = 'CERTIFICATE_BEGIN_MARKER = "-----BEGIN CERTIFICATE-----"\nCERTIFICATE_END_MARKER = "-----END CERTIFICATE-----"\nCERTIFICATE_THUMBPRINT_RE = re.compile(r"^[0-9A-F]{40}$")\nREQUIRED_CERTIFICATE_DNS_NAMES = (\'models.topazlabs.com\', \'downloads.topazlabs.com\', \'image-models.topazlabs.com\', \'models-r2.topazlabs.com\', \'models-bal.topazlabs.com\', \'video-models.topazlabs.com\', \'veai-models.topazlabs.com\', \'et.topazlabs.com\', \'topazlabs.com\', \'api.topaz-labs.net\')\nCERTIFICATE_VALIDITY_SECONDS = 30 * 60\nCERTIFICATE_RENEWAL_WINDOW_SECONDS = 5 * 60\nCERTIFICATE_CLOCK_BACKDATE_SECONDS = 1\nCERTIFICATE_STARTUP_MINIMUM_REMAINING_SECONDS = CERTIFICATE_RENEWAL_WINDOW_SECONDS\nCERTIFICATE_SERVER_SHUTDOWN_MARGIN_SECONDS = 2\n\ndef _single_certificate_pem_text(certificate_file: Path) -> str:\n    """Return one complete PEM certificate block or raise ValueError."""\n    pem_text = certificate_file.read_text(encoding=\'utf-8\')\n    if pem_text.count(CERTIFICATE_BEGIN_MARKER) != 1:\n        raise ValueError(\'cert.pem must contain exactly one BEGIN CERTIFICATE block.\')\n    if pem_text.count(CERTIFICATE_END_MARKER) != 1:\n        raise ValueError(\'cert.pem must contain exactly one END CERTIFICATE block.\')\n    block_start = pem_text.index(CERTIFICATE_BEGIN_MARKER)\n    block_end = pem_text.index(CERTIFICATE_END_MARKER, block_start) + len(CERTIFICATE_END_MARKER)\n    return pem_text[block_start:block_end] + \'\\n\'\n\ndef certificate_sha1_thumbprint(certificate_file: Path) -> str:\n    pem_text = _single_certificate_pem_text(certificate_file)\n    der_bytes = ssl.PEM_cert_to_DER_cert(pem_text)\n    return hashlib.sha1(der_bytes).hexdigest().upper()\n\ndef _der_length(length: int) -> bytes:\n    if length < 0:\n        raise ValueError(\'DER length cannot be negative.\')\n    if length < 128:\n        return bytes((length,))\n    encoded = length.to_bytes((length.bit_length() + 7) // 8, \'big\')\n    return bytes((128 | len(encoded),)) + encoded\n\ndef _der_value(tag: int, content: bytes) -> bytes:\n    return bytes((tag,)) + _der_length(len(content)) + content\n\ndef _der_integer(value: int) -> bytes:\n    if value < 0:\n        raise ValueError(\'Only non-negative DER integers are supported.\')\n    encoded = value.to_bytes(max(1, (value.bit_length() + 7) // 8), \'big\')\n    if encoded[0] & 128:\n        encoded = b\'\\x00\' + encoded\n    return _der_value(2, encoded)\n\ndef _der_oid(oid_text: str) -> bytes:\n    arcs = [int(part) for part in oid_text.split(\'.\')]\n    if len(arcs) < 2:\n        raise ValueError(\'An OID requires at least two arcs.\')\n    if arcs[0] not in (0, 1, 2):\n        raise ValueError(\'Invalid first OID arc.\')\n    if arcs[0] < 2 and (not 0 <= arcs[1] <= 39):\n        raise ValueError(\'Invalid second OID arc.\')\n    encoded = bytearray((40 * arcs[0] + arcs[1],))\n    for arc in arcs[2:]:\n        if arc < 0:\n            raise ValueError(\'OID arcs cannot be negative.\')\n        groups = [arc & 127]\n        arc >>= 7\n        while arc:\n            groups.append(128 | arc & 127)\n            arc >>= 7\n        encoded.extend(reversed(groups))\n    return _der_value(6, bytes(encoded))\n\ndef _der_sequence(*items: bytes) -> bytes:\n    return _der_value(48, b\'\'.join(items))\n\ndef _der_set(*items: bytes) -> bytes:\n    return _der_value(49, b\'\'.join(items))\n\ndef _der_boolean(value: bool) -> bytes:\n    return _der_value(1, b\'\\xff\' if value else b\'\\x00\')\n\ndef _der_octet_string(value: bytes) -> bytes:\n    return _der_value(4, value)\n\ndef _der_bit_string(value: bytes, unused_bits: int=0) -> bytes:\n    if not 0 <= unused_bits <= 7:\n        raise ValueError(\'Invalid DER bit-string padding.\')\n    return _der_value(3, bytes((unused_bits,)) + value)\n\ndef _der_utf8_string(value: str) -> bytes:\n    return _der_value(12, value.encode(\'utf-8\'))\n\ndef _der_utc_time(value: datetime) -> bytes:\n    utc_value = value.astimezone(timezone.utc)\n    if not 1950 <= utc_value.year <= 2049:\n        raise ValueError(\'UTCTime supports years from 1950 through 2049.\')\n    return _der_value(23, utc_value.strftime(\'%y%m%d%H%M%SZ\').encode(\'ascii\'))\n\ndef _read_der_value(encoded: bytes, offset: int=0) -> tuple[int, bytes, int]:\n    if offset >= len(encoded):\n        raise ValueError(\'Unexpected end of DER data.\')\n    tag = encoded[offset]\n    offset += 1\n    if offset >= len(encoded):\n        raise ValueError(\'Missing DER length.\')\n    first_length = encoded[offset]\n    offset += 1\n    if first_length & 128:\n        length_octets = first_length & 127\n        if length_octets == 0 or offset + length_octets > len(encoded):\n            raise ValueError(\'Invalid DER length.\')\n        length = int.from_bytes(encoded[offset:offset + length_octets], \'big\')\n        offset += length_octets\n    else:\n        length = first_length\n    end = offset + length\n    if end > len(encoded):\n        raise ValueError(\'Truncated DER value.\')\n    return (tag, encoded[offset:end], end)\n\ndef _read_der_children(encoded: bytes) -> list[tuple[int, bytes]]:\n    children: list[tuple[int, bytes]] = []\n    offset = 0\n    while offset < len(encoded):\n        tag, content, offset = _read_der_value(encoded, offset)\n        children.append((tag, content))\n    return children\n\ndef _decode_der_oid_content(content: bytes) -> str:\n    """Decode the content octets of one DER OBJECT IDENTIFIER."""\n    if not content:\n        raise ValueError(\'DER object identifier is empty.\')\n    values: list[int] = []\n    current = 0\n    for octet in content:\n        current = current << 7 | octet & 127\n        if not octet & 128:\n            values.append(current)\n            current = 0\n    if current or content[-1] & 128:\n        raise ValueError(\'Truncated DER object identifier.\')\n    if not values:\n        raise ValueError(\'DER object identifier has no arcs.\')\n    first_value = values[0]\n    if first_value < 40:\n        first_arc, second_arc = (0, first_value)\n    elif first_value < 80:\n        first_arc, second_arc = (1, first_value - 40)\n    else:\n        first_arc, second_arc = (2, first_value - 80)\n    return \'.\'.join((str(value) for value in (first_arc, second_arc, *values[1:])))\n\ndef _certificate_extended_key_usage_oids(certificate_file: Path) -> set[str] | None:\n    """Return the EKU OIDs, or None when the certificate has no EKU."""\n    pem_text = _single_certificate_pem_text(certificate_file)\n    certificate_der = ssl.PEM_cert_to_DER_cert(pem_text)\n    certificate_tag, certificate_content, certificate_end = _read_der_value(certificate_der)\n    if certificate_tag != 48 or certificate_end != len(certificate_der):\n        raise ValueError(\'Invalid DER certificate wrapper.\')\n    certificate_fields = _read_der_children(certificate_content)\n    if not certificate_fields or certificate_fields[0][0] != 48:\n        raise ValueError(\'Invalid DER TBSCertificate structure.\')\n    extensions_content: bytes | None = None\n    for field_tag, field_content in _read_der_children(certificate_fields[0][1]):\n        if field_tag == 163:\n            if extensions_content is not None:\n                raise ValueError(\'Duplicate certificate extension container.\')\n            sequence_tag, sequence_content, sequence_end = _read_der_value(field_content)\n            if sequence_tag != 48 or sequence_end != len(field_content):\n                raise ValueError(\'Invalid certificate extension container.\')\n            extensions_content = sequence_content\n    if extensions_content is None:\n        return None\n    eku_values: set[str] | None = None\n    for extension_tag, extension_content in _read_der_children(extensions_content):\n        if extension_tag != 48:\n            raise ValueError(\'Invalid certificate extension entry.\')\n        fields = _read_der_children(extension_content)\n        if not fields or fields[0][0] != 6:\n            raise ValueError(\'Certificate extension is missing its OID.\')\n        extension_oid = _decode_der_oid_content(fields[0][1])\n        value_index = 1\n        if value_index < len(fields) and fields[value_index][0] == 1:\n            value_index += 1\n        if value_index >= len(fields) or fields[value_index][0] != 4:\n            raise ValueError(\'Certificate extension is missing its value.\')\n        if value_index != len(fields) - 1:\n            raise ValueError(\'Certificate extension has unexpected fields.\')\n        if extension_oid != \'2.5.29.37\':\n            continue\n        if eku_values is not None:\n            raise ValueError(\'Duplicate Extended Key Usage extension.\')\n        eku_tag, eku_content, eku_end = _read_der_value(fields[value_index][1])\n        if eku_tag != 48 or eku_end != len(fields[value_index][1]):\n            raise ValueError(\'Invalid Extended Key Usage extension.\')\n        eku_values = set()\n        for oid_tag, oid_content in _read_der_children(eku_content):\n            if oid_tag != 6:\n                raise ValueError(\'Invalid Extended Key Usage OID.\')\n            eku_values.add(_decode_der_oid_content(oid_content))\n    return eku_values\n\ndef _certificate_allows_tls_server_authentication(certificate_file: Path) -> bool:\n    """Accept no EKU restriction, serverAuth, or anyExtendedKeyUsage."""\n    eku_values = _certificate_extended_key_usage_oids(certificate_file)\n    if eku_values is None:\n        return True\n    return bool({\'1.3.6.1.5.5.7.3.1\', \'2.5.29.37.0\'} & eku_values)\n\ndef _pem_block_to_der(pem_text: str, label: str) -> bytes:\n    begin_marker = f\'-----BEGIN {label}-----\'\n    end_marker = f\'-----END {label}-----\'\n    if pem_text.count(begin_marker) != 1 or pem_text.count(end_marker) != 1:\n        raise ValueError(f\'Expected exactly one {label} PEM block.\')\n    encoded = pem_text.split(begin_marker, 1)[1].split(end_marker, 1)[0]\n    return base64.b64decode(\'\'.join(encoded.split()), validate=True)\n\ndef _rsa_private_key_values(private_key_file: Path) -> tuple[int, int, int]:\n    pem_text = private_key_file.read_text(encoding=\'ascii\')\n    if \'-----BEGIN PRIVATE KEY-----\' in pem_text:\n        private_key_info = _pem_block_to_der(pem_text, \'PRIVATE KEY\')\n        tag, content, end = _read_der_value(private_key_info)\n        if tag != 48 or end != len(private_key_info):\n            raise ValueError(\'Invalid PKCS#8 private key.\')\n        children = _read_der_children(content)\n        if len(children) < 3 or children[2][0] != 4:\n            raise ValueError(\'Invalid PKCS#8 private-key structure.\')\n        rsa_private_key = children[2][1]\n    elif \'-----BEGIN RSA PRIVATE KEY-----\' in pem_text:\n        rsa_private_key = _pem_block_to_der(pem_text, \'RSA PRIVATE KEY\')\n    else:\n        raise ValueError(\'Only unencrypted RSA private keys are supported.\')\n    tag, content, end = _read_der_value(rsa_private_key)\n    if tag != 48 or end != len(rsa_private_key):\n        raise ValueError(\'Invalid RSA private key.\')\n    integer_values: list[int] = []\n    for child_tag, child_content in _read_der_children(content):\n        if child_tag != 2:\n            raise ValueError(\'Invalid RSA private-key field.\')\n        integer_values.append(int.from_bytes(child_content, \'big\'))\n    if len(integer_values) < 4:\n        raise ValueError(\'Incomplete RSA private key.\')\n    modulus = integer_values[1]\n    public_exponent = integer_values[2]\n    private_exponent = integer_values[3]\n    if modulus.bit_length() < 2048:\n        raise ValueError(\'The RSA private key must be at least 2048 bits.\')\n    return (modulus, public_exponent, private_exponent)\n\ndef _der_algorithm_identifier(oid_text: str) -> bytes:\n    return _der_sequence(_der_oid(oid_text), b\'\\x05\\x00\')\n\ndef _certificate_name() -> bytes:\n    return _der_sequence(_der_set(_der_sequence(_der_oid(\'2.5.4.10\'), _der_utf8_string(\'Topaz Offline Mirror\'))), _der_set(_der_sequence(_der_oid(\'2.5.4.3\'), _der_utf8_string(\'Topaz Offline Local HTTPS\'))))\n\ndef _certificate_extension(oid_text: str, encoded_value: bytes, critical: bool=False) -> bytes:\n    fields = [_der_oid(oid_text)]\n    if critical:\n        fields.append(_der_boolean(True))\n    fields.append(_der_octet_string(encoded_value))\n    return _der_sequence(*fields)\n\ndef _certificate_pem_text(certificate_der: bytes) -> str:\n    encoded = base64.b64encode(certificate_der).decode(\'ascii\')\n    lines = [encoded[offset:offset + 64] for offset in range(0, len(encoded), 64)]\n    return \'-----BEGIN CERTIFICATE-----\\n\' + \'\\n\'.join(lines) + \'\\n-----END CERTIFICATE-----\\n\'\n\ndef _runtime_certificate_der(private_key_file: Path) -> bytes:\n    modulus, public_exponent, private_exponent = _rsa_private_key_values(private_key_file)\n    rsa_public_key = _der_sequence(_der_integer(modulus), _der_integer(public_exponent))\n    subject_public_key_info = _der_sequence(_der_algorithm_identifier(\'1.2.840.113549.1.1.1\'), _der_bit_string(rsa_public_key))\n    key_identifier = hashlib.sha1(rsa_public_key).digest()\n    subject_alt_names = _der_sequence(*(_der_value(130, hostname.encode(\'ascii\')) for hostname in REQUIRED_CERTIFICATE_DNS_NAMES))\n    extensions = _der_sequence(_certificate_extension(\'2.5.29.14\', _der_octet_string(key_identifier)), _certificate_extension(\'2.5.29.35\', _der_sequence(_der_value(128, key_identifier))), _certificate_extension(\'2.5.29.19\', _der_sequence(_der_boolean(True)), critical=True), _certificate_extension(\'2.5.29.15\', _der_bit_string(bytes((166,)), unused_bits=1), critical=True), _certificate_extension(\'2.5.29.37\', _der_sequence(_der_oid(\'1.3.6.1.5.5.7.3.1\'))), _certificate_extension(\'2.5.29.17\', subject_alt_names))\n    not_before = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(seconds=CERTIFICATE_CLOCK_BACKDATE_SECONDS)\n    not_after = not_before + timedelta(seconds=CERTIFICATE_VALIDITY_SECONDS)\n    serial_number = int.from_bytes(os.urandom(20), \'big\') >> 1\n    if serial_number == 0:\n        serial_number = 1\n    signature_algorithm = _der_algorithm_identifier(\'1.2.840.113549.1.1.11\')\n    certificate_name = _certificate_name()\n    tbs_certificate = _der_sequence(_der_value(160, _der_integer(2)), _der_integer(serial_number), signature_algorithm, certificate_name, _der_sequence(_der_utc_time(not_before), _der_utc_time(not_after)), certificate_name, subject_public_key_info, _der_value(163, extensions))\n    digest = hashlib.sha256(tbs_certificate).digest()\n    digest_info = _der_sequence(_der_algorithm_identifier(\'2.16.840.1.101.3.4.2.1\'), _der_octet_string(digest))\n    signature_size = (modulus.bit_length() + 7) // 8\n    padding_size = signature_size - len(digest_info) - 3\n    if padding_size < 8:\n        raise ValueError(\'The RSA private key is too small for SHA-256 signing.\')\n    encoded_message = b\'\\x00\\x01\' + b\'\\xff\' * padding_size + b\'\\x00\' + digest_info\n    signature = pow(int.from_bytes(encoded_message, \'big\'), private_exponent, modulus).to_bytes(signature_size, \'big\')\n    return _der_sequence(tbs_certificate, signature_algorithm, _der_bit_string(signature))\n\ndef _validate_managed_text_destination(destination: Path) -> None:\n    """Reject linked/non-regular managed files and unsafe parent paths."""\n    parent = destination.parent\n    try:\n        parent_metadata = os.lstat(parent)\n    except OSError as error:\n        raise RuntimeError(\n            f"Managed-file parent is unavailable: {parent}: {error}"\n        ) from error\n\n    if (\n        stat.S_ISLNK(parent_metadata.st_mode)\n        or not stat.S_ISDIR(parent_metadata.st_mode)\n    ):\n        raise RuntimeError(\n            f"Managed-file parent is unsafe or not a directory: {parent}"\n        )\n\n    try:\n        destination_metadata = os.lstat(destination)\n    except FileNotFoundError:\n        return\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to inspect managed destination: {destination}: {error}"\n        ) from error\n\n    if (\n        stat.S_ISLNK(destination_metadata.st_mode)\n        or not stat.S_ISREG(destination_metadata.st_mode)\n    ):\n        raise RuntimeError(\n            "Refusing to replace a symbolic link or non-regular managed file: "\n            f"{destination}"\n        )\n\n\ndef _atomic_write_managed_text(\n    destination: Path,\n    text: str,\n    *,\n    encoding: str,\n    newline: str | None,\n    mode: int = 0o644,\n) -> None:\n    """Atomically replace one managed text file without following links."""\n    _validate_managed_text_destination(destination)\n    parent = destination.parent\n    descriptor = -1\n    temporary_path: Path | None = None\n\n    try:\n        descriptor, temporary_name = tempfile.mkstemp(\n            prefix=f".{destination.name}.",\n            suffix=".stage",\n            dir=str(parent),\n        )\n        temporary_path = Path(temporary_name)\n        try:\n            os.fchmod(descriptor, mode)\n        except (AttributeError, OSError):\n            pass\n\n        with os.fdopen(\n            descriptor,\n            "w",\n            encoding=encoding,\n            newline=newline,\n        ) as handle:\n            descriptor = -1\n            handle.write(text)\n            handle.flush()\n            os.fsync(handle.fileno())\n\n        _validate_managed_text_destination(destination)\n        os.replace(temporary_path, destination)\n        temporary_path = None\n\n        try:\n            directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)\n            directory_descriptor = os.open(parent, directory_flags)\n        except OSError:\n            directory_descriptor = -1\n        if directory_descriptor >= 0:\n            try:\n                os.fsync(directory_descriptor)\n            except OSError:\n                pass\n            finally:\n                os.close(directory_descriptor)\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to atomically write managed file {destination}: {error}"\n        ) from error\n    finally:\n        if descriptor >= 0:\n            os.close(descriptor)\n        if temporary_path is not None:\n            temporary_path.unlink(missing_ok=True)\n\ndef write_runtime_certificate_for_private_key(private_key_file: Path, certificate_file: Path) -> None:\n    certificate_file.write_text(_certificate_pem_text(_runtime_certificate_der(private_key_file)), encoding=\'ascii\', newline=\'\\n\')\n\ndef _regular_certificate_file(path: Path) -> bool:\n    try:\n        return path.is_file() and (not path.is_symlink())\n    except OSError:\n        return False\n\ndef _normalized_certificate_thumbprint(value: str) -> str | None:\n    candidate = value.strip().upper()\n    if CERTIFICATE_THUMBPRINT_RE.fullmatch(candidate):\n        return candidate\n    return None\n\ndef _certificate_pattern_covers_host(pattern: str, hostname: str) -> bool:\n    pattern = pattern.strip().rstrip(\'.\').lower()\n    hostname = hostname.strip().rstrip(\'.\').lower()\n    if pattern == hostname:\n        return True\n    if not pattern.startswith(\'*.\'):\n        return False\n    suffix = pattern[1:]\n    return hostname.endswith(suffix) and hostname.count(\'.\') == pattern.count(\'.\')\n\ndef _certificate_supports_tls_server_authentication(\n    certificate_file: Path,\n    openssl_executable: Path,\n) -> bool:\n    try:\n        result = subprocess.run(\n            [\n                str(openssl_executable),\n                "verify",\n                "-purpose",\n                "sslserver",\n                "-CAfile",\n                str(certificate_file),\n                str(certificate_file),\n            ],\n            stdout=subprocess.DEVNULL,\n            stderr=subprocess.DEVNULL,\n            check=False,\n            timeout=15,\n        )\n    except (OSError, subprocess.TimeoutExpired):\n        return False\n    return result.returncode == 0\n\n\ndef certificate_pair_is_valid(certificate_file: Path, private_key_file: Path, openssl_executable: Path | None=None) -> bool:\n    """Validate one reusable TLS server certificate/private-key pair."""\n    if not _regular_certificate_file(certificate_file):\n        return False\n    if not _regular_certificate_file(private_key_file):\n        return False\n    try:\n        _single_certificate_pem_text(certificate_file)\n        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)\n        context.load_cert_chain(certfile=str(certificate_file), keyfile=str(private_key_file))\n        decoded = ssl._ssl._test_decode_cert(str(certificate_file))\n        not_before = decoded.get(\'notBefore\')\n        not_after = decoded.get(\'notAfter\')\n        if not not_before or not not_after:\n            return False\n        not_before_seconds = ssl.cert_time_to_seconds(not_before)\n        not_after_seconds = ssl.cert_time_to_seconds(not_after)\n        if not_after_seconds - not_before_seconds > CERTIFICATE_VALIDITY_SECONDS:\n            return False\n        if not_after_seconds <= time.time() + CERTIFICATE_RENEWAL_WINDOW_SECONDS:\n            return False\n        if not_before_seconds > time.time() + 300:\n            return False\n        dns_patterns = [value for kind, value in decoded.get(\'subjectAltName\', ()) if kind == \'DNS\']\n        if not dns_patterns:\n            return False\n        for hostname in REQUIRED_CERTIFICATE_DNS_NAMES:\n            if not any((_certificate_pattern_covers_host(pattern, hostname) for pattern in dns_patterns)):\n                return False\n        if not _certificate_allows_tls_server_authentication(certificate_file):\n            return False\n        if openssl_executable is not None and (not _certificate_supports_tls_server_authentication(certificate_file, openssl_executable)):\n            return False\n    except (AttributeError, OSError, TypeError, ValueError, ssl.SSLError):\n        return False\n    return True\n\ndef _windows_current_user_sid() -> str:\n    """Return the SID of the Windows account running this process."""\n    try:\n        result = subprocess.run(\n            ["whoami.exe", "/user", "/fo", "csv", "/nh"],\n            capture_output=True,\n            text=True,\n            check=False,\n            timeout=15,\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        raise RuntimeError(\n            f"Unable to identify the current Windows user SID: {error}"\n        ) from error\n\n    if result.returncode != 0:\n        detail = (result.stderr or result.stdout).strip()\n        raise RuntimeError(\n            "Unable to identify the current Windows user SID."\n            + (f" {detail}" if detail else "")\n        )\n\n    matches = re.findall(r"S-\\d(?:-\\d+)+", result.stdout)\n    if not matches:\n        raise RuntimeError("whoami did not return a Windows user SID.")\n    return matches[-1]\n\n\ndef _windows_private_key_acl_command(\n    private_key_file: Path,\n    user_sid: str,\n) -> list[str]:\n    if not re.fullmatch(r"S-\\d(?:-\\d+)+", user_sid):\n        raise ValueError("Invalid Windows SID for private-key ACL hardening.")\n    return [\n        "icacls.exe",\n        str(private_key_file),\n        "/inheritance:r",\n        "/grant:r",\n        f"*{user_sid}:(F)",\n        "/q",\n    ]\n\n\ndef _harden_private_key_permissions(private_key_file: Path) -> None:\n    """Restrict key.pem to the current user on Windows or exactly mode 0600 on Unix."""\n    if not _regular_certificate_file(private_key_file):\n        raise RuntimeError(f"Private key is missing or unsafe: {private_key_file}")\n\n    if os.name == "nt":\n        user_sid = _windows_current_user_sid()\n        command = _windows_private_key_acl_command(private_key_file, user_sid)\n        try:\n            result = subprocess.run(\n                command,\n                capture_output=True,\n                text=True,\n                check=False,\n                timeout=30,\n            )\n        except (OSError, subprocess.TimeoutExpired) as error:\n            raise RuntimeError(\n                f"Unable to harden the Windows private-key ACL: {error}"\n            ) from error\n        if result.returncode != 0:\n            detail = (result.stderr or result.stdout).strip()\n            raise RuntimeError(\n                "Unable to restrict key.pem to the current Windows user."\n                + (f" {detail}" if detail else "")\n            )\n        return\n\n    try:\n        private_key_file.chmod(0o600)\n        file_status = private_key_file.lstat()\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to restrict Unix private-key permissions to 0600: {error}"\n        ) from error\n\n    if stat.S_ISLNK(file_status.st_mode) or not stat.S_ISREG(file_status.st_mode):\n        raise RuntimeError(\n            f"Private key became unsafe while applying permissions: {private_key_file}"\n        )\n\n    actual_mode = stat.S_IMODE(file_status.st_mode)\n    if actual_mode != 0o600:\n        raise RuntimeError(\n            "Unable to verify Unix private-key permissions as 0600: "\n            f"{private_key_file} has mode {actual_mode:04o}."\n        )\n\n\ndef _generate_private_key_file_with_openssl(\n    openssl_executable: Path,\n    private_key_file: Path,\n) -> tuple[bool, str]:\n    try:\n        result = subprocess.run(\n            [\n                str(openssl_executable),\n                "genpkey",\n                "-algorithm",\n                "RSA",\n                "-pkeyopt",\n                "rsa_keygen_bits:4096",\n                "-out",\n                str(private_key_file),\n            ],\n            capture_output=True,\n            text=True,\n            check=False,\n            timeout=180,\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        return False, str(error)\n\n    if result.returncode != 0:\n        detail = (result.stderr or result.stdout).strip()\n        if not detail:\n            detail = f"OpenSSL exited with code {result.returncode}."\n        return False, detail\n\n    try:\n        _harden_private_key_permissions(private_key_file)\n    except RuntimeError as error:\n        return False, str(error)\n    return True, ""\n\n\ndef _generate_private_key_file_with_cryptography(\n    private_key_file: Path,\n) -> tuple[bool, str]:\n    try:\n        from cryptography.hazmat.primitives import serialization\n        from cryptography.hazmat.primitives.asymmetric import rsa\n    except ImportError:\n        return False, "Python package \'cryptography\' is not installed."\n\n    try:\n        private_key = rsa.generate_private_key(\n            public_exponent=65537,\n            key_size=4096,\n        )\n        private_key_file.write_bytes(\n            private_key.private_bytes(\n                encoding=serialization.Encoding.PEM,\n                format=serialization.PrivateFormat.PKCS8,\n                encryption_algorithm=serialization.NoEncryption(),\n            )\n        )\n        _harden_private_key_permissions(private_key_file)\n    except (OSError, RuntimeError, TypeError, ValueError) as error:\n        return False, str(error)\n    return True, ""\n\ndef _replace_certificate_pair(\n    new_certificate: Path,\n    new_private_key: Path,\n    openssl_executable: Path | None = None,\n) -> None:\n    _ensure_safe_certificate_directories()\n\n    certificate_descriptor, certificate_name = tempfile.mkstemp(\n        prefix=".cert-",\n        suffix=".stage",\n        dir=str(CERT_DIR),\n    )\n    key_descriptor, key_name = tempfile.mkstemp(\n        prefix=".key-",\n        suffix=".stage",\n        dir=str(CERT_DIR),\n    )\n    os.close(certificate_descriptor)\n    os.close(key_descriptor)\n    certificate_stage = Path(certificate_name)\n    key_stage = Path(key_name)\n\n    try:\n        shutil.copyfile(new_certificate, certificate_stage)\n        shutil.copyfile(new_private_key, key_stage)\n        _harden_private_key_permissions(key_stage)\n\n        if not certificate_pair_is_valid(\n            certificate_stage,\n            key_stage,\n            openssl_executable,\n        ):\n            raise RuntimeError(\n                "The staged certificate and private key did not validate."\n            )\n\n        _archive_existing_certificate()\n        os.replace(key_stage, KEY_FILE)\n        os.replace(certificate_stage, CERT_FILE)\n        _harden_private_key_permissions(KEY_FILE)\n    finally:\n        certificate_stage.unlink(missing_ok=True)\n        key_stage.unlink(missing_ok=True)\n\n\ndef _certificate_not_after_epoch(certificate_file: Path) -> float:\n    decoded = ssl._ssl._test_decode_cert(str(certificate_file))\n    not_after = decoded.get("notAfter")\n    if not not_after:\n        raise ValueError("Certificate has no notAfter value.")\n    return float(ssl.cert_time_to_seconds(not_after))\n\n\ndef _managed_cleanup_certificate_thumbprint(\n    certificate_file: Path,\n) -> str | None:\n    """Return SHA-1 only for a verified managed 30-minute HTTPS certificate."""\n    if not _regular_certificate_file(certificate_file):\n        return None\n\n    try:\n        _single_certificate_pem_text(certificate_file)\n        decoded = ssl._ssl._test_decode_cert(str(certificate_file))\n\n        subject = decoded.get("subject")\n        issuer = decoded.get("issuer")\n        if not subject or subject != issuer:\n            return None\n\n        not_before = decoded.get("notBefore")\n        not_after = decoded.get("notAfter")\n        if not not_before or not not_after:\n            return None\n        lifetime_seconds = (\n            ssl.cert_time_to_seconds(not_after)\n            - ssl.cert_time_to_seconds(not_before)\n        )\n        if not 0 < lifetime_seconds <= CERTIFICATE_VALIDITY_SECONDS:\n            return None\n\n        dns_patterns = [\n            value.strip().rstrip(".").lower()\n            for kind, value in decoded.get("subjectAltName", ())\n            if kind == "DNS" and value\n        ]\n        if not dns_patterns:\n            return None\n        for hostname in (\n            "models.topazlabs.com",\n            "downloads.topazlabs.com",\n        ):\n            if not any(\n                _certificate_pattern_covers_host(pattern, hostname)\n                for pattern in dns_patterns\n            ):\n                return None\n\n        if not _certificate_allows_tls_server_authentication(certificate_file):\n            return None\n\n        return certificate_sha1_thumbprint(certificate_file)\n    except (AttributeError, OSError, TypeError, ValueError, ssl.SSLError):\n        return None\n\n\ndef _load_verified_archived_certificate_thumbprints() -> tuple[str, ...]:\n    """Derive cleanup hashes only from validated History/<SHA1>.pem files."""\n    if not CERTIFICATE_HISTORY_DIR.exists():\n        return ()\n    if CERTIFICATE_HISTORY_DIR.is_symlink() or not CERTIFICATE_HISTORY_DIR.is_dir():\n        raise RuntimeError(\n            "Certificate history path is unsafe or not a directory: "\n            f"{CERTIFICATE_HISTORY_DIR}"\n        )\n\n    result: list[str] = []\n    try:\n        entries = sorted(\n            CERTIFICATE_HISTORY_DIR.iterdir(),\n            key=lambda path: path.name.casefold(),\n        )\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to inspect certificate history: {error}"\n        ) from error\n\n    for certificate_file in entries:\n        if certificate_file.suffix.casefold() != ".pem":\n            continue\n        if certificate_file.is_symlink() or not certificate_file.is_file():\n            raise RuntimeError(\n                "Refusing unsafe certificate-history entry: "\n                f"{certificate_file}"\n            )\n\n        thumbprint = _managed_cleanup_certificate_thumbprint(certificate_file)\n        if not thumbprint:\n            continue\n        if certificate_file.name.casefold() != f"{thumbprint}.pem".casefold():\n            continue\n        if thumbprint not in result:\n            result.append(thumbprint)\n\n    return tuple(result)\n\n\ndef _collect_certificate_thumbprints_before_refresh() -> tuple[str, ...]:\n    """Collect cleanup authority only from verified certificate material."""\n    result = list(_load_verified_archived_certificate_thumbprints())\n    current = _managed_cleanup_certificate_thumbprint(CERT_FILE)\n    if current and current not in result:\n        result.append(current)\n\n    # Certificate_Thumbprints.txt remains bookkeeping output only. Its text is\n    # deliberately never accepted as privileged certificate-deletion authority.\n    return tuple(result)\n\n\ndef _write_certificate_thumbprint_history(\n    thumbprints: tuple[str, ...],\n) -> None:\n    _atomic_write_managed_text(CERTIFICATE_THUMBPRINT_HISTORY_FILE,\n        "".join(f"{thumbprint}\\n" for thumbprint in thumbprints),\n        encoding="utf-8",\n        newline="\\n",\n    )\n\n\ndef _windows_admin_block() -> str:\n    return r\'\'\'set "TOPAZ_MANAGED_BY_REPEATER=0"\nset "TOPAZ_ELEVATED_CHILD=0"\nif /I "%~1"=="--managed-by-repeater" set "TOPAZ_MANAGED_BY_REPEATER=1"\nif /I "%~2"=="--managed-by-repeater" set "TOPAZ_MANAGED_BY_REPEATER=1"\nif /I "%~1"=="--elevated-child" set "TOPAZ_ELEVATED_CHILD=1"\n\nwhere powershell.exe >nul 2>&1\nif errorlevel 1 (\n    echo ERROR: Windows PowerShell is required to verify Administrator rights.\n    echo.\n    if "%TOPAZ_MANAGED_BY_REPEATER%"=="0" if "%TOPAZ_ELEVATED_CHILD%"=="0" pause\n    exit /b 1\n)\n\npowershell.exe -NoProfile -NonInteractive -Command ^\n    "$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent()); exit [int](-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)))"\nif not errorlevel 1 goto ELEVATED\n\necho Requesting Administrator rights...\nset "TOPAZ_CERT_HELPER=%~f0"\nset "TOPAZ_CERT_ARGS=--elevated-child"\nif "%TOPAZ_MANAGED_BY_REPEATER%"=="1" set "TOPAZ_CERT_ARGS=--elevated-child --managed-by-repeater"\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n    "$ErrorActionPreference=\'Stop\'; try { $p=Start-Process -FilePath $env:TOPAZ_CERT_HELPER -ArgumentList $env:TOPAZ_CERT_ARGS -Verb RunAs -Wait -PassThru; exit $p.ExitCode } catch { Write-Error $_; exit 1 }"\nset "TOPAZ_ELEVATION_CODE=%ERRORLEVEL%"\nset "TOPAZ_CERT_HELPER="\nset "TOPAZ_CERT_ARGS="\nif not "%TOPAZ_ELEVATION_CODE%"=="0" (\n    echo.\n    echo Administrator relaunch or certificate cleanup failed.\n    echo.\n    exit /b %TOPAZ_ELEVATION_CODE%\n)\nif "%TOPAZ_MANAGED_BY_REPEATER%"=="1" exit /b 0\n\necho.\necho Certificate cleanup completed successfully.\necho The certificate is no longer present in the Windows Root store.\necho This cleanup utility will remove itself after you continue.\necho.\npause\n(goto) 2>nul & del /f /q "%~f0"\n\n:ELEVATED\n\'\'\'\n\n\ndef _write_windows_remove_helper(\n    thumbprints: tuple[str, ...],\n) -> None:\n    blocks: list[str] = []\n    absence_blocks: list[str] = []\n    for thumbprint in thumbprints:\n        blocks.append(fr\'\'\'echo Certificate thumbprint:\necho {thumbprint}\necho.\n\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n    "$ErrorActionPreference=\'Stop\'; try {{ if (Test-Path -LiteralPath \'Cert:\\LocalMachine\\Root\\{thumbprint}\') {{ exit 0 }} else {{ exit 3 }} }} catch {{ Write-Error $_; exit 2 }}"\nset "CERT_LOOKUP_CODE=%ERRORLEVEL%"\n\nif "%CERT_LOOKUP_CODE%"=="0" (\n    certutil.exe -delstore Root "{thumbprint}"\n    if errorlevel 1 (\n        set "CERT_REMOVE_FAILED=1"\n        echo.\n        echo WARNING: Certificate {thumbprint} could not be removed from the Root store.\n    ) else (\n        echo.\n        echo Certificate removed successfully.\n    )\n) else if "%CERT_LOOKUP_CODE%"=="3" (\n    echo Certificate is already absent from the Windows Root store.\n) else (\n    set "CERT_REMOVE_FAILED=1"\n    echo WARNING: The Windows Root store could not be queried.\n    echo Certificate presence could not be determined.\n)\n\necho.\n\'\'\')\n        absence_blocks.append(fr\'\'\'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n    "$ErrorActionPreference=\'Stop\'; try {{ if (Test-Path -LiteralPath \'Cert:\\LocalMachine\\Root\\{thumbprint}\') {{ exit 3 }} else {{ exit 0 }} }} catch {{ Write-Error $_; exit 2 }}"\nset "CERT_VERIFY_CODE=%ERRORLEVEL%"\nif not "%CERT_VERIFY_CODE%"=="0" (\n    set "CERT_REMOVE_FAILED=1"\n    if "%CERT_VERIFY_CODE%"=="3" (\n        echo WARNING: Certificate {thumbprint} is still present in the Windows Root store.\n    ) else (\n        echo WARNING: Certificate absence could not be verified for {thumbprint}.\n    )\n)\n\'\'\')\n    body = "".join(blocks)\n    absence_body = "".join(absence_blocks)\n    _atomic_write_managed_text(REMOVE_CERT_BAT,\n        "@echo off\\r\\n"\n        "setlocal EnableExtensions\\r\\n"\n        "title Remove Topaz Local HTTPS Certificate\\r\\n\\r\\n"\n        + _windows_admin_block().replace("\\n", "\\r\\n")\n        + "\\r\\necho Removing known Topaz local HTTPS certificates...\\r\\n"\n        "echo.\\r\\n\\r\\n"\n        "set \\"CERT_REMOVE_FAILED=0\\"\\r\\n"\n        + body.replace("\\n", "\\r\\n")\n        + "echo Verifying certificate removal from the Windows Root store...\\r\\n"\n        + absence_body.replace("\\n", "\\r\\n")\n        + "\\r\\nif \\"%CERT_REMOVE_FAILED%\\"==\\"1\\" (\\r\\n"\n        "    echo.\\r\\n"\n        "    echo One or more Windows Root certificates are still present or could not be verified.\\r\\n"\n        "    echo Local certificate files, history, and this cleanup utility were retained for retry.\\r\\n"\n        "    echo.\\r\\n"\n        "    if \\"%TOPAZ_MANAGED_BY_REPEATER%\\"==\\"0\\" if \\"%TOPAZ_ELEVATED_CHILD%\\"==\\"0\\" pause\\r\\n"\n        "    exit /b 1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "echo Cleaning up Topaz Offline Mirror certificate files...\\r\\n"\n        "echo.\\r\\n\\r\\n"\n        "set \\"LOCAL_CLEANUP_FAILED=0\\"\\r\\n\\r\\n"\n        "if exist \\"%~dp0cert.pem\\" (\\r\\n"\n        "    del /f /q \\"%~dp0cert.pem\\" >nul 2>&1\\r\\n"\n        "    if exist \\"%~dp0cert.pem\\" (\\r\\n"\n        "        set \\"LOCAL_CLEANUP_FAILED=1\\"\\r\\n"\n        "        echo WARNING: cert.pem could not be deleted.\\r\\n"\n        "    ) else (\\r\\n"\n        "        echo Deleted cert.pem\\r\\n"\n        "    )\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0key.pem\\" (\\r\\n"\n        "    del /f /q \\"%~dp0key.pem\\" >nul 2>&1\\r\\n"\n        "    if exist \\"%~dp0key.pem\\" (\\r\\n"\n        "        set \\"LOCAL_CLEANUP_FAILED=1\\"\\r\\n"\n        "        echo WARNING: key.pem could not be deleted.\\r\\n"\n        "    ) else (\\r\\n"\n        "        echo Deleted key.pem\\r\\n"\n        "    )\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0History\\" (\\r\\n"\n        "    rmdir /s /q \\"%~dp0History\\" >nul 2>&1\\r\\n"\n        "    if exist \\"%~dp0History\\" (\\r\\n"\n        "        set \\"LOCAL_CLEANUP_FAILED=1\\"\\r\\n"\n        "        echo WARNING: Certificate history could not be deleted.\\r\\n"\n        "    ) else (\\r\\n"\n        "        echo Deleted certificate history\\r\\n"\n        "    )\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Thumbprints.txt\\" (\\r\\n"\n        "    del /f /q \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Thumbprints.txt\\" >nul 2>&1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Install_Pending.txt\\" (\\r\\n"\n        "    del /f /q \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Install_Pending.txt\\" >nul 2>&1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if \\"%LOCAL_CLEANUP_FAILED%\\"==\\"1\\" (\\r\\n"\n        "    echo.\\r\\n"\n        "    echo Local certificate cleanup was incomplete.\\r\\n"\n        "    echo This cleanup utility was retained for retry.\\r\\n"\n        "    echo.\\r\\n"\n        "    if \\"%TOPAZ_MANAGED_BY_REPEATER%\\"==\\"0\\" if \\"%TOPAZ_ELEVATED_CHILD%\\"==\\"0\\" pause\\r\\n"\n        "    exit /b 1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if \\"%TOPAZ_ELEVATED_CHILD%\\"==\\"1\\" exit /b 0\\r\\n"\n        "if \\"%TOPAZ_MANAGED_BY_REPEATER%\\"==\\"1\\" exit /b 0\\r\\n\\r\\n"\n        "echo.\\r\\n"\n        "echo Certificate cleanup completed successfully.\\r\\n"\n        "echo The certificate is no longer present in the Windows Root store.\\r\\n"\n        "echo This cleanup utility will remove itself after you continue.\\r\\n"\n        "echo.\\r\\n"\n        "pause\\r\\n\\r\\n"\n        "(goto) 2>nul & del /f /q \\"%~f0\\"\\r\\n",\n        encoding="utf-8",\n        newline="",\n    )\n\ndef _write_macos_remove_helper(\n    thumbprints: tuple[str, ...],\n) -> None:\n    values = "\\n".join(f\'    "{value}"\' for value in thumbprints)\n    current_thumbprint = thumbprints[0]\n    _atomic_write_managed_text(\n        REMOVE_CERT_MACOS,\n        f\'\'\'#!/usr/bin/env bash\nset -e\n\nSCRIPT_DIR="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"\nCERT_FILE="$SCRIPT_DIR/cert.pem"\nCERT_HISTORY_DIR="$SCRIPT_DIR/History"\nCURRENT_CERT_SHA1="{current_thumbprint}"\nCERT_REMOVE_FAILED=0\nCERT_QUERY_OUTPUT=""\nCERT_SHA1_VALUES=(\n{values}\n)\nMANAGED_BY_REPEATER=0\nif [ "${1:-}" = "--managed-by-repeater" ]; then\n    MANAGED_BY_REPEATER=1\nfi\n\nif [ -L "$CERT_HISTORY_DIR" ] || {{ [ -e "$CERT_HISTORY_DIR" ] && [ ! -d "$CERT_HISTORY_DIR" ]; }}; then\n    echo "WARNING: Certificate history path is unsafe or not a directory: $CERT_HISTORY_DIR" >&2\n    echo "Local certificate files, state markers, history, and this cleanup utility were retained for retry." >&2\n    exit 1\nfi\nmkdir -p "$CERT_HISTORY_DIR"\n\nif CERT_QUERY_OUTPUT="$(\n    sudo security find-certificate \\\\\n        -Z \\\\\n        -a \\\\\n        /Library/Keychains/System.keychain 2>&1\n)"; then\n    for CERT_SHA1 in "${{CERT_SHA1_VALUES[@]}}"; do\n        if [ "$CERT_SHA1" = "$CURRENT_CERT_SHA1" ]; then\n            TRUST_CERT_FILE="$CERT_FILE"\n        else\n            TRUST_CERT_FILE="$CERT_HISTORY_DIR/$CERT_SHA1.pem"\n        fi\n        TRUST_REMOVED_MARKER="$CERT_HISTORY_DIR/$CERT_SHA1.trust-removed"\n\n        if [ -L "$TRUST_REMOVED_MARKER" ] || {{ [ -e "$TRUST_REMOVED_MARKER" ] && [ ! -f "$TRUST_REMOVED_MARKER" ]; }}; then\n            TRUST_SETTINGS_REMOVED=0\n            CERT_REMOVE_FAILED=1\n            echo "WARNING: Trust-removal marker is unsafe: $TRUST_REMOVED_MARKER" >&2\n        elif [ -f "$TRUST_REMOVED_MARKER" ]; then\n            MARKER_VALUE="$(cat -- "$TRUST_REMOVED_MARKER" 2>/dev/null || true)"\n            if [ "$MARKER_VALUE" = "$CERT_SHA1" ]; then\n                TRUST_SETTINGS_REMOVED=1\n            else\n                TRUST_SETTINGS_REMOVED=0\n                CERT_REMOVE_FAILED=1\n                echo "WARNING: Trust-removal marker does not match $CERT_SHA1: $TRUST_REMOVED_MARKER" >&2\n            fi\n        elif [ -f "$TRUST_CERT_FILE" ] && [ ! -L "$TRUST_CERT_FILE" ]; then\n            if sudo security remove-trusted-cert \\\\\n                -d \\\\\n                "$TRUST_CERT_FILE"; then\n                MARKER_TEMP="$(mktemp "$CERT_HISTORY_DIR/.${{CERT_SHA1}}.trust-removed.XXXXXX")" || {{\n                    TRUST_SETTINGS_REMOVED=0\n                    CERT_REMOVE_FAILED=1\n                    echo "WARNING: Unable to create trust-removal marker safely for $CERT_SHA1." >&2\n                    continue\n                }}\n                if printf \'%s\\\\n\' "$CERT_SHA1" > "$MARKER_TEMP" \\\\\n                    && chmod 600 "$MARKER_TEMP" \\\\\n                    && mv -f -- "$MARKER_TEMP" "$TRUST_REMOVED_MARKER"; then\n                    TRUST_SETTINGS_REMOVED=1\n                else\n                    rm -f -- "$MARKER_TEMP"\n                    TRUST_SETTINGS_REMOVED=0\n                    CERT_REMOVE_FAILED=1\n                    echo "WARNING: Unable to store trust-removal state safely for $CERT_SHA1." >&2\n                fi\n            else\n                TRUST_SETTINGS_REMOVED=0\n                CERT_REMOVE_FAILED=1\n                echo "WARNING: Administrative trust settings for $CERT_SHA1 could not be removed." >&2\n            fi\n        else\n            TRUST_SETTINGS_REMOVED=0\n            CERT_REMOVE_FAILED=1\n            echo "WARNING: Certificate file for trust removal is missing or unsafe: $TRUST_CERT_FILE" >&2\n        fi\n\n        if [ "$TRUST_SETTINGS_REMOVED" -ne 1 ]; then\n            echo "Certificate $CERT_SHA1 was retained so trust removal can be retried." >&2\n            continue\n        fi\n\n        if printf \'%s\\\\n\' "$CERT_QUERY_OUTPUT" | grep -qi "$CERT_SHA1"; then\n            if sudo security delete-certificate \\\\\n                -t \\\\\n                -Z "$CERT_SHA1" \\\\\n                /Library/Keychains/System.keychain; then\n                echo "Certificate $CERT_SHA1 removed successfully."\n            else\n                CERT_REMOVE_FAILED=1\n                echo "WARNING: Certificate $CERT_SHA1 could not be removed from the System keychain." >&2\n            fi\n        else\n            echo "Certificate $CERT_SHA1 is already absent from the macOS System keychain."\n        fi\n    done\nelse\n    CERT_REMOVE_FAILED=1\n    echo "WARNING: The macOS System keychain could not be queried." >&2\n    echo "Certificate presence could not be determined." >&2\n    if [ -n "$CERT_QUERY_OUTPUT" ]; then\n        printf \'%s\\\\n\' "$CERT_QUERY_OUTPUT" >&2\n    fi\nfi\n\nif [ "$CERT_REMOVE_FAILED" -ne 0 ]; then\n    echo "Local certificate files, state markers, history, and this cleanup utility were retained for retry." >&2\n    exit 1\nfi\n\nrm -f "$CERT_FILE" "$SCRIPT_DIR/key.pem"\nrm -rf "$CERT_HISTORY_DIR"\nrm -f "$SCRIPT_DIR/Topaz_Offline_Download_Creator_Certificate_Thumbprints.txt"\nrm -f "$SCRIPT_DIR/Topaz_Offline_Download_Creator_Certificate_Install_Pending.txt"\n\necho\necho "Certificate cleanup completed successfully."\nif [ "$MANAGED_BY_REPEATER" -eq 1 ]; then\n    exit 0\nfi\nrm -f -- "$0"\n\'\'\',\n        encoding="utf-8",\n        newline="\\n",\n    )\n    try:\n        REMOVE_CERT_MACOS.chmod(REMOVE_CERT_MACOS.stat().st_mode | 0o111)\n    except OSError:\n        pass\n\n\ndef _write_platform_helpers_after_refresh(\n    changed: bool,\n    thumbprints: tuple[str, ...],\n) -> None:\n    # Certificate installation is inline at server startup. Regenerate the\n    # cleanup helper only after certificate rotation or if the helper is absent.\n    if os.name == "nt":\n        if changed or not _regular_certificate_file(REMOVE_CERT_BAT):\n            _write_windows_remove_helper(thumbprints)\n    elif sys.platform == "darwin":\n        if changed or not _regular_certificate_file(REMOVE_CERT_MACOS):\n            _write_macos_remove_helper(thumbprints)\n\n\ndef _replace_with_certificate_for_existing_key() -> str:\n    _ensure_safe_certificate_directories()\n    try:\n        with tempfile.TemporaryDirectory(\n            prefix=".topaz-server-start-",\n            dir=str(CERT_FILE.parent),\n        ) as temporary_directory:\n            temporary_root = Path(temporary_directory)\n            temporary_key = temporary_root / "key.pem"\n            temporary_certificate = temporary_root / "cert.pem"\n\n            key_source = "New 30-minute certificate using existing local private key"\n            try:\n                if not _regular_certificate_file(KEY_FILE):\n                    raise ValueError("Local private key is missing or unsafe.")\n                _rsa_private_key_values(KEY_FILE)\n                temporary_key.write_bytes(KEY_FILE.read_bytes())\n                _harden_private_key_permissions(temporary_key)\n            except (OSError, RuntimeError, TypeError, ValueError):\n                openssl_text = shutil.which("openssl.exe") or shutil.which("openssl")\n                generated = False\n                detail = ""\n                if openssl_text:\n                    generated, detail = _generate_private_key_file_with_openssl(\n                        Path(openssl_text),\n                        temporary_key,\n                    )\n                    if generated:\n                        key_source = (\n                            "New 30-minute certificate using OpenSSL-generated private key"\n                        )\n\n                if not generated:\n                    generated, crypto_detail = _generate_private_key_file_with_cryptography(\n                        temporary_key\n                    )\n                    if generated:\n                        key_source = (\n                            "New 30-minute certificate using Python cryptography-generated private key"\n                        )\n                    else:\n                        details = [\n                            item for item in (detail, crypto_detail) if item\n                        ]\n                        suffix = " " + " | ".join(details) if details else ""\n                        raise RuntimeError(\n                            "Unable to generate a secure replacement private key. "\n                            "Install OpenSSL or the Python package \'cryptography\'."\n                            + suffix\n                        )\n\n            write_runtime_certificate_for_private_key(\n                temporary_key,\n                temporary_certificate,\n            )\n            _replace_certificate_pair(\n                temporary_certificate,\n                temporary_key,\n                None,\n            )\n            return key_source\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to refresh the server certificate: {error}"\n        ) from error\n\n\n\ndef _windows_local_certificate_installed(thumbprint: str) -> bool:\n    """Return True only when the exact certificate exists in LocalMachine\\\\Root."""\n    certificate_path = f"Cert:\\\\LocalMachine\\\\Root\\\\{thumbprint}"\n    command = (\n        "$ErrorActionPreference=\'Stop\'; "\n        f"if (Test-Path -LiteralPath \'{certificate_path}\') {{ exit 0 }} else {{ exit 3 }}"\n    )\n    try:\n        result = subprocess.run(\n            [\n                "powershell.exe",\n                "-NoProfile",\n                "-NonInteractive",\n                "-ExecutionPolicy",\n                "Bypass",\n                "-Command",\n                command,\n            ],\n            stdout=subprocess.DEVNULL,\n            stderr=subprocess.DEVNULL,\n            check=False,\n            timeout=15,\n            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        raise RuntimeError(\n            "Unable to query the Windows Local Machine Trusted Root store: "\n            f"{error}"\n        ) from error\n    if result.returncode == 0:\n        return True\n    if result.returncode == 3:\n        return False\n    raise RuntimeError(\n        "The Windows Local Machine Trusted Root store could not be queried."\n    )\n\n\ndef _macos_local_certificate_installed(thumbprint: str) -> bool:\n    """Return True when the exact certificate is in the macOS System keychain."""\n    try:\n        result = subprocess.run(\n            [\n                "security",\n                "find-certificate",\n                "-Z",\n                "-a",\n                "/Library/Keychains/System.keychain",\n            ],\n            capture_output=True,\n            text=True,\n            check=False,\n            timeout=15,\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        raise RuntimeError(\n            "Unable to query the macOS System keychain: "\n            f"{error}"\n        ) from error\n\n    if result.returncode != 0:\n        return False\n\n    installed_thumbprints = {\n        match.group(1).upper()\n        for match in re.finditer(\n            r"SHA-1 hash:\\s*([0-9A-Fa-f]{40})",\n            result.stdout,\n        )\n    }\n    return thumbprint in installed_thumbprints\n\n\ndef _linux_local_certificate_installed(thumbprint: str) -> bool:\n    """Return True when Python\'s system CA view contains the exact certificate."""\n    try:\n        context = ssl.create_default_context()\n        for der_certificate in context.get_ca_certs(binary_form=True):\n            if hashlib.sha1(der_certificate).hexdigest().upper() == thumbprint:\n                return True\n    except (OSError, ssl.SSLError) as error:\n        raise RuntimeError(\n            "Unable to query the Linux system trust store: "\n            f"{error}"\n        ) from error\n    return False\n\n\ndef local_certificate_installed(thumbprint: str) -> bool:\n    """Query the local operating-system trust store for the exact certificate."""\n    normalized = _normalized_certificate_thumbprint(thumbprint)\n    if normalized is None:\n        raise RuntimeError("Cannot query the trust store with an invalid certificate thumbprint.")\n\n    if os.name == "nt":\n        return _windows_local_certificate_installed(normalized)\n    if sys.platform == "darwin":\n        return _macos_local_certificate_installed(normalized)\n    if sys.platform.startswith("linux"):\n        return _linux_local_certificate_installed(normalized)\n\n    raise RuntimeError(\n        f"Unsupported operating system for certificate trust-store verification: {sys.platform}"\n    )\n\n\ndef prepare_server_start_certificate() -> tuple[bool, str, float, str]:\n    "Return install-required, thumbprint, expiry epoch, and certificate source."\n    _ensure_safe_certificate_directories()\n    previous_thumbprints = _collect_certificate_thumbprints_before_refresh()\n    changed = False\n    source = "Existing valid 30-minute local certificate"\n\n    valid = certificate_pair_is_valid(CERT_FILE, KEY_FILE, None)\n    if valid:\n        try:\n            remaining = _certificate_not_after_epoch(CERT_FILE) - time.time()\n        except (OSError, TypeError, ValueError, ssl.SSLError):\n            valid = False\n            remaining = 0.0\n    else:\n        remaining = 0.0\n\n    if (\n        not valid\n        or remaining < CERTIFICATE_STARTUP_MINIMUM_REMAINING_SECONDS\n    ):\n        source = _replace_with_certificate_for_existing_key()\n        changed = True\n\n    if not certificate_pair_is_valid(CERT_FILE, KEY_FILE, None):\n        raise RuntimeError(\n            "The server-start certificate failed validation."\n        )\n\n    thumbprint = certificate_sha1_thumbprint(CERT_FILE)\n    thumbprints = (\n        thumbprint,\n        *(value for value in previous_thumbprints if value != thumbprint),\n    )\n    pending_installation = _certificate_installation_is_pending(thumbprint)\n    locally_installed = local_certificate_installed(thumbprint)\n    # The operating-system trust store is authoritative. A pending marker\n    # records an unfinished confirmation, but cannot override a verified install.\n    installation_required = not locally_installed\n\n    if installation_required:\n        _mark_certificate_installation_pending(thumbprint)\n    elif pending_installation:\n        # The OS trust store is authoritative. If installation completed but the\n        # previous run ended before confirmation, clear the stale pending marker.\n        _clear_certificate_installation_pending()\n\n    _write_certificate_thumbprint_history(thumbprints)\n    _write_platform_helpers_after_refresh(changed, thumbprints)\n    _restore_invoking_user_certificate_ownership()\n    expiry_epoch = _certificate_not_after_epoch(CERT_FILE)\n    return installation_required, thumbprint, expiry_epoch, source\n\n\ndef _certificate_installation_is_pending(thumbprint: str) -> bool:\n    try:\n        _validate_managed_text_destination(CERTIFICATE_INSTALL_PENDING_FILE)\n        pending_value = CERTIFICATE_INSTALL_PENDING_FILE.read_text(\n            encoding="utf-8"\n        ).strip()\n    except FileNotFoundError:\n        return False\n    except OSError as error:\n        raise RuntimeError(\n            "Unable to read the pending certificate-installation state: "\n            f"{error}"\n        ) from error\n    pending_thumbprint = _normalized_certificate_thumbprint(pending_value)\n    return pending_thumbprint == thumbprint\n\n\ndef _mark_certificate_installation_pending(thumbprint: str) -> None:\n    _atomic_write_managed_text(\n        CERTIFICATE_INSTALL_PENDING_FILE,\n        f"{thumbprint}\\n",\n        encoding="utf-8",\n        newline="\\n",\n    )\n\n\ndef _clear_certificate_installation_pending() -> None:\n    _validate_managed_text_destination(CERTIFICATE_INSTALL_PENDING_FILE)\n    try:\n        CERTIFICATE_INSTALL_PENDING_FILE.unlink(missing_ok=True)\n    except OSError as error:\n        raise RuntimeError(\n            "Unable to clear the pending certificate-installation state: "\n            f"{error}"\n        ) from error\n\n\ndef _windows_install_local_certificate() -> bool:\n    """Request UAC only for the certificate import and wait for its real result."""\n    if not _regular_certificate_file(CERT_FILE):\n        raise RuntimeError("cert.pem is missing or unsafe.")\n\n    cert_path = str(CERT_FILE.resolve()).replace("\'", "\'\'")\n    elevated_command = (\n        "$ErrorActionPreference=\'Stop\'; "\n        f"& certutil.exe -addstore Root \'{cert_path}\'; "\n        "if ($LASTEXITCODE -eq 0) { exit 0 } else { exit $LASTEXITCODE }"\n    )\n    encoded_command = base64.b64encode(\n        elevated_command.encode("utf-16le")\n    ).decode("ascii")\n    launcher_command = (\n        "$ErrorActionPreference=\'Stop\'; try { "\n        "$p=Start-Process -FilePath \'powershell.exe\' "\n        "-ArgumentList @(\'-NoProfile\',\'-NonInteractive\',\'-ExecutionPolicy\',\'Bypass\',"\n        f"\'-EncodedCommand\',\'{encoded_command}\') "\n        "-Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode "\n        "} catch { Write-Error $_; exit 1 }"\n    )\n    try:\n        result = subprocess.run(\n            [\n                "powershell.exe",\n                "-NoProfile",\n                "-NonInteractive",\n                "-ExecutionPolicy",\n                "Bypass",\n                "-Command",\n                launcher_command,\n            ],\n            check=False,\n            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),\n        )\n    except OSError as error:\n        print(f"Certificate installation could not start: {error}")\n        return False\n    return result.returncode == 0\n\n\ndef _macos_install_local_certificate() -> bool:\n    """Install the certificate into the macOS System keychain."""\n    if not _regular_certificate_file(CERT_FILE):\n        raise RuntimeError("cert.pem is missing or unsafe.")\n    if not hasattr(os, "geteuid") or os.geteuid() != 0:\n        print("Administrator rights are required for macOS certificate installation.")\n        return False\n    try:\n        result = subprocess.run(\n            [\n                "security",\n                "add-trusted-cert",\n                "-d",\n                "-r",\n                "trustRoot",\n                "-k",\n                "/Library/Keychains/System.keychain",\n                str(CERT_FILE),\n            ],\n            check=False,\n        )\n    except OSError as error:\n        print(f"Certificate installation could not start: {error}")\n        return False\n    return result.returncode == 0\n\n\ndef _install_linux_trust_anchor_file(source: Path, destination: Path) -> None:\n    """Atomically install one CA anchor without following an unsafe destination."""\n    if not _regular_certificate_file(source):\n        raise RuntimeError(f"Certificate source is missing or unsafe: {source}")\n\n    destination.parent.mkdir(parents=True, exist_ok=True)\n\n    if os.path.lexists(destination):\n        try:\n            destination_status = destination.lstat()\n        except OSError as error:\n            raise RuntimeError(\n                f"Unable to inspect Linux trust-anchor destination: {destination}"\n            ) from error\n        if stat.S_ISLNK(destination_status.st_mode) or not stat.S_ISREG(destination_status.st_mode):\n            raise RuntimeError(\n                "Refusing to replace unsafe Linux trust-anchor destination: "\n                f"{destination}"\n            )\n\n    descriptor, staged_name = tempfile.mkstemp(\n        prefix=".topaz-offline-mirror-",\n        suffix=".crt.stage",\n        dir=str(destination.parent),\n    )\n    os.close(descriptor)\n    staged_file = Path(staged_name)\n    try:\n        shutil.copyfile(source, staged_file)\n        os.chmod(staged_file, 0o644)\n        staged_status = staged_file.lstat()\n        if stat.S_ISLNK(staged_status.st_mode) or not stat.S_ISREG(staged_status.st_mode):\n            raise RuntimeError(\n                f"Linux trust-anchor staging path became unsafe: {staged_file}"\n            )\n        if stat.S_IMODE(staged_status.st_mode) != 0o644:\n            raise RuntimeError(\n                f"Unable to verify Linux trust-anchor staging mode 0644: {staged_file}"\n            )\n        os.replace(staged_file, destination)\n    finally:\n        staged_file.unlink(missing_ok=True)\n\n    try:\n        installed_status = destination.lstat()\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to verify installed Linux trust anchor: {destination}"\n        ) from error\n    if stat.S_ISLNK(installed_status.st_mode) or not stat.S_ISREG(installed_status.st_mode):\n        raise RuntimeError(\n            f"Installed Linux trust anchor is unsafe: {destination}"\n        )\n    if stat.S_IMODE(installed_status.st_mode) != 0o644:\n        raise RuntimeError(\n            f"Installed Linux trust anchor does not have mode 0644: {destination}"\n        )\n\n\ndef _linux_install_local_certificate() -> bool:\n    """Install the certificate for supported Debian/Ubuntu or Fedora/RHEL systems."""\n    if not _regular_certificate_file(CERT_FILE):\n        raise RuntimeError("cert.pem is missing or unsafe.")\n    if not hasattr(os, "geteuid") or os.geteuid() != 0:\n        print("Administrator rights are required for Linux certificate installation.")\n        return False\n\n    values: dict[str, str] = {}\n    try:\n        for line in Path("/etc/os-release").read_text(encoding="utf-8").splitlines():\n            if "=" not in line:\n                continue\n            key, value = line.split("=", 1)\n            values[key.strip()] = value.strip().strip(\'"\').strip("\'")\n    except OSError as error:\n        print(f"Unable to identify the Linux trust-store layout: {error}")\n        return False\n\n    linux_id = values.get("ID", "").lower()\n    linux_like = values.get("ID_LIKE", "").lower()\n    debian_family = (\n        linux_id in {"debian", "ubuntu", "linuxmint", "pop"}\n        or "debian" in linux_like\n        or "ubuntu" in linux_like\n    )\n    redhat_family = (\n        linux_id in {"fedora", "rhel", "centos", "rocky", "almalinux"}\n        or "fedora" in linux_like\n        or "rhel" in linux_like\n    )\n\n    if debian_family:\n        destination = Path("/usr/local/share/ca-certificates/topaz-offline-mirror.crt")\n        update_command = ["update-ca-certificates"]\n    elif redhat_family:\n        destination = Path("/etc/pki/ca-trust/source/anchors/topaz-offline-mirror.crt")\n        update_command = ["update-ca-trust"]\n    else:\n        print(\n            "Unsupported Linux certificate-store layout. Supported families are "\n            "Debian/Ubuntu and Fedora/RHEL."\n        )\n        return False\n\n    try:\n        _install_linux_trust_anchor_file(CERT_FILE, destination)\n        result = subprocess.run(update_command, check=False)\n    except (OSError, RuntimeError) as error:\n        print(f"Certificate installation failed: {error}")\n        return False\n    return result.returncode == 0\n\n\ndef install_local_certificate() -> bool:\n    if os.name == "nt":\n        return _windows_install_local_certificate()\n    if sys.platform == "darwin":\n        return _macos_install_local_certificate()\n    if sys.platform.startswith("linux"):\n        return _linux_install_local_certificate()\n    raise RuntimeError(\n        f"Unsupported operating system for certificate installation: {sys.platform}"\n    )\n\n\ndef confirm_refreshed_certificate_installation(\n    thumbprint: str,\n    certificate_source: str,\n) -> None:\n    print()\n    if certificate_source == "Existing valid 30-minute local certificate":\n        print("The current certificate is not installed in this")\n        print("computer\'s local trusted root store.")\n    else:\n        print("A new 30-minute certificate was created because the previous")\n        print("certificate was invalid, expired, or had under five minutes left.")\n    print()\n    print("Installing this cert.pem on this computer is required to run properly.")\n    print("The certificate will expire at the local time shown above.")\n    print()\n    print("At expiration, the repeater will stop and you will be prompted to remove")\n    print("the certificate from this computer\\\'s local trust store.")\n    print()\n    print("If the server is closed early, use the removal helper, kept in Certs.")\n    print()\n\n    if not sys.stdin.isatty():\n        print("HTTPS startup cancelled: certificate installation requires an interactive prompt.")\n        raise SystemExit(130)\n\n    while True:\n        try:\n            answer = input(\n                "Install the certificate now? Administrator rights may be requested. (Y/N): "\n            ).strip().lower()\n        except (EOFError, KeyboardInterrupt):\n            print()\n            answer = "n"\n\n        if answer in {"y", "yes"}:\n            print()\n            if not install_local_certificate():\n                print("Certificate installation was not completed.")\n                print("You may try again, or type N to stop without starting HTTPS.")\n                print()\n                continue\n            if not local_certificate_installed(thumbprint):\n                print()\n                print("Certificate installation completed without an error, but the exact")\n                print("certificate was not detected in this computer\'s local trust store.")\n                print("You may try again, or type N to stop without starting HTTPS.")\n                print()\n                continue\n            _clear_certificate_installation_pending()\n            print("Local certificate installation verified.")\n            print()\n            return\n        if answer in {"n", "no"}:\n            print()\n            print("HTTPS startup cancelled by user. No error occurred.")\n            raise SystemExit(130)\n        print("Please type Y or N.")\n\ndef _archive_existing_certificate() -> None:\n    """Preserve the current managed 30-minute certificate before rotation."""\n    if not _regular_certificate_file(CERT_FILE):\n        return\n\n    try:\n        thumbprint = _managed_cleanup_certificate_thumbprint(CERT_FILE)\n        if not thumbprint:\n            return\n        pem_text = _single_certificate_pem_text(CERT_FILE)\n    except (OSError, TypeError, ValueError, ssl.SSLError):\n        return\n\n    _ensure_safe_certificate_directories()\n    CERTIFICATE_HISTORY_DIR.mkdir(exist_ok=True)\n    archive_file = CERTIFICATE_HISTORY_DIR / f"{thumbprint}.pem"\n    if archive_file.is_symlink():\n        raise RuntimeError(\n            f"Refusing to replace symbolic-link certificate history: {archive_file}"\n        )\n    if archive_file.exists():\n        if not archive_file.is_file():\n            raise RuntimeError(\n                f"Certificate history path is not a regular file: {archive_file}"\n            )\n        try:\n            if certificate_sha1_thumbprint(archive_file) == thumbprint:\n                return\n        except (OSError, TypeError, ValueError, ssl.SSLError) as error:\n            raise RuntimeError(\n                f"Existing certificate history is invalid: {archive_file}"\n            ) from error\n        raise RuntimeError(\n            f"Certificate history collision for thumbprint {thumbprint}."\n        )\n\n    descriptor, staged_name = tempfile.mkstemp(\n        prefix=f".{thumbprint}-",\n        suffix=".stage",\n        dir=str(CERTIFICATE_HISTORY_DIR),\n    )\n    os.close(descriptor)\n    staged_file = Path(staged_name)\n    try:\n        staged_file.write_text(pem_text, encoding="ascii", newline="\\n")\n        os.replace(staged_file, archive_file)\n    finally:\n        staged_file.unlink(missing_ok=True)\n\n\ndef _restore_invoking_user_certificate_ownership() -> None:\n    """Return sudo-created certificate artifacts to the invoking user."""\n    if os.name == "nt":\n        return\n\n    uid_text = os.environ.get("SUDO_UID", "")\n    gid_text = os.environ.get("SUDO_GID", "")\n    if not uid_text.isdigit() or not gid_text.isdigit():\n        return\n\n    uid = int(uid_text)\n    gid = int(gid_text)\n    _ensure_safe_certificate_directories()\n    managed_paths: list[Path] = [\n        CERT_FILE,\n        KEY_FILE,\n        CERTIFICATE_THUMBPRINT_HISTORY_FILE,\n        CERTIFICATE_INSTALL_PENDING_FILE,\n        REMOVE_CERT_MACOS,\n        REMOVE_CERT_LINUX,\n    ]\n\n    if CERTIFICATE_HISTORY_DIR.exists():\n        if CERTIFICATE_HISTORY_DIR.is_symlink():\n            raise RuntimeError(\n                "Refusing to change ownership of symbolic-link certificate history."\n            )\n        for child in CERTIFICATE_HISTORY_DIR.rglob("*"):\n            if child.is_symlink():\n                raise RuntimeError(\n                    f"Refusing to change ownership of symbolic link: {child}"\n                )\n            managed_paths.append(child)\n        managed_paths.append(CERTIFICATE_HISTORY_DIR)\n\n    managed_paths.append(CERT_DIR)\n    seen: set[Path] = set()\n    for path in managed_paths:\n        if path in seen or not path.exists():\n            continue\n        seen.add(path)\n        if path.is_symlink():\n            raise RuntimeError(\n                f"Refusing to change ownership of symbolic link: {path}"\n            )\n        os.chown(path, uid, gid, follow_symlinks=False)\n\ndef _ensure_safe_certificate_directories() -> None:\n    """Create or validate certificate directories without following links."""\n    if CERT_DIR.exists():\n        if CERT_DIR.is_symlink() or not CERT_DIR.is_dir():\n            raise RuntimeError(\n                f"Certificate directory is missing, unsafe, or not a directory: {CERT_DIR}"\n            )\n    else:\n        CERT_DIR.mkdir(parents=True, exist_ok=False)\n\n    if CERTIFICATE_HISTORY_DIR.exists() and (\n        CERTIFICATE_HISTORY_DIR.is_symlink()\n        or not CERTIFICATE_HISTORY_DIR.is_dir()\n    ):\n        raise RuntimeError(\n            "Certificate history path is unsafe or not a directory: "\n            f"{CERTIFICATE_HISTORY_DIR}"\n        )\n\n'
+REPEATER_CERTIFICATE_SUPPORT_SOURCE = 'CERTIFICATE_BEGIN_MARKER = "-----BEGIN CERTIFICATE-----"\nCERTIFICATE_END_MARKER = "-----END CERTIFICATE-----"\nCERTIFICATE_THUMBPRINT_RE = re.compile(r"^[0-9A-F]{40}$")\nREQUIRED_CERTIFICATE_DNS_NAMES = (\n    \'models.topazlabs.com\', \'downloads.topazlabs.com\',\n    \'image-models.topazlabs.com\', \'models-r2.topazlabs.com\',\n    \'models-bal.topazlabs.com\', \'video-models.topazlabs.com\',\n    \'veai-models.topazlabs.com\', \'et.topazlabs.com\',\n    \'topazlabs.com\', \'api.topaz-labs.net\',\n)\nCERTIFICATE_VALIDITY_SECONDS = 30 * 60\nCERTIFICATE_RENEWAL_WINDOW_SECONDS = 5 * 60\nCERTIFICATE_CLOCK_BACKDATE_SECONDS = 1\nCERTIFICATE_STARTUP_MINIMUM_REMAINING_SECONDS = CERTIFICATE_RENEWAL_WINDOW_SECONDS\nCERTIFICATE_SERVER_SHUTDOWN_MARGIN_SECONDS = 2\n\ndef _single_certificate_pem_text(certificate_file: Path) -> str:\n    """Return one complete PEM certificate block or raise ValueError."""\n    pem_text = certificate_file.read_text(encoding=\'utf-8\')\n    if pem_text.count(CERTIFICATE_BEGIN_MARKER) != 1:\n        raise ValueError(\'cert.pem must contain exactly one BEGIN CERTIFICATE block.\')\n    if pem_text.count(CERTIFICATE_END_MARKER) != 1:\n        raise ValueError(\'cert.pem must contain exactly one END CERTIFICATE block.\')\n    block_start = pem_text.index(CERTIFICATE_BEGIN_MARKER)\n    block_end = pem_text.index(CERTIFICATE_END_MARKER, block_start) + len(CERTIFICATE_END_MARKER)\n    return pem_text[block_start:block_end] + \'\\n\'\n\ndef certificate_sha1_thumbprint(certificate_file: Path) -> str:\n    """Return the uppercase SHA-1 thumbprint of one managed PEM certificate."""\n    pem_text = _single_certificate_pem_text(certificate_file)\n    der_bytes = ssl.PEM_cert_to_DER_cert(pem_text)\n    return hashlib.sha1(der_bytes).hexdigest().upper()\n\ndef _der_length(length: int) -> bytes:\n    """Encode one DER length field."""\n    if length < 0:\n        raise ValueError(\'DER length cannot be negative.\')\n    if length < 128:\n        return bytes((length,))\n    encoded = length.to_bytes((length.bit_length() + 7) // 8, \'big\')\n    return bytes((128 | len(encoded),)) + encoded\n\ndef _der_value(tag: int, content: bytes) -> bytes:\n    """Encode one DER tag and payload value."""\n    return bytes((tag,)) + _der_length(len(content)) + content\n\ndef _der_integer(value: int) -> bytes:\n    """Encode one non-negative integer as DER."""\n    if value < 0:\n        raise ValueError(\'Only non-negative DER integers are supported.\')\n    encoded = value.to_bytes(max(1, (value.bit_length() + 7) // 8), \'big\')\n    if encoded[0] & 128:\n        encoded = b\'\\x00\' + encoded\n    return _der_value(2, encoded)\n\ndef _der_oid(oid_text: str) -> bytes:\n    """Encode one dotted object identifier as DER."""\n    arcs = [int(part) for part in oid_text.split(\'.\')]\n    if len(arcs) < 2:\n        raise ValueError(\'An OID requires at least two arcs.\')\n    if arcs[0] not in {0, 1, 2}:\n        raise ValueError(\'Invalid first OID arc.\')\n    if arcs[0] < 2 and not 0 <= arcs[1] <= 39:\n        raise ValueError(\'Invalid second OID arc.\')\n    encoded = bytearray((40 * arcs[0] + arcs[1],))\n    for arc in arcs[2:]:\n        if arc < 0:\n            raise ValueError(\'OID arcs cannot be negative.\')\n        arc_value = arc\n        groups = [arc_value & 127]\n        arc_value >>= 7\n        while arc_value:\n            groups.append(128 | arc_value & 127)\n            arc_value >>= 7\n        encoded.extend(reversed(groups))\n    return _der_value(6, bytes(encoded))\n\ndef _der_sequence(*items: bytes) -> bytes:\n    """Encode child DER values as a sequence."""\n    return _der_value(48, b\'\'.join(items))\n\ndef _der_set(*items: bytes) -> bytes:\n    """Encode child DER values as a set."""\n    return _der_value(49, b\'\'.join(items))\n\ndef _der_boolean(value: bool) -> bytes:\n    """Encode one Boolean value as DER."""\n    return _der_value(1, b\'\\xff\' if value else b\'\\x00\')\n\ndef _der_octet_string(value: bytes) -> bytes:\n    """Encode bytes as a DER octet string."""\n    return _der_value(4, value)\n\ndef _der_bit_string(value: bytes, unused_bits: int=0) -> bytes:\n    """Encode bytes as a DER bit string."""\n    if not 0 <= unused_bits <= 7:\n        raise ValueError(\'Invalid DER bit-string padding.\')\n    return _der_value(3, bytes((unused_bits,)) + value)\n\ndef _der_utf8_string(value: str) -> bytes:\n    """Encode text as a DER UTF-8 string."""\n    return _der_value(12, value.encode(\'utf-8\'))\n\ndef _der_utc_time(value: datetime) -> bytes:\n    """Encode a datetime as DER UTC time."""\n    utc_value = value.astimezone(timezone.utc)\n    if not 1950 <= utc_value.year <= 2049:\n        raise ValueError(\'UTCTime supports years from 1950 through 2049.\')\n    return _der_value(23, utc_value.strftime(\'%y%m%d%H%M%SZ\').encode(\'ascii\'))\n\ndef _read_der_value(encoded: bytes, offset: int=0) -> tuple[int, bytes, int]:\n    """Read one DER value and return its tag, payload, and next offset."""\n    if offset >= len(encoded):\n        raise ValueError(\'Unexpected end of DER data.\')\n    tag = encoded[offset]\n    offset += 1\n    if offset >= len(encoded):\n        raise ValueError(\'Missing DER length.\')\n    first_length = encoded[offset]\n    offset += 1\n    if first_length & 128:\n        length_octets = first_length & 127\n        if not length_octets or offset + length_octets > len(encoded):\n            raise ValueError(\'Invalid DER length.\')\n        length = int.from_bytes(encoded[offset:offset + length_octets], \'big\')\n        offset += length_octets\n    else:\n        length = first_length\n    if (end := offset + length) > len(encoded):\n        raise ValueError(\'Truncated DER value.\')\n    return tag, encoded[offset:end], end\n\ndef _read_der_children(encoded: bytes) -> list[tuple[int, bytes]]:\n    """Return the direct DER children contained in one encoded value."""\n    children: list[tuple[int, bytes]] = []\n    offset = 0\n    while offset < len(encoded):\n        tag, content, offset = _read_der_value(encoded, offset)\n        children.append((tag, content))\n    return children\n\ndef _decode_der_oid_content(content: bytes) -> str:\n    """Decode the content octets of one DER OBJECT IDENTIFIER."""\n    if not content:\n        raise ValueError(\'DER object identifier is empty.\')\n    values: list[int] = []\n    current = 0\n    for octet in content:\n        current = current << 7 | octet & 127\n        if not octet & 128:\n            values.append(current)\n            current = 0\n    if current or content[-1] & 128:\n        raise ValueError(\'Truncated DER object identifier.\')\n    if not values:\n        raise ValueError(\'DER object identifier has no arcs.\')\n    first_value = values[0]\n    if first_value < 40:\n        first_arc, second_arc = (0, first_value)\n    elif first_value < 80:\n        first_arc, second_arc = (1, first_value - 40)\n    else:\n        first_arc, second_arc = (2, first_value - 80)\n    return \'.\'.join((str(value) for value in (first_arc, second_arc, *values[1:])))\n\ndef _certificate_extensions_content(certificate_file: Path) -> bytes | None:\n    """Return the DER extension-sequence content for one certificate, if present."""\n    pem_text = _single_certificate_pem_text(certificate_file)\n    certificate_der = ssl.PEM_cert_to_DER_cert(pem_text)\n    certificate_tag, certificate_content, certificate_end = _read_der_value(certificate_der)\n    if certificate_tag != 48 or certificate_end != len(certificate_der):\n        raise ValueError(\'Invalid DER certificate wrapper.\')\n    certificate_fields = _read_der_children(certificate_content)\n    if not certificate_fields or certificate_fields[0][0] != 48:\n        raise ValueError(\'Invalid DER TBSCertificate structure.\')\n\n    extensions_content: bytes | None = None\n    for field_tag, field_content in _read_der_children(certificate_fields[0][1]):\n        if field_tag != 163:\n            continue\n        if extensions_content is not None:\n            raise ValueError(\'Duplicate certificate extension container.\')\n        sequence_tag, sequence_content, sequence_end = _read_der_value(field_content)\n        if sequence_tag != 48 or sequence_end != len(field_content):\n            raise ValueError(\'Invalid certificate extension container.\')\n        extensions_content = sequence_content\n    return extensions_content\n\n\ndef _certificate_extension_value(extension_tag: int, extension_content: bytes) -> tuple[str, bytes]:\n    """Validate one certificate extension entry and return its OID and value bytes."""\n    if extension_tag != 48:\n        raise ValueError(\'Invalid certificate extension entry.\')\n    fields = _read_der_children(extension_content)\n    if not fields or fields[0][0] != 6:\n        raise ValueError(\'Certificate extension is missing its OID.\')\n    extension_oid = _decode_der_oid_content(fields[0][1])\n    value_index = 1\n    if value_index < len(fields) and fields[value_index][0] == 1:\n        value_index += 1\n    if value_index >= len(fields) or fields[value_index][0] != 4:\n        raise ValueError(\'Certificate extension is missing its value.\')\n    if value_index != len(fields) - 1:\n        raise ValueError(\'Certificate extension has unexpected fields.\')\n    return extension_oid, fields[value_index][1]\n\n\ndef _extended_key_usage_values(encoded_value: bytes) -> set[str]:\n    """Decode and validate the DER value of an Extended Key Usage extension."""\n    eku_tag, eku_content, eku_end = _read_der_value(encoded_value)\n    if eku_tag != 48 or eku_end != len(encoded_value):\n        raise ValueError(\'Invalid Extended Key Usage extension.\')\n    values: set[str] = set()\n    for oid_tag, oid_content in _read_der_children(eku_content):\n        if oid_tag != 6:\n            raise ValueError(\'Invalid Extended Key Usage OID.\')\n        values.add(_decode_der_oid_content(oid_content))\n    return values\n\n\ndef _certificate_extended_key_usage_oids(certificate_file: Path) -> set[str] | None:\n    """Return the EKU OIDs, or None when the certificate has no EKU."""\n    if (extensions_content := _certificate_extensions_content(certificate_file)) is None:\n        return None\n    eku_values: set[str] | None = None\n    for extension_tag, extension_content in _read_der_children(extensions_content):\n        extension_oid, extension_value = _certificate_extension_value(\n            extension_tag, extension_content\n        )\n        if extension_oid != \'2.5.29.37\':\n            continue\n        if eku_values is not None:\n            raise ValueError(\'Duplicate Extended Key Usage extension.\')\n        eku_values = _extended_key_usage_values(extension_value)\n    return eku_values\n\ndef _certificate_allows_tls_server_authentication(certificate_file: Path) -> bool:\n    """Accept no EKU restriction, serverAuth, or anyExtendedKeyUsage."""\n    if (eku_values := _certificate_extended_key_usage_oids(certificate_file)) is None:\n        return True\n    return bool({\'1.3.6.1.5.5.7.3.1\', \'2.5.29.37.0\'} & eku_values)\n\ndef _pem_block_to_der(pem_text: str, label: str) -> bytes:\n    """Decode one PEM block into DER bytes."""\n    begin_marker = f\'-----BEGIN {label}-----\'\n    end_marker = f\'-----END {label}-----\'\n    if pem_text.count(begin_marker) != 1 or pem_text.count(end_marker) != 1:\n        raise ValueError(f\'Expected exactly one {label} PEM block.\')\n    encoded = pem_text.split(begin_marker, 1)[1].split(end_marker, 1)[0]\n    return base64.b64decode(\'\'.join(encoded.split()), validate=True)\n\ndef _rsa_private_key_values(private_key_file: Path) -> tuple[int, int, int]:\n    """Extract RSA private-key integers from a PKCS#1 or PKCS#8 key."""\n    pem_text = private_key_file.read_text(encoding=\'ascii\')\n    if \'-----BEGIN PRIVATE KEY-----\' in pem_text:\n        private_key_info = _pem_block_to_der(pem_text, \'PRIVATE KEY\')\n        tag, content, end = _read_der_value(private_key_info)\n        if tag != 48 or end != len(private_key_info):\n            raise ValueError(\'Invalid PKCS#8 private key.\')\n        children = _read_der_children(content)\n        if len(children) < 3 or children[2][0] != 4:\n            raise ValueError(\'Invalid PKCS#8 private-key structure.\')\n        rsa_private_key = children[2][1]\n    elif \'-----BEGIN RSA PRIVATE KEY-----\' in pem_text:\n        rsa_private_key = _pem_block_to_der(pem_text, \'RSA PRIVATE KEY\')\n    else:\n        raise ValueError(\'Only unencrypted RSA private keys are supported.\')\n    tag, content, end = _read_der_value(rsa_private_key)\n    if tag != 48 or end != len(rsa_private_key):\n        raise ValueError(\'Invalid RSA private key.\')\n    integer_values: list[int] = []\n    for child_tag, child_content in _read_der_children(content):\n        if child_tag != 2:\n            raise ValueError(\'Invalid RSA private-key field.\')\n        integer_values.append(int.from_bytes(child_content, \'big\'))\n    if len(integer_values) < 4:\n        raise ValueError(\'Incomplete RSA private key.\')\n    modulus = integer_values[1]\n    public_exponent = integer_values[2]\n    private_exponent = integer_values[3]\n    if modulus.bit_length() < 2048:\n        raise ValueError(\'The RSA private key must be at least 2048 bits.\')\n    return (modulus, public_exponent, private_exponent)\n\ndef _der_algorithm_identifier(oid_text: str) -> bytes:\n    """Encode one certificate algorithm identifier."""\n    return _der_sequence(_der_oid(oid_text), b\'\\x05\\x00\')\n\ndef _certificate_name() -> bytes:\n    """Encode one certificate distinguished name."""\n    return _der_sequence(\n        _der_set(\n            _der_sequence(\n                _der_oid(\'2.5.4.10\'), _der_utf8_string(\'Topaz Offline Mirror\')\n            )\n        ),\n        _der_set(\n            _der_sequence(\n                _der_oid(\'2.5.4.3\'),\n                _der_utf8_string(\'Topaz Offline Local HTTPS\'),\n            )\n        ),\n    )\n\ndef _certificate_extension(oid_text: str, encoded_value: bytes, critical: bool=False) -> bytes:\n    """Encode one X.509 certificate extension."""\n    fields = [_der_oid(oid_text)]\n    if critical:\n        fields.append(_der_boolean(True))\n    fields.append(_der_octet_string(encoded_value))\n    return _der_sequence(*fields)\n\ndef _certificate_pem_text(certificate_der: bytes) -> str:\n    """Return DER certificate bytes as PEM text."""\n    encoded = base64.b64encode(certificate_der).decode(\'ascii\')\n    lines = [encoded[offset:offset + 64] for offset in range(0, len(encoded), 64)]\n    return \'-----BEGIN CERTIFICATE-----\\n\' + \'\\n\'.join(lines) + \'\\n-----END CERTIFICATE-----\\n\'\n\ndef _runtime_certificate_extensions(rsa_public_key: bytes) -> tuple[bytes, bytes]:\n    """Return SubjectPublicKeyInfo and certificate extensions for an RSA key."""\n    subject_public_key_info = _der_sequence(\n        _der_algorithm_identifier(\'1.2.840.113549.1.1.1\'),\n        _der_bit_string(rsa_public_key),\n    )\n    key_identifier = hashlib.sha1(rsa_public_key).digest()\n    subject_alt_names = _der_sequence(\n        *(\n            _der_value(130, hostname.encode(\'ascii\'))\n            for hostname in REQUIRED_CERTIFICATE_DNS_NAMES\n        )\n    )\n    extensions = _der_sequence(\n        _certificate_extension(\'2.5.29.14\', _der_octet_string(key_identifier)),\n        _certificate_extension(\n            \'2.5.29.35\', _der_sequence(_der_value(128, key_identifier))\n        ),\n        _certificate_extension(\n            \'2.5.29.19\', _der_sequence(_der_boolean(True)), critical=True\n        ),\n        _certificate_extension(\n            \'2.5.29.15\',\n            _der_bit_string(bytes((166,)), unused_bits=1),\n            critical=True,\n        ),\n        _certificate_extension(\n            \'2.5.29.37\', _der_sequence(_der_oid(\'1.3.6.1.5.5.7.3.1\'))\n        ),\n        _certificate_extension(\'2.5.29.17\', subject_alt_names),\n    )\n    return subject_public_key_info, extensions\n\n\ndef _rsa_sha256_signature(\n    payload: bytes,\n    modulus: int,\n    private_exponent: int,\n) -> bytes:\n    """Return a PKCS#1 v1.5 SHA-256 signature for one DER payload."""\n    digest = hashlib.sha256(payload).digest()\n    digest_info = _der_sequence(\n        _der_algorithm_identifier(\'2.16.840.1.101.3.4.2.1\'),\n        _der_octet_string(digest),\n    )\n    signature_size = (modulus.bit_length() + 7) // 8\n    if (padding_size := signature_size - len(digest_info) - 3) < 8:\n        raise ValueError(\'The RSA private key is too small for SHA-256 signing.\')\n    encoded_message = b\'\\x00\\x01\' + b\'\\xff\' * padding_size + b\'\\x00\' + digest_info\n    return pow(\n        int.from_bytes(encoded_message, \'big\'), private_exponent, modulus\n    ).to_bytes(signature_size, \'big\')\n\n\ndef _runtime_certificate_der(private_key_file: Path) -> bytes:\n    """Build one 30-minute self-signed DER certificate for a managed RSA key."""\n    modulus, public_exponent, private_exponent = _rsa_private_key_values(\n        private_key_file\n    )\n    rsa_public_key = _der_sequence(\n        _der_integer(modulus), _der_integer(public_exponent)\n    )\n    subject_public_key_info, extensions = _runtime_certificate_extensions(\n        rsa_public_key\n    )\n    not_before = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(\n        seconds=CERTIFICATE_CLOCK_BACKDATE_SECONDS\n    )\n    not_after = not_before + timedelta(seconds=CERTIFICATE_VALIDITY_SECONDS)\n    serial_number = int.from_bytes(os.urandom(20), \'big\') >> 1 or 1\n    signature_algorithm = _der_algorithm_identifier(\'1.2.840.113549.1.1.11\')\n    certificate_name = _certificate_name()\n    tbs_certificate = _der_sequence(\n        _der_value(160, _der_integer(2)),\n        _der_integer(serial_number),\n        signature_algorithm,\n        certificate_name,\n        _der_sequence(_der_utc_time(not_before), _der_utc_time(not_after)),\n        certificate_name,\n        subject_public_key_info,\n        _der_value(163, extensions),\n    )\n    signature = _rsa_sha256_signature(\n        tbs_certificate, modulus, private_exponent\n    )\n    return _der_sequence(\n        tbs_certificate, signature_algorithm, _der_bit_string(signature)\n    )\n\ndef _validate_managed_text_destination(destination: Path) -> None:\n    """Reject linked/non-regular managed files and unsafe parent paths."""\n    parent = destination.parent\n    try:\n        parent_metadata = os.lstat(parent)\n    except OSError as error:\n        raise RuntimeError(\n            f"Managed-file parent is unavailable: {parent}: {error}"\n        ) from error\n\n    if (\n        stat.S_ISLNK(parent_metadata.st_mode)\n        or not stat.S_ISDIR(parent_metadata.st_mode)\n    ):\n        raise RuntimeError(\n            f"Managed-file parent is unsafe or not a directory: {parent}"\n        )\n\n    try:\n        destination_metadata = os.lstat(destination)\n    except FileNotFoundError:\n        return\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to inspect managed destination: {destination}: {error}"\n        ) from error\n\n    if (\n        stat.S_ISLNK(destination_metadata.st_mode)\n        or not stat.S_ISREG(destination_metadata.st_mode)\n    ):\n        raise RuntimeError(\n            "Refusing to replace a symbolic link or non-regular managed file: "\n            f"{destination}"\n        )\n\n\ndef _atomic_write_managed_text(\n    destination: Path,\n    text: str,\n    *,\n    encoding: str,\n    newline: str | None,\n    mode: int = 0o644,\n) -> None:\n    """Atomically replace one managed text file without following links."""\n    _validate_managed_text_destination(destination)\n    parent = destination.parent\n    descriptor = -1\n    temporary_path: Path | None = None\n\n    try:\n        descriptor, temporary_name = tempfile.mkstemp(\n            prefix=f".{destination.name}.",\n            suffix=".stage",\n            dir=str(parent),\n        )\n        temporary_path = Path(temporary_name)\n        try:\n            os.fchmod(descriptor, mode)\n        except (AttributeError, OSError):\n            pass\n\n        with os.fdopen(\n            descriptor,\n            "w",\n            encoding=encoding,\n            newline=newline,\n        ) as handle:\n            descriptor = -1\n            handle.write(text)\n            handle.flush()\n            os.fsync(handle.fileno())\n\n        _validate_managed_text_destination(destination)\n        os.replace(temporary_path, destination)\n        temporary_path = None\n\n        try:\n            directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)\n            directory_descriptor = os.open(parent, directory_flags)\n        except OSError:\n            directory_descriptor = -1\n        if directory_descriptor >= 0:\n            try:\n                os.fsync(directory_descriptor)\n            except OSError:\n                pass\n            finally:\n                os.close(directory_descriptor)\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to atomically write managed file {destination}: {error}"\n        ) from error\n    finally:\n        if descriptor >= 0:\n            os.close(descriptor)\n        if temporary_path is not None:\n            temporary_path.unlink(missing_ok=True)\n\ndef write_runtime_certificate_for_private_key(\n    private_key_file: Path, certificate_file: Path,\n) -> None:\n    """Write a fresh runtime certificate for an existing managed private key."""\n    certificate_file.write_text(\n        _certificate_pem_text(_runtime_certificate_der(private_key_file)),\n        encoding=\'ascii\',\n        newline=\'\\n\',\n    )\n\ndef _regular_certificate_file(path: Path) -> bool:\n    """Return whether a certificate path is a safe regular file."""\n    try:\n        return path.is_file() and (not path.is_symlink())\n    except OSError:\n        return False\n\ndef _normalized_certificate_thumbprint(value: str) -> str | None:\n    """Normalize and validate one certificate SHA-1 thumbprint."""\n    candidate = value.strip().upper()\n    if CERTIFICATE_THUMBPRINT_RE.fullmatch(candidate):\n        return candidate\n    return None\n\ndef _certificate_pattern_covers_host(pattern: str, hostname: str) -> bool:\n    """Return whether a certificate DNS pattern covers a host."""\n    pattern = pattern.strip().rstrip(\'.\').lower()\n    hostname = hostname.strip().rstrip(\'.\').lower()\n    if pattern == hostname:\n        return True\n    if not pattern.startswith(\'*.\'):\n        return False\n    suffix = pattern[1:]\n    return hostname.endswith(suffix) and hostname.count(\'.\') == pattern.count(\'.\')\n\ndef _certificate_supports_tls_server_authentication(\n    certificate_file: Path,\n    openssl_executable: Path,\n) -> bool:\n    """Return whether the decoded certificate permits TLS server authentication."""\n    try:\n        result = subprocess.run(\n            [\n                str(openssl_executable),\n                "verify",\n                "-purpose",\n                "sslserver",\n                "-CAfile",\n                str(certificate_file),\n                str(certificate_file),\n            ],\n            stdout=subprocess.DEVNULL,\n            stderr=subprocess.DEVNULL,\n            check=False,\n            timeout=15,\n        )\n    except (OSError, subprocess.TimeoutExpired):\n        return False\n    return not result.returncode\n\n\ndef _certificate_lifetime_is_valid(decoded: dict) -> bool:\n    """Return whether decoded validity metadata matches the managed lifetime policy."""\n    not_before = decoded.get(\'notBefore\')\n    not_after = decoded.get(\'notAfter\')\n    if not not_before or not not_after:\n        return False\n    not_before_seconds = ssl.cert_time_to_seconds(not_before)\n    not_after_seconds = ssl.cert_time_to_seconds(not_after)\n    now = time.time()\n    return (\n        not_after_seconds - not_before_seconds <= CERTIFICATE_VALIDITY_SECONDS\n        and not_after_seconds > now + CERTIFICATE_RENEWAL_WINDOW_SECONDS\n        and not_before_seconds <= now + 300\n    )\n\n\ndef _certificate_required_hosts_are_covered(decoded: dict) -> bool:\n    """Return whether decoded SAN patterns cover every required Repeater hostname."""\n    dns_patterns = [\n        value for kind, value in decoded.get(\'subjectAltName\', ()) if kind == \'DNS\'\n    ]\n    return bool(dns_patterns) and all(\n        any(\n            _certificate_pattern_covers_host(pattern, hostname)\n            for pattern in dns_patterns\n        )\n        for hostname in REQUIRED_CERTIFICATE_DNS_NAMES\n    )\n\n\ndef _decoded_certificate_pair_is_valid(\n    decoded: dict,\n    certificate_file: Path,\n    openssl_executable: Path | None,\n) -> bool:\n    """Validate decoded lifetime, SAN coverage, and TLS server-auth policy."""\n    if not _certificate_lifetime_is_valid(decoded):\n        return False\n    if not _certificate_required_hosts_are_covered(decoded):\n        return False\n    if not _certificate_allows_tls_server_authentication(certificate_file):\n        return False\n    return (\n        openssl_executable is None\n        or _certificate_supports_tls_server_authentication(\n            certificate_file, openssl_executable\n        )\n    )\n\n\ndef certificate_pair_is_valid(\n    certificate_file: Path,\n    private_key_file: Path,\n    openssl_executable: Path | None = None,\n) -> bool:\n    """Validate one reusable TLS server certificate/private-key pair."""\n    if not (\n        _regular_certificate_file(certificate_file)\n        and _regular_certificate_file(private_key_file)\n    ):\n        return False\n    try:\n        _single_certificate_pem_text(certificate_file)\n        validation_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)\n        validation_context.load_cert_chain(\n            certfile=str(certificate_file), keyfile=str(private_key_file)\n        )\n        decoded = ssl._ssl._test_decode_cert(str(certificate_file))\n        return _decoded_certificate_pair_is_valid(\n            decoded, certificate_file, openssl_executable\n        )\n    except (AttributeError, OSError, TypeError, ValueError, ssl.SSLError):\n        return False\n\ndef _windows_current_user_sid() -> str:\n    """Return the SID of the Windows account running this process."""\n    try:\n        result = subprocess.run(\n            ["whoami.exe", "/user", "/fo", "csv", "/nh"],\n            capture_output=True,\n            text=True,\n            check=False,\n            timeout=15,\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        raise RuntimeError(\n            f"Unable to identify the current Windows user SID: {error}"\n        ) from error\n\n    if result.returncode:\n        detail = (result.stderr or result.stdout).strip()\n        raise RuntimeError(\n            "Unable to identify the current Windows user SID."\n            + (f" {detail}" if detail else "")\n        )\n\n    if not (matches := re.findall(r"S-\\d(?:-\\d+)+", result.stdout)):\n        raise RuntimeError("whoami did not return a Windows user SID.")\n    return matches[-1]\n\n\ndef _windows_private_key_acl_command(\n    private_key_file: Path,\n    user_sid: str,\n) -> list[str]:\n    """Build the PowerShell command used to harden a Windows private-key ACL."""\n    if not re.fullmatch(r"S-\\d(?:-\\d+)+", user_sid):\n        raise ValueError("Invalid Windows SID for private-key ACL hardening.")\n    return [\n        "icacls.exe",\n        str(private_key_file),\n        "/inheritance:r",\n        "/grant:r",\n        f"*{user_sid}:(F)",\n        "/q",\n    ]\n\n\ndef _harden_windows_private_key_permissions(private_key_file: Path) -> None:\n    """Restrict one Windows private key ACL to the current user."""\n    user_sid = _windows_current_user_sid()\n    command = _windows_private_key_acl_command(private_key_file, user_sid)\n    try:\n        result = subprocess.run(\n            command,\n            capture_output=True,\n            text=True,\n            check=False,\n            timeout=30,\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        raise RuntimeError(\n            f"Unable to harden the Windows private-key ACL: {error}"\n        ) from error\n    if result.returncode:\n        detail = (result.stderr or result.stdout).strip()\n        raise RuntimeError(\n            "Unable to restrict key.pem to the current Windows user."\n            + (f" {detail}" if detail else "")\n        )\n\n\ndef _harden_unix_private_key_permissions(private_key_file: Path) -> None:\n    """Restrict one Unix private key to a regular file with mode 0600."""\n    try:\n        private_key_file.chmod(0o600)\n        file_status = private_key_file.lstat()\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to restrict Unix private-key permissions to 0600: {error}"\n        ) from error\n    if stat.S_ISLNK(file_status.st_mode) or not stat.S_ISREG(file_status.st_mode):\n        raise RuntimeError(\n            f"Private key became unsafe while applying permissions: {private_key_file}"\n        )\n    if (actual_mode := stat.S_IMODE(file_status.st_mode)) != 0o600:\n        raise RuntimeError(\n            "Unable to verify Unix private-key permissions as 0600: "\n            f"{private_key_file} has mode {actual_mode:04o}."\n        )\n\n\ndef _harden_private_key_permissions(private_key_file: Path) -> None:\n    """Restrict key.pem to the current user on Windows or exactly mode 0600 on Unix."""\n    if not _regular_certificate_file(private_key_file):\n        raise RuntimeError(f"Private key is missing or unsafe: {private_key_file}")\n    if os.name == \'nt\':\n        _harden_windows_private_key_permissions(private_key_file)\n    else:\n        _harden_unix_private_key_permissions(private_key_file)\n\n\ndef _generate_private_key_file_with_openssl(\n    openssl_executable: Path,\n    private_key_file: Path,\n) -> tuple[bool, str]:\n    """Generate a private key with OpenSSL when available."""\n    try:\n        result = subprocess.run(\n            [\n                str(openssl_executable),\n                "genpkey",\n                "-algorithm",\n                "RSA",\n                "-pkeyopt",\n                "rsa_keygen_bits:4096",\n                "-out",\n                str(private_key_file),\n            ],\n            capture_output=True,\n            text=True,\n            check=False,\n            timeout=180,\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        return False, str(error)\n\n    if result.returncode:\n        if not (detail := (result.stderr or result.stdout).strip()):\n            detail = f"OpenSSL exited with code {result.returncode}."\n        return False, detail\n\n    try:\n        _harden_private_key_permissions(private_key_file)\n    except RuntimeError as error:\n        return False, str(error)\n    return True, ""\n\n\ndef _generate_private_key_file_with_cryptography(\n    private_key_file: Path,\n) -> tuple[bool, str]:\n    """Generate a private key with the cryptography package when available."""\n    try:\n        # pylint: disable-next=import-outside-toplevel\n        from cryptography.hazmat.primitives import serialization\n        # pylint: disable-next=import-outside-toplevel\n        from cryptography.hazmat.primitives.asymmetric import rsa\n    except ImportError:\n        return False, "Python package \'cryptography\' is not installed."\n\n    try:\n        private_key = rsa.generate_private_key(\n            public_exponent=65537,\n            key_size=4096,\n        )\n        private_key_file.write_bytes(\n            private_key.private_bytes(\n                encoding=serialization.Encoding.PEM,\n                format=serialization.PrivateFormat.PKCS8,\n                encryption_algorithm=serialization.NoEncryption(),\n            )\n        )\n        _harden_private_key_permissions(private_key_file)\n    except (OSError, RuntimeError, TypeError, ValueError) as error:\n        return False, str(error)\n    return True, ""\n\ndef _replace_certificate_pair(\n    new_certificate: Path,\n    new_private_key: Path,\n    openssl_executable: Path | None = None,\n) -> None:\n    """Atomically replace the managed certificate and private-key pair."""\n    _ensure_safe_certificate_directories()\n\n    certificate_descriptor, certificate_name = tempfile.mkstemp(\n        prefix=".cert-",\n        suffix=".stage",\n        dir=str(CERT_DIR),\n    )\n    key_descriptor, key_name = tempfile.mkstemp(\n        prefix=".key-",\n        suffix=".stage",\n        dir=str(CERT_DIR),\n    )\n    os.close(certificate_descriptor)\n    os.close(key_descriptor)\n    certificate_stage = Path(certificate_name)\n    key_stage = Path(key_name)\n\n    try:\n        shutil.copyfile(new_certificate, certificate_stage)\n        shutil.copyfile(new_private_key, key_stage)\n        _harden_private_key_permissions(key_stage)\n\n        if not certificate_pair_is_valid(\n            certificate_stage,\n            key_stage,\n            openssl_executable,\n        ):\n            raise RuntimeError(\n                "The staged certificate and private key did not validate."\n            )\n\n        _archive_existing_certificate()\n        os.replace(key_stage, KEY_FILE)\n        os.replace(certificate_stage, CERT_FILE)\n        _harden_private_key_permissions(KEY_FILE)\n    finally:\n        certificate_stage.unlink(missing_ok=True)\n        key_stage.unlink(missing_ok=True)\n\n\ndef _certificate_not_after_epoch(certificate_file: Path) -> float:\n    """Return the certificate expiration time as a Unix epoch."""\n    decoded = ssl._ssl._test_decode_cert(str(certificate_file))\n    if not (not_after := decoded.get("notAfter")):\n        raise ValueError("Certificate has no notAfter value.")\n    return float(ssl.cert_time_to_seconds(not_after))\n\n\ndef _managed_cleanup_certificate_hosts_are_valid(decoded: dict) -> bool:\n    """Return whether a managed cleanup certificate covers its required hosts."""\n    dns_patterns = [\n        value.strip().rstrip(\'.\').lower()\n        for kind, value in decoded.get(\'subjectAltName\', ())\n        if kind == \'DNS\' and value\n    ]\n    required_cleanup_hosts = {\'models.topazlabs.com\', \'downloads.topazlabs.com\'}\n    return bool(dns_patterns) and all(\n        any(\n            _certificate_pattern_covers_host(pattern, hostname)\n            for pattern in dns_patterns\n        )\n        for hostname in required_cleanup_hosts\n    )\n\n\ndef _managed_cleanup_certificate_metadata_is_valid(\n    decoded: dict,\n    certificate_file: Path,\n) -> bool:\n    """Return whether decoded metadata identifies a managed 30-minute cert."""\n    subject = decoded.get(\'subject\')\n    issuer = decoded.get(\'issuer\')\n    not_before = decoded.get(\'notBefore\')\n    not_after = decoded.get(\'notAfter\')\n    if not subject or subject != issuer or not not_before or not not_after:\n        return False\n    lifetime_seconds = (\n        ssl.cert_time_to_seconds(not_after)\n        - ssl.cert_time_to_seconds(not_before)\n    )\n    return (\n        0 < lifetime_seconds <= CERTIFICATE_VALIDITY_SECONDS\n        and _managed_cleanup_certificate_hosts_are_valid(decoded)\n        and _certificate_allows_tls_server_authentication(certificate_file)\n    )\n\n\ndef _managed_cleanup_certificate_thumbprint(\n    certificate_file: Path,\n) -> str | None:\n    """Return SHA-1 only for a verified managed 30-minute HTTPS certificate."""\n    if not _regular_certificate_file(certificate_file):\n        return None\n    try:\n        _single_certificate_pem_text(certificate_file)\n        decoded = ssl._ssl._test_decode_cert(str(certificate_file))\n        if _managed_cleanup_certificate_metadata_is_valid(decoded, certificate_file):\n            return certificate_sha1_thumbprint(certificate_file)\n    except (AttributeError, OSError, TypeError, ValueError, ssl.SSLError):\n        pass\n    return None\n\n\ndef _verified_archive_thumbprint(certificate_file: Path) -> str | None:\n    """Return a validated archive thumbprint only when filename and PEM agree."""\n    if certificate_file.suffix.casefold() != \'.pem\':\n        return None\n    if certificate_file.is_symlink() or not certificate_file.is_file():\n        raise RuntimeError(\n            "Refusing unsafe certificate-history entry: "\n            f"{certificate_file}"\n        )\n    if not (thumbprint := _managed_cleanup_certificate_thumbprint(certificate_file)):\n        return None\n    if certificate_file.name.casefold() != f"{thumbprint}.pem".casefold():\n        return None\n    return thumbprint\n\n\ndef _load_verified_archived_certificate_thumbprints() -> tuple[str, ...]:\n    """Derive cleanup hashes only from validated History/<SHA1>.pem files."""\n    if not CERTIFICATE_HISTORY_DIR.exists():\n        return ()\n    if CERTIFICATE_HISTORY_DIR.is_symlink() or not CERTIFICATE_HISTORY_DIR.is_dir():\n        raise RuntimeError(\n            "Certificate history path is unsafe or not a directory: "\n            f"{CERTIFICATE_HISTORY_DIR}"\n        )\n    try:\n        entries = sorted(\n            CERTIFICATE_HISTORY_DIR.iterdir(),\n            key=lambda path: path.name.casefold(),\n        )\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to inspect certificate history: {error}"\n        ) from error\n    result: list[str] = []\n    for certificate_file in entries:\n        thumbprint = _verified_archive_thumbprint(certificate_file)\n        if thumbprint and thumbprint not in result:\n            result.append(thumbprint)\n    return tuple(result)\n\n\ndef _collect_certificate_thumbprints_before_refresh() -> tuple[str, ...]:\n    """Collect cleanup authority only from verified certificate material."""\n    result = list(_load_verified_archived_certificate_thumbprints())\n    current = _managed_cleanup_certificate_thumbprint(CERT_FILE)\n    if current and current not in result:\n        result.append(current)\n\n    # Certificate_Thumbprints.txt remains bookkeeping output only. Its text is\n    # deliberately never accepted as privileged certificate-deletion authority.\n    return tuple(result)\n\n\ndef _write_certificate_thumbprint_history(\n    thumbprints: tuple[str, ...],\n) -> None:\n    """Persist the managed certificate thumbprint history safely."""\n    _atomic_write_managed_text(CERTIFICATE_THUMBPRINT_HISTORY_FILE,\n        "".join(f"{thumbprint}\\n" for thumbprint in thumbprints),\n        encoding="utf-8",\n        newline="\\n",\n    )\n\n\ndef _windows_admin_block() -> str:\n    """Return the Windows helper block that verifies administrative elevation."""\n    # Exact generated elevation commands are intentionally preserved byte-for-byte.\n    return r\'\'\'set "TOPAZ_MANAGED_BY_REPEATER=0"\nset "TOPAZ_ELEVATED_CHILD=0"\nif /I "%~1"=="--managed-by-repeater" set "TOPAZ_MANAGED_BY_REPEATER=1"\nif /I "%~2"=="--managed-by-repeater" set "TOPAZ_MANAGED_BY_REPEATER=1"\nif /I "%~1"=="--elevated-child" set "TOPAZ_ELEVATED_CHILD=1"\n\nwhere powershell.exe >nul 2>&1\nif errorlevel 1 (\n    echo ERROR: Windows PowerShell is required to verify Administrator rights.\n    echo.\n    if "%TOPAZ_MANAGED_BY_REPEATER%"=="0" if "%TOPAZ_ELEVATED_CHILD%"=="0" pause\n    exit /b 1\n)\n\npowershell.exe -NoProfile -NonInteractive -Command ^\n    "$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent()); exit [int](-not ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)))"\nif not errorlevel 1 goto ELEVATED\n\necho Requesting Administrator rights...\nset "TOPAZ_CERT_HELPER=%~f0"\nset "TOPAZ_CERT_ARGS=--elevated-child"\nif "%TOPAZ_MANAGED_BY_REPEATER%"=="1" set "TOPAZ_CERT_ARGS=--elevated-child --managed-by-repeater"\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n    "$ErrorActionPreference=\'Stop\'; try { $p=Start-Process -FilePath $env:TOPAZ_CERT_HELPER -ArgumentList $env:TOPAZ_CERT_ARGS -Verb RunAs -Wait -PassThru; exit $p.ExitCode } catch { if ($_.Exception.NativeErrorCode -eq 1223) { exit 1223 }; Write-Error $_; exit 1 }"\nset "TOPAZ_ELEVATION_CODE=%ERRORLEVEL%"\nset "TOPAZ_CERT_HELPER="\nset "TOPAZ_CERT_ARGS="\nif "%TOPAZ_ELEVATION_CODE%"=="1223" (\n    echo.\n    echo Administrator rights were not granted.\n    echo The cleanup helper and certificate files were retained for retry.\n    echo.\n    exit /b 1\n)\nif not "%TOPAZ_ELEVATION_CODE%"=="0" (\n    echo.\n    echo Administrator relaunch or certificate cleanup failed.\n    echo The cleanup helper and certificate files were retained for retry.\n    echo.\n    exit /b %TOPAZ_ELEVATION_CODE%\n)\nif "%TOPAZ_MANAGED_BY_REPEATER%"=="1" exit /b 0\n\necho.\necho Certificate cleanup completed successfully.\necho The certificate is no longer present in the Windows Root store.\necho This cleanup utility will remove itself after you continue.\necho.\npause\n(goto) 2>nul & del /f /q "%~f0"\n\n:ELEVATED\n\'\'\'\n    # pylint: enable=line-too-long\n\n\ndef _write_windows_remove_helper(\n    thumbprints: tuple[str, ...],\n) -> None:\n    """Write the Windows certificate-removal helper."""\n    # Exact generated batch commands are intentionally preserved byte-for-byte.\n    # pylint: disable=line-too-long\n    blocks: list[str] = []\n    absence_blocks: list[str] = []\n    for thumbprint in thumbprints:\n        blocks.append(fr\'\'\'echo Certificate thumbprint:\necho {thumbprint}\necho.\n\npowershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n    "$ErrorActionPreference=\'Stop\'; try {{ if (Test-Path -LiteralPath \'Cert:\\LocalMachine\\Root\\{thumbprint}\') {{ exit 0 }} else {{ exit 3 }} }} catch {{ Write-Error $_; exit 2 }}"\nset "CERT_LOOKUP_CODE=%ERRORLEVEL%"\n\nif "%CERT_LOOKUP_CODE%"=="0" (\n    certutil.exe -delstore Root "{thumbprint}"\n    if errorlevel 1 (\n        set "CERT_REMOVE_FAILED=1"\n        echo.\n        echo WARNING: Certificate {thumbprint} could not be removed from the Root store.\n    ) else (\n        echo.\n        echo Certificate removed successfully.\n    )\n) else if "%CERT_LOOKUP_CODE%"=="3" (\n    echo Certificate is already absent from the Windows Root store.\n) else (\n    set "CERT_REMOVE_FAILED=1"\n    echo WARNING: The Windows Root store could not be queried.\n    echo Certificate presence could not be determined.\n)\n\necho.\n\'\'\')\n        absence_blocks.append(fr\'\'\'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^\n    "$ErrorActionPreference=\'Stop\'; try {{ if (Test-Path -LiteralPath \'Cert:\\LocalMachine\\Root\\{thumbprint}\') {{ exit 3 }} else {{ exit 0 }} }} catch {{ Write-Error $_; exit 2 }}"\nset "CERT_VERIFY_CODE=%ERRORLEVEL%"\nif not "%CERT_VERIFY_CODE%"=="0" (\n    set "CERT_REMOVE_FAILED=1"\n    if "%CERT_VERIFY_CODE%"=="3" (\n        echo WARNING: Certificate {thumbprint} is still present in the Windows Root store.\n    ) else (\n        echo WARNING: Certificate absence could not be verified for {thumbprint}.\n    )\n)\n\'\'\')\n    body = "".join(blocks)\n    absence_body = "".join(absence_blocks)\n    _atomic_write_managed_text(REMOVE_CERT_BAT,\n        "@echo off\\r\\n"\n        "setlocal EnableExtensions\\r\\n"\n        "title Remove Topaz Local HTTPS Certificate\\r\\n\\r\\n"\n        + _windows_admin_block().replace("\\n", "\\r\\n")\n        + "\\r\\necho Removing known Topaz local HTTPS certificates...\\r\\n"\n        "echo.\\r\\n\\r\\n"\n        "set \\"CERT_REMOVE_FAILED=0\\"\\r\\n"\n        + body.replace("\\n", "\\r\\n")\n        + "echo Verifying certificate removal from the Windows Root store...\\r\\n"\n        + absence_body.replace("\\n", "\\r\\n")\n        + "\\r\\nif \\"%CERT_REMOVE_FAILED%\\"==\\"1\\" (\\r\\n"\n        "    echo.\\r\\n"\n        "    echo One or more Windows Root certificates are still present or could not be verified.\\r\\n"\n        "    echo Local certificate files, history, and this cleanup utility were retained for retry.\\r\\n"\n        "    echo.\\r\\n"\n        "    if \\"%TOPAZ_MANAGED_BY_REPEATER%\\"==\\"0\\" if \\"%TOPAZ_ELEVATED_CHILD%\\"==\\"0\\" pause\\r\\n"\n        "    exit /b 1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "echo Cleaning up Topaz Offline Mirror certificate files...\\r\\n"\n        "echo.\\r\\n\\r\\n"\n        "set \\"LOCAL_CLEANUP_FAILED=0\\"\\r\\n\\r\\n"\n        "if exist \\"%~dp0cert.pem\\" (\\r\\n"\n        "    del /f /q \\"%~dp0cert.pem\\" >nul 2>&1\\r\\n"\n        "    if exist \\"%~dp0cert.pem\\" (\\r\\n"\n        "        set \\"LOCAL_CLEANUP_FAILED=1\\"\\r\\n"\n        "        echo WARNING: cert.pem could not be deleted.\\r\\n"\n        "    ) else (\\r\\n"\n        "        echo Deleted cert.pem\\r\\n"\n        "    )\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0key.pem\\" (\\r\\n"\n        "    del /f /q \\"%~dp0key.pem\\" >nul 2>&1\\r\\n"\n        "    if exist \\"%~dp0key.pem\\" (\\r\\n"\n        "        set \\"LOCAL_CLEANUP_FAILED=1\\"\\r\\n"\n        "        echo WARNING: key.pem could not be deleted.\\r\\n"\n        "    ) else (\\r\\n"\n        "        echo Deleted key.pem\\r\\n"\n        "    )\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0History\\" (\\r\\n"\n        "    rmdir /s /q \\"%~dp0History\\" >nul 2>&1\\r\\n"\n        "    if exist \\"%~dp0History\\" (\\r\\n"\n        "        set \\"LOCAL_CLEANUP_FAILED=1\\"\\r\\n"\n        "        echo WARNING: Certificate history could not be deleted.\\r\\n"\n        "    ) else (\\r\\n"\n        "        echo Deleted certificate history\\r\\n"\n        "    )\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Thumbprints.txt\\" (\\r\\n"\n        "    del /f /q \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Thumbprints.txt\\" >nul 2>&1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if exist \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Install_Pending.txt\\" (\\r\\n"\n        "    del /f /q \\"%~dp0Topaz_Offline_Download_Creator_Certificate_Install_Pending.txt\\" >nul 2>&1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if \\"%LOCAL_CLEANUP_FAILED%\\"==\\"1\\" (\\r\\n"\n        "    echo.\\r\\n"\n        "    echo Local certificate cleanup was incomplete.\\r\\n"\n        "    echo This cleanup utility was retained for retry.\\r\\n"\n        "    echo.\\r\\n"\n        "    if \\"%TOPAZ_MANAGED_BY_REPEATER%\\"==\\"0\\" if \\"%TOPAZ_ELEVATED_CHILD%\\"==\\"0\\" pause\\r\\n"\n        "    exit /b 1\\r\\n"\n        ")\\r\\n\\r\\n"\n        "if \\"%TOPAZ_ELEVATED_CHILD%\\"==\\"1\\" exit /b 0\\r\\n"\n        "if \\"%TOPAZ_MANAGED_BY_REPEATER%\\"==\\"1\\" exit /b 0\\r\\n\\r\\n"\n        "echo.\\r\\n"\n        "echo Certificate cleanup completed successfully.\\r\\n"\n        "echo The certificate is no longer present in the Windows Root store.\\r\\n"\n        "echo This cleanup utility will remove itself after you continue.\\r\\n"\n        "echo.\\r\\n"\n        "pause\\r\\n\\r\\n"\n        "(goto) 2>nul & del /f /q \\"%~f0\\"\\r\\n",\n        encoding="utf-8",\n        newline="",\n    )\n    # pylint: enable=line-too-long\n\ndef _write_macos_remove_helper(\n    thumbprints: tuple[str, ...],\n) -> None:\n    """Write the macOS certificate-removal helper."""\n    # Exact generated shell commands are intentionally preserved byte-for-byte.\n    # pylint: disable=line-too-long\n    values = "\\n".join(f\'    "{value}"\' for value in thumbprints)\n    current_thumbprint = thumbprints[0]\n    _atomic_write_managed_text(\n        REMOVE_CERT_MACOS,\n        f\'\'\'#!/usr/bin/env bash\nset -e\n\nSCRIPT_DIR="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"\nCERT_FILE="$SCRIPT_DIR/cert.pem"\nCERT_HISTORY_DIR="$SCRIPT_DIR/History"\nCURRENT_CERT_SHA1="{current_thumbprint}"\nCERT_REMOVE_FAILED=0\nCERT_QUERY_OUTPUT=""\nCERT_SHA1_VALUES=(\n{values}\n)\nMANAGED_BY_REPEATER=0\nif [ "${1:-}" = "--managed-by-repeater" ]; then\n    MANAGED_BY_REPEATER=1\nfi\n\nif [ -L "$CERT_HISTORY_DIR" ] || {{ [ -e "$CERT_HISTORY_DIR" ] && [ ! -d "$CERT_HISTORY_DIR" ]; }}; then\n    echo "WARNING: Certificate history path is unsafe or not a directory: $CERT_HISTORY_DIR" >&2\n    echo "Local certificate files, state markers, history, and this cleanup utility were retained for retry." >&2\n    exit 1\nfi\nmkdir -p "$CERT_HISTORY_DIR"\n\nif CERT_QUERY_OUTPUT="$(\n    sudo security find-certificate \\\\\n        -Z \\\\\n        -a \\\\\n        /Library/Keychains/System.keychain 2>&1\n)"; then\n    for CERT_SHA1 in "${{CERT_SHA1_VALUES[@]}}"; do\n        if [ "$CERT_SHA1" = "$CURRENT_CERT_SHA1" ]; then\n            TRUST_CERT_FILE="$CERT_FILE"\n        else\n            TRUST_CERT_FILE="$CERT_HISTORY_DIR/$CERT_SHA1.pem"\n        fi\n        TRUST_REMOVED_MARKER="$CERT_HISTORY_DIR/$CERT_SHA1.trust-removed"\n\n        if [ -L "$TRUST_REMOVED_MARKER" ] || {{ [ -e "$TRUST_REMOVED_MARKER" ] && [ ! -f "$TRUST_REMOVED_MARKER" ]; }}; then\n            TRUST_SETTINGS_REMOVED=0\n            CERT_REMOVE_FAILED=1\n            echo "WARNING: Trust-removal marker is unsafe: $TRUST_REMOVED_MARKER" >&2\n        elif [ -f "$TRUST_REMOVED_MARKER" ]; then\n            MARKER_VALUE="$(cat -- "$TRUST_REMOVED_MARKER" 2>/dev/null || true)"\n            if [ "$MARKER_VALUE" = "$CERT_SHA1" ]; then\n                TRUST_SETTINGS_REMOVED=1\n            else\n                TRUST_SETTINGS_REMOVED=0\n                CERT_REMOVE_FAILED=1\n                echo "WARNING: Trust-removal marker does not match $CERT_SHA1: $TRUST_REMOVED_MARKER" >&2\n            fi\n        elif [ -f "$TRUST_CERT_FILE" ] && [ ! -L "$TRUST_CERT_FILE" ]; then\n            if sudo security remove-trusted-cert \\\\\n                -d \\\\\n                "$TRUST_CERT_FILE"; then\n                MARKER_TEMP="$(mktemp "$CERT_HISTORY_DIR/.${{CERT_SHA1}}.trust-removed.XXXXXX")" || {{\n                    TRUST_SETTINGS_REMOVED=0\n                    CERT_REMOVE_FAILED=1\n                    echo "WARNING: Unable to create trust-removal marker safely for $CERT_SHA1." >&2\n                    continue\n                }}\n                if printf \'%s\\\\n\' "$CERT_SHA1" > "$MARKER_TEMP" \\\\\n                    && chmod 600 "$MARKER_TEMP" \\\\\n                    && mv -f -- "$MARKER_TEMP" "$TRUST_REMOVED_MARKER"; then\n                    TRUST_SETTINGS_REMOVED=1\n                else\n                    rm -f -- "$MARKER_TEMP"\n                    TRUST_SETTINGS_REMOVED=0\n                    CERT_REMOVE_FAILED=1\n                    echo "WARNING: Unable to store trust-removal state safely for $CERT_SHA1." >&2\n                fi\n            else\n                TRUST_SETTINGS_REMOVED=0\n                CERT_REMOVE_FAILED=1\n                echo "WARNING: Administrative trust settings for $CERT_SHA1 could not be removed." >&2\n            fi\n        else\n            TRUST_SETTINGS_REMOVED=0\n            CERT_REMOVE_FAILED=1\n            echo "WARNING: Certificate file for trust removal is missing or unsafe: $TRUST_CERT_FILE" >&2\n        fi\n\n        if [ "$TRUST_SETTINGS_REMOVED" -ne 1 ]; then\n            echo "Certificate $CERT_SHA1 was retained so trust removal can be retried." >&2\n            continue\n        fi\n\n        if printf \'%s\\\\n\' "$CERT_QUERY_OUTPUT" | grep -qi "$CERT_SHA1"; then\n            if sudo security delete-certificate \\\\\n                -t \\\\\n                -Z "$CERT_SHA1" \\\\\n                /Library/Keychains/System.keychain; then\n                echo "Certificate $CERT_SHA1 removed successfully."\n            else\n                CERT_REMOVE_FAILED=1\n                echo "WARNING: Certificate $CERT_SHA1 could not be removed from the System keychain." >&2\n            fi\n        else\n            echo "Certificate $CERT_SHA1 is already absent from the macOS System keychain."\n        fi\n    done\nelse\n    CERT_REMOVE_FAILED=1\n    echo "WARNING: The macOS System keychain could not be queried." >&2\n    echo "Certificate presence could not be determined." >&2\n    if [ -n "$CERT_QUERY_OUTPUT" ]; then\n        printf \'%s\\\\n\' "$CERT_QUERY_OUTPUT" >&2\n    fi\nfi\n\nif [ "$CERT_REMOVE_FAILED" -ne 0 ]; then\n    echo "Local certificate files, state markers, history, and this cleanup utility were retained for retry." >&2\n    exit 1\nfi\n\nrm -f "$CERT_FILE" "$SCRIPT_DIR/key.pem"\nrm -rf "$CERT_HISTORY_DIR"\nrm -f "$SCRIPT_DIR/Topaz_Offline_Download_Creator_Certificate_Thumbprints.txt"\nrm -f "$SCRIPT_DIR/Topaz_Offline_Download_Creator_Certificate_Install_Pending.txt"\n\necho\necho "Certificate cleanup completed successfully."\nif [ "$MANAGED_BY_REPEATER" -eq 1 ]; then\n    exit 0\nfi\nrm -f -- "$0"\n\'\'\',\n        encoding="utf-8",\n        newline="\\n",\n    )\n    # pylint: enable=line-too-long\n    try:\n        REMOVE_CERT_MACOS.chmod(REMOVE_CERT_MACOS.stat().st_mode | 0o111)\n    except OSError:\n        pass\n\n\ndef _write_platform_helpers_after_refresh(\n    changed: bool,\n    thumbprints: tuple[str, ...],\n) -> None:\n    """Refresh the platform-specific certificate cleanup helpers."""\n    # Certificate installation is inline at server startup. Regenerate the\n    # cleanup helper only after certificate rotation or if the helper is absent.\n    if os.name == "nt":\n        if changed or not _regular_certificate_file(REMOVE_CERT_BAT):\n            _write_windows_remove_helper(thumbprints)\n        return\n    if sys.platform == "darwin" and (\n        changed or not _regular_certificate_file(REMOVE_CERT_MACOS)\n    ):\n        _write_macos_remove_helper(thumbprints)\n\n\ndef _replace_with_certificate_for_existing_key() -> str:\n    """Replace the certificate while retaining a validated existing private key."""\n    _ensure_safe_certificate_directories()\n    try:\n        with tempfile.TemporaryDirectory(\n            prefix=".topaz-server-start-",\n            dir=str(CERT_FILE.parent),\n        ) as temporary_directory:\n            temporary_root = Path(temporary_directory)\n            temporary_key = temporary_root / "key.pem"\n            temporary_certificate = temporary_root / "cert.pem"\n\n            key_source = "New 30-minute certificate using existing local private key"\n            try:\n                if not _regular_certificate_file(KEY_FILE):\n                    raise ValueError("Local private key is missing or unsafe.")\n                _rsa_private_key_values(KEY_FILE)\n                temporary_key.write_bytes(KEY_FILE.read_bytes())\n                _harden_private_key_permissions(temporary_key)\n            except (OSError, RuntimeError, TypeError, ValueError) as key_error:\n                openssl_text = shutil.which("openssl.exe") or shutil.which("openssl")\n                generated = False\n                detail = ""\n                if openssl_text:\n                    generated, detail = _generate_private_key_file_with_openssl(\n                        Path(openssl_text),\n                        temporary_key,\n                    )\n                    if generated:\n                        key_source = (\n                            "New 30-minute certificate using OpenSSL-generated private key"\n                        )\n\n                if not generated:\n                    generated, crypto_detail = _generate_private_key_file_with_cryptography(\n                        temporary_key\n                    )\n                    if generated:\n                        key_source = (\n                            "New 30-minute certificate using Python "\n                            "cryptography-generated private key"\n                        )\n                    else:\n                        details = [\n                            item for item in (detail, crypto_detail) if item\n                        ]\n                        suffix = " " + " | ".join(details) if details else ""\n                        raise RuntimeError(\n                            "Unable to generate a secure replacement private key. "\n                            "Install OpenSSL or the Python package \'cryptography\'."\n                            + suffix\n                        ) from key_error\n\n            write_runtime_certificate_for_private_key(\n                temporary_key,\n                temporary_certificate,\n            )\n            _replace_certificate_pair(\n                temporary_certificate,\n                temporary_key,\n                None,\n            )\n            return key_source\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to refresh the server certificate: {error}"\n        ) from error\n\n\n\ndef _windows_local_certificate_installed(thumbprint: str) -> bool:\n    """Return True only when the exact certificate exists in LocalMachine\\\\Root."""\n    certificate_path = f"Cert:\\\\LocalMachine\\\\Root\\\\{thumbprint}"\n    command = (\n        "$ErrorActionPreference=\'Stop\'; "\n        f"if (Test-Path -LiteralPath \'{certificate_path}\') {{ exit 0 }} else {{ exit 3 }}"\n    )\n    try:\n        result = subprocess.run(\n            [\n                "powershell.exe",\n                "-NoProfile",\n                "-NonInteractive",\n                "-ExecutionPolicy",\n                "Bypass",\n                "-Command",\n                command,\n            ],\n            stdout=subprocess.DEVNULL,\n            stderr=subprocess.DEVNULL,\n            check=False,\n            timeout=15,\n            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        raise RuntimeError(\n            "Unable to query the Windows Local Machine Trusted Root store: "\n            f"{error}"\n        ) from error\n    if not result.returncode:\n        return True\n    if result.returncode == 3:\n        return False\n    raise RuntimeError(\n        "The Windows Local Machine Trusted Root store could not be queried."\n    )\n\n\ndef _macos_local_certificate_installed(thumbprint: str) -> bool:\n    """Return True when the exact certificate is in the macOS System keychain."""\n    try:\n        result = subprocess.run(\n            [\n                "security",\n                "find-certificate",\n                "-Z",\n                "-a",\n                "/Library/Keychains/System.keychain",\n            ],\n            capture_output=True,\n            text=True,\n            check=False,\n            timeout=15,\n        )\n    except (OSError, subprocess.TimeoutExpired) as error:\n        raise RuntimeError(\n            "Unable to query the macOS System keychain: "\n            f"{error}"\n        ) from error\n\n    if result.returncode:\n        return False\n\n    installed_thumbprints = {\n        match.group(1).upper()\n        for match in re.finditer(\n            r"SHA-1 hash:\\s*([0-9A-Fa-f]{40})",\n            result.stdout,\n        )\n    }\n    return thumbprint in installed_thumbprints\n\n\ndef _linux_local_certificate_installed(thumbprint: str) -> bool:\n    """Return True when Python\'s system CA view contains the exact certificate."""\n    try:\n        system_ca_context = ssl.create_default_context()\n        for der_certificate in system_ca_context.get_ca_certs(binary_form=True):\n            if hashlib.sha1(der_certificate).hexdigest().upper() == thumbprint:\n                return True\n    except (OSError, ssl.SSLError) as error:\n        raise RuntimeError(\n            "Unable to query the Linux system trust store: "\n            f"{error}"\n        ) from error\n    return False\n\n\ndef local_certificate_installed(thumbprint: str) -> bool:\n    """Query the local operating-system trust store for the exact certificate."""\n    if (normalized := _normalized_certificate_thumbprint(thumbprint)) is None:\n        raise RuntimeError("Cannot query the trust store with an invalid certificate thumbprint.")\n\n    if os.name == "nt":\n        return _windows_local_certificate_installed(normalized)\n    if sys.platform == "darwin":\n        return _macos_local_certificate_installed(normalized)\n    if sys.platform.startswith("linux"):\n        return _linux_local_certificate_installed(normalized)\n\n    raise RuntimeError(\n        f"Unsupported operating system for certificate trust-store verification: {sys.platform}"\n    )\n\n\ndef prepare_server_start_certificate() -> tuple[bool, str, float, str]:\n    "Return install-required, thumbprint, expiry epoch, and certificate source."\n    _ensure_safe_certificate_directories()\n    previous_thumbprints = _collect_certificate_thumbprints_before_refresh()\n    changed = False\n    source = "Existing valid 30-minute local certificate"\n\n    if (valid := certificate_pair_is_valid(CERT_FILE, KEY_FILE, None)):\n        try:\n            remaining = _certificate_not_after_epoch(CERT_FILE) - time.time()\n        except (OSError, TypeError, ValueError, ssl.SSLError):\n            valid = False\n            remaining = 0.0\n    else:\n        remaining = 0.0\n\n    if (\n        not valid\n        or remaining < CERTIFICATE_STARTUP_MINIMUM_REMAINING_SECONDS\n    ):\n        source = _replace_with_certificate_for_existing_key()\n        changed = True\n\n    if not certificate_pair_is_valid(CERT_FILE, KEY_FILE, None):\n        raise RuntimeError(\n            "The server-start certificate failed validation."\n        )\n\n    thumbprint = certificate_sha1_thumbprint(CERT_FILE)\n    thumbprints = (\n        thumbprint,\n        *(value for value in previous_thumbprints if value != thumbprint),\n    )\n    pending_installation = _certificate_installation_is_pending(thumbprint)\n    locally_installed = local_certificate_installed(thumbprint)\n    # The operating-system trust store is authoritative. A pending marker\n    # records an unfinished confirmation, but cannot override a verified install.\n    if installation_required := not locally_installed:\n        _mark_certificate_installation_pending(thumbprint)\n    elif pending_installation:\n        # The OS trust store is authoritative. If installation completed but the\n        # previous run ended before confirmation, clear the stale pending marker.\n        _clear_certificate_installation_pending()\n\n    _write_certificate_thumbprint_history(thumbprints)\n    _write_platform_helpers_after_refresh(changed, thumbprints)\n    _restore_invoking_user_certificate_ownership()\n    expiry_epoch = _certificate_not_after_epoch(CERT_FILE)\n    return installation_required, thumbprint, expiry_epoch, source\n\n\ndef _certificate_installation_is_pending(thumbprint: str) -> bool:\n    """Return whether installation remains pending for the supplied thumbprint."""\n    try:\n        _validate_managed_text_destination(CERTIFICATE_INSTALL_PENDING_FILE)\n        pending_value = CERTIFICATE_INSTALL_PENDING_FILE.read_text(\n            encoding="utf-8"\n        ).strip()\n    except FileNotFoundError:\n        return False\n    except OSError as error:\n        raise RuntimeError(\n            "Unable to read the pending certificate-installation state: "\n            f"{error}"\n        ) from error\n    pending_thumbprint = _normalized_certificate_thumbprint(pending_value)\n    return pending_thumbprint == thumbprint\n\n\ndef _mark_certificate_installation_pending(thumbprint: str) -> None:\n    """Persist the pending certificate-installation state."""\n    _atomic_write_managed_text(\n        CERTIFICATE_INSTALL_PENDING_FILE,\n        f"{thumbprint}\\n",\n        encoding="utf-8",\n        newline="\\n",\n    )\n\n\ndef _clear_certificate_installation_pending() -> None:\n    """Clear a matching pending certificate-installation state."""\n    _validate_managed_text_destination(CERTIFICATE_INSTALL_PENDING_FILE)\n    try:\n        CERTIFICATE_INSTALL_PENDING_FILE.unlink(missing_ok=True)\n    except OSError as error:\n        raise RuntimeError(\n            "Unable to clear the pending certificate-installation state: "\n            f"{error}"\n        ) from error\n\n\ndef _windows_install_local_certificate() -> bool:\n    """Request UAC only for the certificate import and wait for its real result."""\n    if not _regular_certificate_file(CERT_FILE):\n        raise RuntimeError("cert.pem is missing or unsafe.")\n\n    cert_path = str(CERT_FILE.resolve()).replace("\'", "\'\'")\n    elevated_command = (\n        "$ErrorActionPreference=\'Stop\'; "\n        f"& certutil.exe -addstore Root \'{cert_path}\'; "\n        "if ($LASTEXITCODE -eq 0) { exit 0 } else { exit $LASTEXITCODE }"\n    )\n    encoded_command = base64.b64encode(\n        elevated_command.encode("utf-16le")\n    ).decode("ascii")\n    launcher_command = (\n        "$ErrorActionPreference=\'Stop\'; try { "\n        "$p=Start-Process -FilePath \'powershell.exe\' "\n        "-ArgumentList @(\'-NoProfile\',\'-NonInteractive\',\'-ExecutionPolicy\',\'Bypass\',"\n        f"\'-EncodedCommand\',\'{encoded_command}\') "\n        "-Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode "\n        "} catch { Write-Error $_; exit 1 }"\n    )\n    try:\n        result = subprocess.run(\n            [\n                "powershell.exe",\n                "-NoProfile",\n                "-NonInteractive",\n                "-ExecutionPolicy",\n                "Bypass",\n                "-Command",\n                launcher_command,\n            ],\n            check=False,\n            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),\n        )\n    except OSError as error:\n        print(f"Certificate installation could not start: {error}")\n        return False\n    return not result.returncode\n\n\ndef _macos_install_local_certificate() -> bool:\n    """Install the certificate into the macOS System keychain."""\n    if not _regular_certificate_file(CERT_FILE):\n        raise RuntimeError("cert.pem is missing or unsafe.")\n    if not hasattr(os, "geteuid") or os.geteuid():\n        print("Administrator rights are required for macOS certificate installation.")\n        return False\n    try:\n        result = subprocess.run(\n            [\n                "security",\n                "add-trusted-cert",\n                "-d",\n                "-r",\n                "trustRoot",\n                "-k",\n                "/Library/Keychains/System.keychain",\n                str(CERT_FILE),\n            ],\n            check=False,\n        )\n    except OSError as error:\n        print(f"Certificate installation could not start: {error}")\n        return False\n    return not result.returncode\n\n\ndef _validate_linux_trust_anchor_destination(destination: Path) -> None:\n    """Reject an existing Linux trust-anchor destination unless it is a regular file."""\n    if not os.path.lexists(destination):\n        return\n    try:\n        destination_status = destination.lstat()\n    except OSError as error:\n        raise RuntimeError(\n            f"Unable to inspect Linux trust-anchor destination: {destination}"\n        ) from error\n    if stat.S_ISLNK(destination_status.st_mode) or not stat.S_ISREG(\n        destination_status.st_mode\n    ):\n        raise RuntimeError(\n            "Refusing to replace unsafe Linux trust-anchor destination: "\n            f"{destination}"\n        )\n\n\ndef _verify_linux_trust_anchor(path: Path, label: str) -> None:\n    """Require one Linux trust-anchor path to be a regular file with mode 0644."""\n    try:\n        file_status = path.lstat()\n    except OSError as error:\n        raise RuntimeError(f"Unable to verify {label}: {path}") from error\n    if stat.S_ISLNK(file_status.st_mode) or not stat.S_ISREG(file_status.st_mode):\n        raise RuntimeError(f"{label.capitalize()} is unsafe: {path}")\n    if stat.S_IMODE(file_status.st_mode) != 0o644:\n        raise RuntimeError(f"{label.capitalize()} does not have mode 0644: {path}")\n\n\ndef _install_linux_trust_anchor_file(source: Path, destination: Path) -> None:\n    """Atomically install one CA anchor without following an unsafe destination."""\n    if not _regular_certificate_file(source):\n        raise RuntimeError(f"Certificate source is missing or unsafe: {source}")\n    destination.parent.mkdir(parents=True, exist_ok=True)\n    _validate_linux_trust_anchor_destination(destination)\n    descriptor, staged_name = tempfile.mkstemp(\n        prefix=\'.topaz-offline-mirror-\',\n        suffix=\'.crt.stage\',\n        dir=str(destination.parent),\n    )\n    os.close(descriptor)\n    staged_file = Path(staged_name)\n    try:\n        shutil.copyfile(source, staged_file)\n        os.chmod(staged_file, 0o644)\n        _verify_linux_trust_anchor(staged_file, \'Linux trust-anchor staging path\')\n        os.replace(staged_file, destination)\n    finally:\n        staged_file.unlink(missing_ok=True)\n    _verify_linux_trust_anchor(destination, \'Installed Linux trust anchor\')\n\n\ndef _linux_release_values() -> dict[str, str] | None:\n    """Read /etc/os-release or report why Linux trust-store detection failed."""\n    values: dict[str, str] = {}\n    try:\n        for line in Path(\'/etc/os-release\').read_text(encoding=\'utf-8\').splitlines():\n            if \'=\' not in line:\n                continue\n            key, value = line.split(\'=\', 1)\n            values[key.strip()] = value.strip().strip(\'"\').strip("\'")\n    except OSError as error:\n        print(f"Unable to identify the Linux trust-store layout: {error}")\n        return None\n    return values\n\n\ndef _linux_trust_store_layout(values: dict[str, str]):\n    """Return the supported Linux trust-anchor path and update command, if known."""\n    linux_id = values.get(\'ID\', \'\').lower()\n    linux_like = values.get(\'ID_LIKE\', \'\').lower()\n    debian_family = (\n        linux_id in {\'debian\', \'ubuntu\', \'linuxmint\', \'pop\'}\n        or \'debian\' in linux_like\n        or \'ubuntu\' in linux_like\n    )\n    redhat_family = (\n        linux_id in {\'fedora\', \'rhel\', \'centos\', \'rocky\', \'almalinux\'}\n        or \'fedora\' in linux_like\n        or \'rhel\' in linux_like\n    )\n    if debian_family:\n        return (\n            Path(\'/usr/local/share/ca-certificates/topaz-offline-mirror.crt\'),\n            [\'update-ca-certificates\'],\n        )\n    if redhat_family:\n        return (\n            Path(\'/etc/pki/ca-trust/source/anchors/topaz-offline-mirror.crt\'),\n            [\'update-ca-trust\'],\n        )\n    return None\n\n\ndef _linux_install_local_certificate() -> bool:\n    """Install the certificate for supported Debian/Ubuntu or Fedora/RHEL systems."""\n    if not _regular_certificate_file(CERT_FILE):\n        raise RuntimeError(\'cert.pem is missing or unsafe.\')\n    if not hasattr(os, \'geteuid\') or os.geteuid():\n        print(\'Administrator rights are required for Linux certificate installation.\')\n        return False\n    if (values := _linux_release_values()) is None:\n        return False\n    if (layout := _linux_trust_store_layout(values)) is None:\n        print(\n            \'Unsupported Linux certificate-store layout. Supported families are \'\n            \'Debian/Ubuntu and Fedora/RHEL.\'\n        )\n        return False\n    destination, update_command = layout\n    try:\n        _install_linux_trust_anchor_file(CERT_FILE, destination)\n        result = subprocess.run(update_command, check=False)\n    except (OSError, RuntimeError) as error:\n        print(f"Certificate installation failed: {error}")\n        return False\n    return not result.returncode\n\n\ndef _install_local_certificate_elevated_only() -> bool:\n    """Perform only the already-approved Unix trust-store mutation as root."""\n    if not hasattr(os, "geteuid") or os.geteuid():\n        print("Administrator rights are required for certificate installation.")\n        return False\n    if sys.platform == "darwin":\n        return _macos_install_local_certificate()\n    if sys.platform.startswith("linux"):\n        return _linux_install_local_certificate()\n    print(\n        "Elevated certificate installation is supported only on macOS and Linux."\n    )\n    return False\n\n\ndef _request_unix_certificate_elevation() -> bool:\n    """Request sudo only after the user approved certificate installation."""\n    if (sudo := shutil.which("sudo")) is None:\n        print("Administrator rights are required, but sudo was not found.")\n        return False\n    try:\n        result = subprocess.run(\n            [\n                sudo,\n                sys.executable,\n                str(Path(__file__).resolve()),\n                "--install-certificate-elevated",\n            ],\n            check=False,\n        )\n    except OSError as error:\n        print(f"Certificate elevation could not start: {error}")\n        return False\n    return not result.returncode\n\n\ndef install_local_certificate() -> bool:\n    """Install the managed certificate into the current platform trust store."""\n    if os.name == "nt":\n        return _windows_install_local_certificate()\n    if sys.platform == "darwin" or sys.platform.startswith("linux"):\n        if hasattr(os, "geteuid") and not os.geteuid():\n            return _install_local_certificate_elevated_only()\n        return _request_unix_certificate_elevation()\n    raise RuntimeError(\n        f"Unsupported operating system for certificate installation: {sys.platform}"\n    )\n\n\ndef _display_refreshed_certificate_installation_notice(source_label: str) -> None:\n    """Display why local trust installation is required before HTTPS startup."""\n    print()\n    if source_label == \'Existing valid 30-minute local certificate\':\n        print(\'The current certificate is not installed in this\')\n        print("computer\'s local trusted root store.")\n    else:\n        print(\'A new 30-minute certificate was created because the previous\')\n        print(\'certificate was invalid, expired, or had under five minutes left.\')\n    print()\n    print(\'Installing this cert.pem on this computer is required to run properly.\')\n    print(\'The certificate will expire at the local time shown above.\')\n    print()\n    print(\'At expiration, the repeater will stop and you will be prompted to remove\')\n    print("the certificate from this computer\'s local trust store.")\n    print()\n    print(\'If the server is closed early, use the removal helper, kept in Certs.\')\n    print()\n\n\ndef confirm_refreshed_certificate_installation(\n    thumbprint: str,\n    source_label: str,\n) -> None:\n    """Prompt for and verify installation of a refreshed local certificate."""\n    _display_refreshed_certificate_installation_notice(source_label)\n    if not sys.stdin.isatty():\n        print(\'HTTPS startup cancelled: certificate installation requires an interactive prompt.\')\n        raise SystemExit(130)\n\n    while True:\n        try:\n            answer = input(\n                \'Install the certificate now? Administrator rights may be requested. (Y/N): \'\n            ).strip().lower()\n        except (EOFError, KeyboardInterrupt):\n            print()\n            answer = \'n\'\n\n        if answer in {\'y\', \'yes\'}:\n            print()\n            if not install_local_certificate():\n                print(\'Certificate installation was not completed.\')\n                print(\'You may try again, or type N to stop without starting HTTPS.\')\n                print()\n                continue\n            if not local_certificate_installed(thumbprint):\n                print()\n                print(\'Certificate installation completed without an error, but the exact\')\n                print("certificate was not detected in this computer\'s local trust store.")\n                print(\'You may try again, or type N to stop without starting HTTPS.\')\n                print()\n                continue\n            _clear_certificate_installation_pending()\n            print()\n            print("Local certificate installation verified.")\n            _display_linux_privilege_identity()\n            print()\n            return\n        if answer in {\'n\', \'no\'}:\n            print()\n            print(\'HTTPS startup cancelled by user. No error occurred.\')\n            raise SystemExit(130)\n        print(\'Please type Y or N.\')\n\n\ndef _display_linux_privilege_identity() -> None:\n    """Display the current non-root Linux account after certificate installation."""\n    if not (\n        sys.platform.startswith(\'linux\')\n        and hasattr(os, \'geteuid\')\n        and os.geteuid()\n    ):\n        return\n    try:\n        import pwd  # pylint: disable=import-outside-toplevel\n        account_name = pwd.getpwuid(os.geteuid()).pw_name\n    except (ImportError, KeyError):\n        account_name = str(os.geteuid())\n    print()\n    print(\n        f"Server privileges dropped to {account_name} "\n        f"(UID {os.geteuid()}, GID {os.getegid()})."\n    )\n\n\ndef _existing_certificate_archive_matches(archive_file: Path, thumbprint: str) -> bool:\n    """Validate an existing archive collision and return whether it is identical."""\n    if archive_file.is_symlink():\n        raise RuntimeError(\n            f"Refusing to replace symbolic-link certificate history: {archive_file}"\n        )\n    if not archive_file.exists():\n        return False\n    if not archive_file.is_file():\n        raise RuntimeError(\n            f"Certificate history path is not a regular file: {archive_file}"\n        )\n    try:\n        if certificate_sha1_thumbprint(archive_file) == thumbprint:\n            return True\n    except (OSError, TypeError, ValueError, ssl.SSLError) as error:\n        raise RuntimeError(\n            f"Existing certificate history is invalid: {archive_file}"\n        ) from error\n    raise RuntimeError(f"Certificate history collision for thumbprint {thumbprint}.")\n\n\ndef _write_certificate_archive(archive_file: Path, thumbprint: str, pem_text: str) -> None:\n    """Atomically create one validated certificate-history PEM file."""\n    descriptor, staged_name = tempfile.mkstemp(\n        prefix=f\'.{thumbprint}-\',\n        suffix=\'.stage\',\n        dir=str(CERTIFICATE_HISTORY_DIR),\n    )\n    os.close(descriptor)\n    staged_file = Path(staged_name)\n    try:\n        staged_file.write_text(pem_text, encoding=\'ascii\', newline=\'\\n\')\n        os.replace(staged_file, archive_file)\n    finally:\n        staged_file.unlink(missing_ok=True)\n\n\ndef _archive_existing_certificate() -> None:\n    """Preserve the current managed 30-minute certificate before rotation."""\n    if not _regular_certificate_file(CERT_FILE):\n        return\n    try:\n        if not (thumbprint := _managed_cleanup_certificate_thumbprint(CERT_FILE)):\n            return\n        pem_text = _single_certificate_pem_text(CERT_FILE)\n    except (OSError, TypeError, ValueError, ssl.SSLError):\n        return\n    _ensure_safe_certificate_directories()\n    CERTIFICATE_HISTORY_DIR.mkdir(exist_ok=True)\n    archive_file = CERTIFICATE_HISTORY_DIR / f\'{thumbprint}.pem\'\n    if _existing_certificate_archive_matches(archive_file, thumbprint):\n        return\n    _write_certificate_archive(archive_file, thumbprint, pem_text)\n\n\ndef _restore_invoking_user_certificate_ownership() -> None:\n    """Return sudo-created certificate artifacts to the invoking user."""\n    if os.name == "nt":\n        return\n\n    uid_text = os.environ.get("SUDO_UID", "")\n    gid_text = os.environ.get("SUDO_GID", "")\n    if not uid_text.isdigit() or not gid_text.isdigit():\n        return\n\n    uid = int(uid_text)\n    gid = int(gid_text)\n    _ensure_safe_certificate_directories()\n    managed_paths: list[Path] = [\n        CERT_FILE,\n        KEY_FILE,\n        CERTIFICATE_THUMBPRINT_HISTORY_FILE,\n        CERTIFICATE_INSTALL_PENDING_FILE,\n        REMOVE_CERT_MACOS,\n        REMOVE_CERT_LINUX,\n    ]\n\n    if CERTIFICATE_HISTORY_DIR.exists():\n        if CERTIFICATE_HISTORY_DIR.is_symlink():\n            raise RuntimeError(\n                "Refusing to change ownership of symbolic-link certificate history."\n            )\n        for child in CERTIFICATE_HISTORY_DIR.rglob("*"):\n            if child.is_symlink():\n                raise RuntimeError(\n                    f"Refusing to change ownership of symbolic link: {child}"\n                )\n            managed_paths.append(child)\n        managed_paths.append(CERTIFICATE_HISTORY_DIR)\n\n    managed_paths.append(CERT_DIR)\n    seen: set[Path] = set()\n    for path in managed_paths:\n        if path in seen or not path.exists():\n            continue\n        seen.add(path)\n        if path.is_symlink():\n            raise RuntimeError(\n                f"Refusing to change ownership of symbolic link: {path}"\n            )\n        os.chown(path, uid, gid, follow_symlinks=False)\n\ndef _ensure_safe_certificate_directories() -> None:\n    """Create or validate certificate directories without following links."""\n    if CERT_DIR.exists():\n        if CERT_DIR.is_symlink() or not CERT_DIR.is_dir():\n            raise RuntimeError(\n                f"Certificate directory is missing, unsafe, or not a directory: {CERT_DIR}"\n            )\n    else:\n        CERT_DIR.mkdir(parents=True, exist_ok=False)\n\n    if CERTIFICATE_HISTORY_DIR.exists() and (\n        CERTIFICATE_HISTORY_DIR.is_symlink()\n        or not CERTIFICATE_HISTORY_DIR.is_dir()\n    ):\n        raise RuntimeError(\n            "Certificate history path is unsafe or not a directory: "\n            f"{CERTIFICATE_HISTORY_DIR}"\n        )\n\n'
+
+_REPEATER_CERT_DECODE_CALL = 'ssl._ssl._test_decode_cert(str(certificate_file))'
+if REPEATER_CERTIFICATE_SUPPORT_SOURCE.count(_REPEATER_CERT_DECODE_CALL) != 3:
+    raise RuntimeError(
+        "Unexpected private certificate-decoder call count in Repeater support source."
+    )
+REPEATER_CERTIFICATE_SUPPORT_SOURCE = REPEATER_CERTIFICATE_SUPPORT_SOURCE.replace(
+    _REPEATER_CERT_DECODE_CALL,
+    '_decode_certificate_metadata(certificate_file)',
+)
 
 SERVER_PY.write_text(f'''\
+"""Serve the generated Topaz offline mirror over ownership-aware HTTP and HTTPS."""
+# The generated filename and standalone server size are compatibility requirements.
+# pylint: disable=invalid-name,too-many-lines
+
 import os
 import hashlib
 import email.utils
@@ -8053,8 +9288,8 @@ import traceback
 import ssl
 import sys
 import signal
-import socket
 import stat
+import ctypes
 import tempfile
 import threading
 import weakref
@@ -8063,40 +9298,45 @@ import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote, urlparse, parse_qsl, urlencode, quote
-from pathlib import Path, PurePosixPath
 from http import HTTPStatus
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path, PurePosixPath
+from urllib.parse import unquote, urlparse, parse_qsl, urlencode, quote
 
 TRACEBACK_TEXT_ART_BASE64 = (
+    # pylint: disable-next=line-too-long
     '4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/CuKjv+Kjv+Kgj+KiieKgmeKjv+KgieKiieKjueKhieKgieKjieKjv+Kjv+Khn+KiieKgmeKiv+KhieKgieKjieKhj+KiueKhn+KiieKgieKiu+Khj+KiueKgi+KjveKjv+Kjv+KgieKjieKgmeKjn+KgieKjv+KgieKjv+Kgi+KhieKgu+Khv+Kgi+KhieKiu+Khj+KgieKjieKjv+KgieKjieKgmeKjv+Kjv+Kjv+KgieKjv+Kjv+Kgj+KiieKgmeKjv+KgieKjv+Kjv+Kjv+Kjvwrio7/io7/ioIDio7/io6bio7/ioIDioL/ior/io7/ioIDio7/io7/io7/io4fioJjiorfio77io7/ioIDio7/ioYfiorjioYfiorjio6fio7zioYfioIjiooDio7/io7/io7/ioIDioJ/iooDio7/ioIDio7/ioIDio7/ioIDio7/io7TioYfioIDio7fio7TioYfioJjioL/io7/ioIDio7/ioIDio7/io7/io7/ioIDio7/io7/ioIDio7/ioIDio7/ioIDio7/io7/io7/io78K4qO/4qO/4qCA4qO/4qCA4qO/4qCA4qO24qO+4qO/4qCA4qO/4qO/4qO/4qGf4qK34qGA4qK54qO/4qCA4qO/4qGH4qK44qGH4qK44qGf4qK74qGH4qKg4qCA4qO/4qO/4qO/4qCA4qO24qCA4qGf4qCA4qO/4qCA4qO/4qCA4qOn4qCA4qGH4qCA4qGH4qCA4qGH4qKg4qO24qO/4qCA4qO/4qCA4qO/4qO/4qO/4qCA4qO/4qO/4qCA4qO/4qCA4qO/4qCA4qO/4qO/4qO/4qO/CuKjv+Kjv+KjhOKjieKjgOKjv+KjgOKjieKjueKjv+KjgOKjv+Kjv+Kjv+Kjh+KjiOKjgeKjvOKjv+KjgOKjv+Kjh+KjuOKjh+KjiOKjgeKjvOKjh+KjuOKjhOKjueKjv+Kjv+KjgOKjieKjgOKjv+KjgOKjieKjoOKjv+KjgOKjieKjgOKjp+KjgOKjgeKjgOKjh+KjiOKjieKjv+KjgOKjieKjgOKjv+Kjv+Kjv+KjgOKjmeKju+KjhOKjieKjgOKjv+KjgOKjmeKju+Kjv+Kjvwrio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io78K4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/CuKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjvwrio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io78K4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qGb4qC/4qK/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/CuKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kgv+KggOKggOKgiOKgm+Kiv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjvwrio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/ioL/ioJvio4vio6Xio7Tio77ioo/io7zio7/io7fio4TioIjioJvioL/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io78K4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qG/4qCb4qOp4qOk4qO24qO/4qO/4qO/4qO/4qGP4qO84qO/4qO/4qG/4qKL4qOk4qOm4qGA4qCI4qCZ4qCb4qCb4qCb4qCf4qCb4qCb4qCb4qCb4qKb4qOZ4qOb4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/CuKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Khv+Kii+KjtOKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Khn+KjuOKjv+Khv+Kii+KjtOKjv+Kjv+Kjv+Khh+KggOKjtuKjtuKjtuKjtuKjtuKjtuKjtuKjpOKjpOKhjeKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjvwrio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/ioJ/io7Hio7/io7/io7/io7/io7/io7/io7/io7/io7/io7Hio7/ioJ/io6Hio77io7/io7/io7/iob/ioqDioYbio73io7/io7/io7/io7/io7/io7/io7/io7/io6fiornio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io78K4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qG/4qKL4qO+4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qKj4qO/4qO/4qO44qO/4qO/4qO/4qO/4qO/4qKh4qG/4qOx4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qK44qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/CuKgv+Kgv+Kgv+Kgv+Kiv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Khv+KjseKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjj+KjvuKjv+Khh+Kjv+Kjv+Kjv+Kjv+Kjv+Khn+KgvOKjo+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+KjuOKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjvwrio7bio7bio7bio7bio6Tio6Tio6Tio4Dio4jio4nio4nioYnioInioJvioJvioJvioLDioL/ioL/ioL/ior/io7/io7/io7/io7/io7/io7/ioZ/io77io7/io7/iornio7/io7/io7/io7/io7/ioYfio7Dio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/iob/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io78K4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO24qO24qO24qO24qO24qOm4qOk4qOk4qOE4qOI4qOJ4qOJ4qOB4qOJ4qCJ4qCL4qCY4qC74qC/4qC/4qC/4qC/4qKh4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qOH4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/4qO/CuKjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+KjtuKjtuKjtuKjtuKjpOKjpOKjrOKjjeKjieKjieKjieKhm+Kgm+Kgm+Kgm+Kgv+Kgv+Kgv+KguOKiv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjv+Kjvwrio7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7/io7bio7bio7bio7bio6Tio6Tio6Tio4Tio4nio4nio4nio4nioJvioJvioJvioL/ioL/ioL/ioL/ioL8='
 )
 
 _ORIGINAL_TRACEBACK_PRINT_EXCEPTION = traceback.print_exception
-_BUG_PRINTING = False
+_BUG_PRINT_LOCK = threading.Lock()
 
 def BUG():
-    global _BUG_PRINTING
-    if _BUG_PRINTING:
+    """Print the optional traceback Easter-egg art without masking the original failure."""
+    # Exception-decoration must never recurse or mask the original failure.
+    if not _BUG_PRINT_LOCK.acquire(blocking=False):  # pylint: disable=consider-using-with
         return
-    _BUG_PRINTING = True
     try:
         decoded = base64.b64decode(TRACEBACK_TEXT_ART_BASE64).decode("utf-8")
         print()
         print(decoded, flush=True)
         print(flush=True)
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Best-effort diagnostic decoration only; preserve the original failure.
         pass
     finally:
-        _BUG_PRINTING = False
+        _BUG_PRINT_LOCK.release()
 
 def _restore_console_color():
+    """Restore the console color used after diagnostic traceback output."""
     try:
-        print("[92m", end="", flush=True)
-    except Exception:
+        print("\\x1B[92m", end="", flush=True)
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Console restoration must never replace the exception being reported.
         pass
 
 def _stick_bug_print_exception(*args, **kwargs):
+    """Print an exception through the diagnostic traceback decoration hook."""
     BUG()
     try:
         _ORIGINAL_TRACEBACK_PRINT_EXCEPTION(*args, **kwargs)
@@ -8104,17 +9344,20 @@ def _stick_bug_print_exception(*args, **kwargs):
         _restore_console_color()
 
 def repeater_exception_handler(exception_type, exception_value, exception_traceback):
+    """Route uncaught main-thread exceptions through the decorated traceback handler."""
     if issubclass(exception_type, KeyboardInterrupt):
         sys.__excepthook__(exception_type, exception_value, exception_traceback)
         return
     traceback.print_exception(exception_type, exception_value, exception_traceback)
 
 def repeater_thread_exception_handler(args):
+    """Route uncaught worker-thread exceptions through the traceback handler."""
     if args.exc_type is KeyboardInterrupt:
         return
     traceback.print_exception(args.exc_type, args.exc_value, args.exc_traceback)
 
 def repeater_unraisable_exception_handler(args):
+    """Route unraisable exceptions through the traceback handler."""
     traceback.print_exception(type(args.exc_value), args.exc_value, args.exc_traceback)
 
 traceback.print_exception = _stick_bug_print_exception
@@ -8144,9 +9387,17 @@ REMOVE_CERT_BAT = CERT_DIR / "Topaz_Offline_Download_Creator_Remove_Cert.bat"
 REMOVE_CERT_MACOS = CERT_DIR / "Topaz_Offline_Download_Creator_Remove_Cert.command"
 REMOVE_CERT_LINUX = CERT_DIR / "Topaz_Offline_Download_Creator_Remove_Cert.sh"
 
+def _decode_certificate_metadata(certificate_file: Path):
+    """Decode a local PEM certificate using CPython's only stdlib metadata helper."""
+    # Python's ssl module has no public local-X.509 metadata decoder.
+    return ssl._ssl._test_decode_cert(  # pylint: disable=protected-access
+        str(certificate_file)
+    )
+
 {REPEATER_CERTIFICATE_SUPPORT_SOURCE}
 
 def _certificate_cleanup_helper_command() -> tuple[list[str], Path] | None:
+    """Return the platform certificate-cleanup command and helper path."""
     if os.name == "nt":
         helper = REMOVE_CERT_BAT
         return [
@@ -8161,23 +9412,61 @@ def _certificate_cleanup_helper_command() -> tuple[list[str], Path] | None:
     return None
 
 
+def _expired_cleanup_retry_display() -> str:
+    """Return the user-facing retained cleanup-helper path for this platform."""
+    if os.name == "nt":
+        return r"~\\TopazServer\\Certs\\~Remove_Cert.bat"
+    if sys.platform == "darwin":
+        return "~/TopazServer/Certs/~Remove_Cert.command"
+    return "~/TopazServer/Certs/~Remove_Cert.sh"
+
+
+def _run_expired_certificate_cleanup(
+    command: list[str],
+    helper: Path,
+    helper_retry_display: str,
+) -> bool:
+    """Run one approved cleanup helper and remove it only after success."""
+    try:
+        result = subprocess.run(command, check=False)
+    except OSError as error:
+        print(f"Certificate removal helper could not start: {{error}}")
+        print(f"The helper was retained for retry: {{helper}}")
+        return False
+    if result.returncode:
+        print("Expired certificate cleanup did not complete.")
+        print(
+            "The helper and certificate state were retained for retry: "
+            f"{{helper_retry_display}}"
+        )
+        return False
+    try:
+        helper.unlink(missing_ok=True)
+    except OSError as error:
+        print(
+            "Certificate cleanup succeeded, but the removal helper "
+            f"could not be deleted: {{error}}"
+        )
+        return False
+    print("Expired certificate cleanup completed.")
+    return True
+
+
 def prompt_expired_certificate_cleanup() -> bool:
-    helper_info = _certificate_cleanup_helper_command()
-    if helper_info is None:
+    """Prompt for removal of an expired managed certificate and retained helpers."""
+    if (helper_info := _certificate_cleanup_helper_command()) is None:
         print("Certificate cleanup is not available on this operating system.")
         return False
-
     command, helper = helper_info
+    helper_retry_display = _expired_cleanup_retry_display()
     print()
     print("The repeater is stopped and will not serve with the expired certificate.")
     print("The removal helper remains in Certs until trust-store removal succeeds.")
     print()
-
     if not helper.is_file() or helper.is_symlink():
         print(f"Certificate removal helper is missing or unsafe: {{helper}}")
         print("Remove the expired certificate manually from the operating-system trust store.")
         return False
-
     if not sys.stdin.isatty():
         print("Interactive certificate removal was not started because no terminal is attached.")
         print(f"Run this helper manually: {{helper}}")
@@ -8192,53 +9481,39 @@ def prompt_expired_certificate_cleanup() -> bool:
         except (EOFError, KeyboardInterrupt):
             print()
             answer = "n"
-
-        if answer in {"y", "yes"}:
+        if answer in {{"y", "yes"}}:
             print()
-            try:
-                result = subprocess.run(command, check=False)
-            except OSError as error:
-                print(f"Certificate removal helper could not start: {{error}}")
-                print(f"The helper was retained for retry: {{helper}}")
-                return False
-
-            if result.returncode == 0:
-                try:
-                    helper.unlink(missing_ok=True)
-                except OSError as error:
-                    print(
-                        "Certificate cleanup succeeded, but the removal helper "
-                        f"could not be deleted: {{error}}"
-                    )
-                    return False
-                print("Expired certificate cleanup completed.")
-                return True
-
-            print("Expired certificate cleanup did not complete.")
-            print(f"The helper and certificate state were retained for retry: {{helper}}")
-            return False
-
-        if answer in {"n", "no"}:
+            return _run_expired_certificate_cleanup(
+                command, helper, helper_retry_display
+            )
+        if answer in {{"n", "no"}}:
             print()
             print("Expired certificate cleanup was deferred.")
             print(f"Run this helper when ready: {{helper}}")
             return False
-
         print("Please type Y or N.")
+
+
 
 
 ERROR_REPORT = ROOT / "Topaz_Offline_Download_Creator_Error.txt"
 SERVER_ASSET_MANIFEST = (
     ROOT / "Manifests" / "Topaz_Offline_Download_Creator_Server_Assets_Manifest.json"
 )
+DISCOVERED_INVENTORY_MANIFEST = (
+    ROOT / "Manifests" / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+)
 
 # Enforce exact manifest/downloader route ownership for static model data,
 # plus trusted runtime recovery ownership for dynamically discovered support files.
 # Route tables remain data-backed rather than broad host fallbacks.
+# The deterministic route inventory is embedded as one generated JSON literal.
+# pylint: disable-next=line-too-long
 MODEL_ROUTE_RECORDS = json.loads({REPEATER_MODEL_ROUTE_RECORDS_JSON!r})
 
 
 def build_model_route_maps():
+    """Build exact model-route ownership and canonical-path lookup maps."""
     routes = {{}}
     canonical_paths = {{}}
     sharpen_alias_owners = set()
@@ -8254,7 +9529,7 @@ def build_model_route_maps():
         path = str(record.get("path", ""))
         relative_path = str(record.get("relative_path", ""))
 
-        if scheme not in ("http", "https") or not host:
+        if scheme not in {{"http", "https"}} or not host:
             raise RuntimeError(
                 f"Invalid embedded model route authority at record {{position}}."
             )
@@ -8285,8 +9560,7 @@ def build_model_route_maps():
         canonical_paths[path_key] = path
 
         if path.startswith("/v2/JSON_SHARPEN/"):
-            filename = PurePosixPath(path).name
-            if filename:
+            if filename := PurePosixPath(path).name:
                 sharpen_alias_owners.add((scheme, host, filename))
 
     return routes, canonical_paths, sharpen_alias_owners
@@ -8298,6 +9572,7 @@ MODEL_ROUTES, MODEL_CANONICAL_PATHS, SHARPEN_ALIAS_OWNERS = (
 
 
 def canonical_asset_payload(records):
+    """Return canonical JSON bytes for deterministic server-asset validation."""
     return json.dumps(
         records, ensure_ascii=False, separators=(",", ":")
     ).encode("utf-8")
@@ -8306,6 +9581,8 @@ def canonical_asset_payload(records):
 SERVER_ASSET_CANONICAL_PATHS = {{}}
 RECOVERED_ASSET_ROUTES = {{}}
 RECOVERED_ASSET_CANONICAL_PATHS = {{}}
+DISCOVERED_INVENTORY_ROUTES = {{}}
+DISCOVERED_INVENTORY_CANONICAL_PATHS = {{}}
 
 # Four deterministic probe/support paths have explicit local route ownership.
 # Multiple entries for one path preserve captured or deliberately pinned legacy
@@ -8316,7 +9593,10 @@ PROBE_ASSET_ROUTES = {{
     ("https", "models-r2.topazlabs.com", "/test.txt"): "test.txt",
     ("https", "models-r2.topazlabs.com", "/1.1/test.txt"): "1.1/test.txt",
     ("https", "models.topazlabs.com", "/_test/downloader-test.txt"): "_test/downloader-test.txt",
+    # Exact ownership-probe keys are kept as generated one-line tuple records.
+    # pylint: disable-next=line-too-long
     ("https", "image-models.topazlabs.com", "/_test/models-bal-test.txt"): "_test/models-bal-test.txt",
+    # pylint: disable-next=line-too-long
     ("https", "models-bal.topazlabs.com", "/_test/models-bal-test.txt"): "_test/models-bal-test.txt",
 }}
 PROBE_ASSET_CANONICAL_PATHS = {{
@@ -8328,56 +9608,88 @@ if len(PROBE_ASSET_CANONICAL_PATHS) != 4:
 
 
 def recovered_asset_source_urls(record):
+    """Return the captured source URLs associated with one recovered asset record."""
     values = []
-    primary = str(record.get("source_url", "") or "").strip()
-    if primary:
+    if primary := str(record.get("source_url", "") or "").strip():
         values.append(primary)
     aliases = record.get("source_urls", [])
     if isinstance(aliases, list):
-        for value in aliases:
-            value = str(value or "").strip()
-            if value and value not in values:
-                values.append(value)
+        for alias in aliases:
+            alias_value = str(alias or "").strip()
+            if alias_value and alias_value not in values:
+                values.append(alias_value)
     return values
 
 
-def normalized_recovered_asset_route(source_url, relative):
-    try:
-        parsed = urlparse(str(source_url or "").strip())
-        port = parsed.port
-    except (TypeError, ValueError):
-        raise RuntimeError(f"Invalid recovered server support-asset source URL: {{source_url!r}}")
+
+
+def _validated_recovered_asset_origin(parsed) -> tuple[str, str]:
+    """Validate recovered-asset scheme, host, port, and URL authority fields."""
     scheme = parsed.scheme.lower()
     host = parsed.hostname.rstrip(".").casefold() if parsed.hostname else ""
     if host not in RECOVERY_REPORT_HOSTS:
-        raise RuntimeError(f"Unapproved recovered server support-asset host: {{host or '<missing>'}}")
-    if scheme == "http":
-        if host != "models.topazlabs.com" or port not in (None, 80):
-            raise RuntimeError("Recovered HTTP assets are limited to models.topazlabs.com:80.")
-    elif scheme == "https":
-        if port not in (None, 443):
-            raise RuntimeError("Recovered HTTPS asset uses an unexpected port.")
-    else:
-        raise RuntimeError("Recovered server support asset uses an unsupported scheme.")
+        raise RuntimeError(
+            f"Unapproved recovered server support-asset host: {{host or '<missing>'}}"
+        )
+    if scheme not in {{"http", "https"}}:
+        raise RuntimeError(
+            "Recovered server support asset uses an unsupported scheme."
+        )
+    if scheme == "http" and host != "models.topazlabs.com":
+        raise RuntimeError(
+            "Recovered HTTP assets are limited to models.topazlabs.com:80."
+        )
+    allowed_ports = {{None, 80}} if scheme == "http" else {{None, 443}}
+    if parsed.port not in allowed_ports:
+        raise RuntimeError(
+            "Recovered HTTP assets are limited to models.topazlabs.com:80."
+            if scheme == "http"
+            else "Recovered HTTPS asset uses an unexpected port."
+        )
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise RuntimeError("Recovered server support-asset source URL is unsafe.")
+    return scheme, host
 
-    decoded = parsed.path or "/"
+
+def _decoded_recovered_asset_path(raw_path: str) -> str:
+    """Fully decode and validate one recovered support-asset URL path."""
+    decoded = raw_path or "/"
     for _ in range(8):
-        if "\\\\" in decoded or any(ord(character) < 32 or ord(character) == 127 for character in decoded):
+        if "\\\\" in decoded or any(
+            ord(character) < 32 or ord(character) == 127
+            for character in decoded
+        ):
             raise RuntimeError("Recovered server support-asset path is unsafe.")
-        next_path = unquote(decoded)
-        if next_path == decoded:
+        if (next_path := unquote(decoded)) == decoded:
             break
         decoded = next_path
     else:
-        raise RuntimeError("Recovered server support-asset path exceeded decode limit.")
+        raise RuntimeError(
+            "Recovered server support-asset path exceeded decode limit."
+        )
     if not decoded.startswith("/"):
         decoded = "/" + decoded
     components = decoded.split("/")
-    if any(component in (".", "..") or ":" in component for component in components):
+    if any(
+        component in {{".", ".."}} or ":" in component
+        for component in components
+    ):
         raise RuntimeError("Recovered server support-asset path is unsafe.")
-    path = "/" + "/".join(component for component in components if component)
+    return "/" + "/".join(component for component in components if component)
+
+
+def normalized_recovered_asset_route(source_url, relative):
+    """Normalize and validate one recovered server-asset route."""
+    try:
+        parsed = urlparse(str(source_url or "").strip())
+        # Accessing port performs urllib's malformed-port validation.
+        _ = parsed.port
+    except (TypeError, ValueError) as route_error:
+        raise RuntimeError(
+            f"Invalid recovered server support-asset source URL: {{source_url!r}}"
+        ) from route_error
+    scheme, host = _validated_recovered_asset_origin(parsed)
+    path = _decoded_recovered_asset_path(parsed.path)
     if path.lstrip("/") != relative:
         raise RuntimeError(
             "Recovered server support-asset source URL does not match its Mirror path."
@@ -8385,15 +9697,16 @@ def normalized_recovered_asset_route(source_url, relative):
     return scheme, host, path
 
 
-def validate_server_assets():
-    global SERVER_ASSET_CANONICAL_PATHS
-    global RECOVERED_ASSET_ROUTES
-    global RECOVERED_ASSET_CANONICAL_PATHS
 
+
+def _load_server_asset_records() -> list[dict]:
+    """Load and validate server-asset manifest metadata and its payload checksum."""
     try:
         manifest = json.loads(SERVER_ASSET_MANIFEST.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise RuntimeError(f"Unable to read server support-asset manifest: {{error}}") from error
+        raise RuntimeError(
+            f"Unable to read server support-asset manifest: {{error}}"
+        ) from error
     if manifest.get("schema_version") != 1:
         raise RuntimeError("Unsupported server support-asset manifest schema.")
     if manifest.get("mirror_relative_root") != "Mirror":
@@ -8405,68 +9718,227 @@ def validate_server_assets():
         raise RuntimeError("Server support-asset list is missing or empty.")
     expected_payload = str(manifest.get("records_payload_sha256", "")).upper()
     actual_payload = hashlib.sha256(canonical_asset_payload(records)).hexdigest().upper()
-    if not re.fullmatch(r"[0-9A-F]{{64}}", expected_payload) or expected_payload != actual_payload:
+    if (
+        not re.fullmatch(r"[0-9A-F]{{64}}", expected_payload)
+        or expected_payload != actual_payload
+    ):
         raise RuntimeError("Server support-asset manifest checksum failed.")
     if int(manifest.get("asset_count", -1)) != len(records):
         raise RuntimeError("Server support-asset count is invalid.")
+    return records
 
-    mirror_resolved = MIRROR_ROOT.resolve()
-    seen = set()
-    canonical_paths = {{}}
-    recovered_routes = {{}}
-    recovered_canonical_paths = {{}}
 
-    for record in records:
-        if not isinstance(record, dict):
-            raise RuntimeError("Invalid server support-asset record.")
-        relative = str(record.get("relative_path", "")).replace("\\\\", "/").strip()
-        if not relative or relative.startswith("/") or re.match(r"^[A-Za-z]:", relative):
-            raise RuntimeError(f"Unsafe server support-asset path: {{relative!r}}")
-        relative_path = PurePosixPath(relative)
-        if relative_path.is_absolute() or any(part in {{"", ".", ".."}} for part in relative_path.parts):
-            raise RuntimeError(f"Unsafe server support-asset path: {{relative!r}}")
-        key = relative_path.as_posix().casefold()
-        if key in seen:
-            raise RuntimeError(f"Duplicate server support-asset path: {{relative}}")
-        seen.add(key)
-        file_path = MIRROR_ROOT.joinpath(*relative_path.parts)
+def _server_asset_relative_path(record: dict, seen: set[str]) -> PurePosixPath:
+    """Validate and deduplicate one server-asset relative path."""
+    relative = str(record.get("relative_path", "")).replace("\\\\", "/").strip()
+    if not relative or relative.startswith("/") or re.match(r"^[A-Za-z]:", relative):
+        raise RuntimeError(f"Unsafe server support-asset path: {{relative!r}}")
+    relative_path = PurePosixPath(relative)
+    if relative_path.is_absolute() or any(
+        part in {{"", ".", ".."}} for part in relative_path.parts
+    ):
+        raise RuntimeError(f"Unsafe server support-asset path: {{relative!r}}")
+    if (key := relative_path.as_posix().casefold()) in seen:
+        raise RuntimeError(f"Duplicate server support-asset path: {{relative}}")
+    seen.add(key)
+    return relative_path
+
+
+def path_is_link_like(path: Path) -> bool:
+    """Return whether one existing path is a symlink, junction, or reparse point."""
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction):
         try:
-            file_path.resolve().relative_to(mirror_resolved)
-            expected_size = int(record.get("size_bytes", 0) or 0)
-        except (OSError, ValueError, TypeError) as error:
-            raise RuntimeError(f"Invalid server support asset: {{relative}}") from error
-        expected_sha = str(record.get("sha256", "")).upper()
-        if expected_size <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", expected_sha):
-            raise RuntimeError(f"Invalid server support-asset integrity data: {{relative}}")
-        if not file_path.is_file() or file_path.stat().st_size != expected_size:
-            raise RuntimeError(f"Server support asset is missing or has the wrong size: {{relative}}")
+            if is_junction():
+                return True
+        except OSError:
+            return True
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(reparse_flag and attributes & reparse_flag)
+
+
+def mirror_path_has_link_component(path: Path) -> bool:
+    """Reject any link-like component below Mirror, including the final path."""
+    try:
+        relative = path.relative_to(MIRROR_ROOT)
+    except ValueError:
+        return True
+    candidates = (
+        MIRROR_ROOT.joinpath(*relative.parts[:index])
+        for index in range(1, len(relative.parts) + 1)
+    )
+    return any(
+        os.path.lexists(candidate) and path_is_link_like(candidate)
+        for candidate in candidates
+    )
+
+
+class UnsafeMirrorPathError(OSError):
+    """Identify a Mirror path that violates no-link/containment guarantees."""
+
+
+def _validated_mirror_path_before_open(path: Path) -> Path:
+    """Return the resolved Mirror root after lexical and containment checks."""
+    try:
+        relative = path.relative_to(MIRROR_ROOT)
+    except ValueError as error:
+        raise UnsafeMirrorPathError(f"Path is outside Mirror: {{path}}") from error
+    if not relative.parts or mirror_path_has_link_component(path):
+        raise UnsafeMirrorPathError(f"Unsafe link-like Mirror path: {{path}}")
+    try:
+        mirror_resolved = MIRROR_ROOT.resolve(strict=True)
+        path.resolve(strict=True).relative_to(mirror_resolved)
+    except FileNotFoundError:
+        raise
+    except OSError as error:
+        raise UnsafeMirrorPathError(f"Unsafe Mirror path: {{path}}") from error
+    except ValueError as error:
+        raise UnsafeMirrorPathError(f"Unsafe Mirror path: {{path}}") from error
+    return mirror_resolved
+
+
+def _open_mirror_descriptor(path: Path) -> int:
+    """Open one Mirror path without following the final link where supported."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        return os.open(path, flags)
+    except FileNotFoundError:
+        if os.path.lexists(path):
+            raise UnsafeMirrorPathError(f"Unsafe dangling Mirror path: {{path}}") from None
+        raise
+    except OSError as error:
+        if mirror_path_has_link_component(path):
+            raise UnsafeMirrorPathError(f"Unsafe Mirror path: {{path}}") from error
+        raise
+
+
+def _validate_opened_mirror_descriptor(path: Path, descriptor: int, mirror_resolved: Path):
+    """Validate the opened descriptor still represents the same regular Mirror file."""
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode):
+        raise UnsafeMirrorPathError(f"Mirror path is not a regular file: {{path}}")
+    if mirror_path_has_link_component(path):
+        raise UnsafeMirrorPathError(f"Mirror path changed to a link: {{path}}")
+    try:
+        current = os.stat(path, follow_symlinks=False)
+        current_resolved = path.resolve(strict=True)
+        current_resolved.relative_to(mirror_resolved)
+    except OSError as error:
+        raise UnsafeMirrorPathError(f"Mirror path changed while opening: {{path}}") from error
+    except ValueError as error:
+        raise UnsafeMirrorPathError(f"Mirror path changed while opening: {{path}}") from error
+    if not stat.S_ISREG(current.st_mode):
+        raise UnsafeMirrorPathError(f"Mirror path changed type while opening: {{path}}")
+    if (current.st_dev, current.st_ino) != (metadata.st_dev, metadata.st_ino):
+        raise UnsafeMirrorPathError(f"Mirror path changed while opening: {{path}}")
+    return current_resolved, metadata
+
+
+def open_safe_mirror_file(path: Path):
+    """Open one regular Mirror file without trusting path-only validation."""
+    mirror_resolved = _validated_mirror_path_before_open(path)
+    descriptor = _open_mirror_descriptor(path)
+    try:
+        current_resolved, metadata = _validate_opened_mirror_descriptor(
+            path, descriptor, mirror_resolved
+        )
+        handle = os.fdopen(descriptor, "rb")
+        descriptor = -1
+        return current_resolved, handle, metadata
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _server_asset_file_is_valid(
+    record: dict,
+    relative_path: PurePosixPath,
+) -> None:
+    """Validate one server asset from an opened regular-file descriptor."""
+    relative = relative_path.as_posix()
+    file_path = MIRROR_ROOT.joinpath(*relative_path.parts)
+    try:
+        expected_size = int(record.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid server support asset: {{relative}}") from error
+    expected_sha = str(record.get("sha256", "")).upper()
+    if expected_size <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", expected_sha):
+        raise RuntimeError(f"Invalid server support-asset integrity data: {{relative}}")
+    try:
+        _resolved, handle, metadata = open_safe_mirror_file(file_path)
+    except OSError as error:
+        raise RuntimeError(
+            f"Server support asset is missing or unsafe: {{relative}}"
+        ) from error
+    with handle:
+        if metadata.st_size != expected_size:
+            raise RuntimeError(
+                f"Server support asset is missing or has the wrong size: {{relative}}"
+            )
         digest = hashlib.sha256()
-        with file_path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-        if digest.hexdigest().upper() != expected_sha:
-            raise RuntimeError(f"Server support-asset SHA-256 mismatch: {{relative}}")
+        while True:
+            if not (chunk := handle.read(1024 * 1024)):
+                break
+            digest.update(chunk)
+    if digest.hexdigest().upper() != expected_sha:
+        raise RuntimeError(f"Server support-asset SHA-256 mismatch: {{relative}}")
 
-        request_path = "/" + relative_path.as_posix()
-        canonical_key = request_path.casefold()
-        previous_path = canonical_paths.get(canonical_key)
-        if previous_path is not None and previous_path != request_path:
-            raise RuntimeError("Server support assets contain case-conflicting paths.")
-        canonical_paths[canonical_key] = request_path
 
-        if record.get("source") == "recovered_404":
-            urls = recovered_asset_source_urls(record)
-            if not urls:
-                raise RuntimeError(f"Recovered server support asset has no source URL: {{relative}}")
-            for source_url in urls:
-                scheme, host, source_path = normalized_recovered_asset_route(source_url, relative)
-                route_key = (scheme, host, source_path)
-                previous_route = recovered_routes.get(route_key)
-                if previous_route is not None and previous_route != relative:
-                    raise RuntimeError("Conflicting recovered server support-asset route.")
-                recovered_routes[route_key] = relative
-            recovered_canonical_paths[canonical_key] = request_path
+def _register_server_asset_canonical_path(
+    relative_path: PurePosixPath,
+    canonical_paths: dict[str, str],
+) -> tuple[str, str]:
+    """Register one canonical request path and reject case-conflicting variants."""
+    request_path = "/" + relative_path.as_posix()
+    canonical_key = request_path.casefold()
+    previous_path = canonical_paths.get(canonical_key)
+    if previous_path is not None and previous_path != request_path:
+        raise RuntimeError("Server support assets contain case-conflicting paths.")
+    canonical_paths[canonical_key] = request_path
+    return request_path, canonical_key
 
+
+def _register_recovered_server_asset(
+    record: dict,
+    relative: str,
+    recovered_routes: dict[tuple[str, str, str], str],
+    recovered_canonical_paths: dict[str, str],
+) -> None:
+    """Register recovered-404 source routes for one validated server asset."""
+    if record.get("source") != "recovered_404":
+        return
+    if not (urls := recovered_asset_source_urls(record)):
+        raise RuntimeError(
+            f"Recovered server support asset has no source URL: {{relative}}"
+        )
+    for source_url in urls:
+        scheme, host, source_path = normalized_recovered_asset_route(
+            source_url, relative
+        )
+        route_key = (scheme, host, source_path)
+        if (
+            (previous_route := recovered_routes.get(route_key)) is not None
+            and previous_route != relative
+        ):
+            raise RuntimeError("Conflicting recovered server support-asset route.")
+        recovered_routes[route_key] = relative
+    request_path = "/" + relative
+    recovered_canonical_paths[request_path.casefold()] = request_path
+
+
+def _validate_pinned_probe_assets(canonical_paths: dict[str, str]) -> None:
+    """Require every pinned probe asset to exist in the validated asset manifest."""
     for route_relative in set(PROBE_ASSET_ROUTES.values()):
         request_path = "/" + route_relative
         if canonical_paths.get(request_path.casefold()) != request_path:
@@ -8474,9 +9946,158 @@ def validate_server_assets():
                 f"Pinned probe support asset is missing from Server Assets: {{request_path}}"
             )
 
-    SERVER_ASSET_CANONICAL_PATHS = canonical_paths
-    RECOVERED_ASSET_ROUTES = recovered_routes
-    RECOVERED_ASSET_CANONICAL_PATHS = recovered_canonical_paths
+
+def _load_discovered_inventory_records() -> list[dict]:
+    """Load and validate the persistent discovered model/package side manifest."""
+    if not DISCOVERED_INVENTORY_MANIFEST.exists():
+        return []
+    if (
+        path_is_link_like(DISCOVERED_INVENTORY_MANIFEST)
+        or not DISCOVERED_INVENTORY_MANIFEST.is_file()
+    ):
+        raise RuntimeError("Discovered inventory manifest path is unsafe.")
+    try:
+        payload = json.loads(DISCOVERED_INVENTORY_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"Unable to read discovered inventory manifest: {{error}}") from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != "topaz-offline-discovered-inventory-v2"
+        or payload.get("schema_version") != 2
+        or payload.get("mirror_relative_root") != "Mirror"
+        or str(payload.get("hash_algorithm", "")).upper() != "SHA256"
+    ):
+        raise RuntimeError("Unsupported discovered inventory manifest schema.")
+    records = payload.get("files")
+    if not isinstance(records, list):
+        raise RuntimeError("Discovered inventory file list is invalid.")
+    canonical = json.dumps(
+        records, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    expected_payload = str(payload.get("records_payload_sha256", "")).upper()
+    if (
+        not re.fullmatch(r"[0-9A-F]{{64}}", expected_payload)
+        or hashlib.sha256(canonical).hexdigest().upper() != expected_payload
+    ):
+        raise RuntimeError("Discovered inventory manifest checksum failed.")
+    if records and payload.get("accepted_extensions") != sorted(
+        {{".bin", ".data", ".pb", ".txt", ".tz", ".tz2", ".tz3", ".xml", ".xz", ".yaml", ".zip"}}
+    ):
+        raise RuntimeError("Discovered inventory extension policy is invalid.")
+    if int(payload.get("unique_physical_files", -1)) != len(records):
+        raise RuntimeError("Discovered inventory physical count is invalid.")
+    return records
+
+
+def _validated_discovered_inventory_record(
+    raw_record: object,
+    seen: set[str],
+) -> tuple[str, list[str]]:
+    """Validate one discovered inventory record and return its relative path and URLs."""
+    if not isinstance(raw_record, dict):
+        raise RuntimeError("Invalid discovered inventory record.")
+    relative_path = _server_asset_relative_path(raw_record, seen)
+    relative = relative_path.as_posix()
+    if relative_path.suffix.casefold() not in {{
+        ".bin", ".data", ".pb", ".txt", ".tz", ".tz2", ".tz3",
+        ".xml", ".xz", ".yaml", ".zip",
+    }}:
+        raise RuntimeError(f"Unapproved discovered inventory extension: {{relative}}")
+    if raw_record.get("source") != "recovered_404":
+        raise RuntimeError("Discovered inventory source is invalid.")
+    _server_asset_file_is_valid(raw_record, relative_path)
+    if not (urls := recovered_asset_source_urls(raw_record)):
+        raise RuntimeError(f"Discovered inventory has no source URL: {{relative}}")
+    return relative, urls
+
+
+def _register_discovered_canonical_path(
+    relative: str,
+    canonical_paths: dict[str, str],
+) -> None:
+    """Register one discovered canonical request path without colliding with frozen paths."""
+    request_path = "/" + relative
+    if (canonical_key := request_path.casefold()) in MODEL_CANONICAL_PATHS:
+        raise RuntimeError(f"Discovered inventory duplicates frozen model path: {{relative}}")
+    previous_path = canonical_paths.get(canonical_key)
+    if previous_path is not None and previous_path != request_path:
+        raise RuntimeError("Discovered inventory paths differ only by case.")
+    canonical_paths[canonical_key] = request_path
+
+
+def _register_discovered_routes(
+    relative: str,
+    urls: list[str],
+    routes: dict[tuple[str, str, str], str],
+) -> None:
+    """Register the exact owner routes for one discovered physical path."""
+    for source_url in urls:
+        scheme, host, source_path = normalized_recovered_asset_route(source_url, relative)
+        if (route_key := (scheme, host, source_path)) in MODEL_ROUTES:
+            raise RuntimeError("Discovered inventory duplicates a frozen model route.")
+        previous = routes.get(route_key)
+        if previous is not None and previous != relative:
+            raise RuntimeError("Conflicting discovered inventory route.")
+        routes[route_key] = relative
+
+
+def validate_discovered_inventory() -> None:
+    """Validate discovered inventory bytes and build exact runtime owner routes."""
+    records = _load_discovered_inventory_records()
+    seen: set[str] = set()
+    routes: dict[tuple[str, str, str], str] = {{}}
+    canonical_paths: dict[str, str] = {{}}
+    logical_count = 0
+    for raw_record in records:
+        relative, urls = _validated_discovered_inventory_record(
+            raw_record, seen
+        )
+        _register_discovered_canonical_path(relative, canonical_paths)
+        _register_discovered_routes(relative, urls, routes)
+        logical_count += len(urls)
+    payload = (
+        json.loads(DISCOVERED_INVENTORY_MANIFEST.read_text(encoding="utf-8"))
+        if records
+        else {{}}
+    )
+    if records and int(payload.get("logical_entries", -1)) != logical_count:
+        raise RuntimeError("Discovered inventory logical count is invalid.")
+    DISCOVERED_INVENTORY_ROUTES.clear()
+    DISCOVERED_INVENTORY_ROUTES.update(routes)
+    DISCOVERED_INVENTORY_CANONICAL_PATHS.clear()
+    DISCOVERED_INVENTORY_CANONICAL_PATHS.update(canonical_paths)
+
+def validate_server_assets():
+    """Validate generated server assets and build their immutable lookup records."""
+    records = _load_server_asset_records()
+    seen: set[str] = set()
+    canonical_paths: dict[str, str] = {{}}
+    recovered_routes: dict[tuple[str, str, str], str] = {{}}
+    recovered_canonical_paths: dict[str, str] = {{}}
+    for record in records:
+        if not isinstance(record, dict):
+            raise RuntimeError("Invalid server support-asset record.")
+        relative_path = _server_asset_relative_path(record, seen)
+        _server_asset_file_is_valid(record, relative_path)
+        _register_server_asset_canonical_path(
+            relative_path, canonical_paths
+        )
+        _register_recovered_server_asset(
+            record,
+            relative_path.as_posix(),
+            recovered_routes,
+            recovered_canonical_paths,
+        )
+    _validate_pinned_probe_assets(canonical_paths)
+    SERVER_ASSET_CANONICAL_PATHS.clear()
+    SERVER_ASSET_CANONICAL_PATHS.update(canonical_paths)
+    RECOVERED_ASSET_ROUTES.clear()
+    RECOVERED_ASSET_ROUTES.update(recovered_routes)
+    RECOVERED_ASSET_CANONICAL_PATHS.clear()
+    RECOVERED_ASSET_CANONICAL_PATHS.update(recovered_canonical_paths)
+    validate_discovered_inventory()
+
+
 
 
 
@@ -8508,6 +10129,7 @@ def forbidden_report_character(character: str) -> bool:
 
 
 def escaped_log_character(character: str) -> str:
+    """Return a safe escaped representation for one request-log character."""
     codepoint = ord(character)
     if codepoint <= 0xFF:
         return f"\\\\x{{codepoint:02X}}"
@@ -8528,6 +10150,7 @@ def sanitize_log_text(value) -> str:
 
 
 def normalize_recovery_report_host(raw_host: str, scheme: str) -> str | None:
+    """Normalize and validate a host before persisting a recovery-report URL."""
     if not raw_host or any(
         forbidden_report_character(character)
         for character in raw_host
@@ -8539,8 +10162,7 @@ def normalize_recovery_report_host(raw_host: str, scheme: str) -> str | None:
     )
     if not match:
         return None
-    hostname = match.group(1).rstrip(".").casefold()
-    if hostname not in RECOVERY_REPORT_HOSTS:
+    if (hostname := match.group(1).rstrip(".").casefold()) not in RECOVERY_REPORT_HOSTS:
         return None
     if match.group(2) is not None:
         port = int(match.group(2))
@@ -8551,57 +10173,59 @@ def normalize_recovery_report_host(raw_host: str, scheme: str) -> str | None:
     return hostname
 
 
-def normalize_recovery_report_path(raw_target: str) -> str | None:
-    """Validate dangerous decoded forms without changing URL path identity."""
+def _validated_recovery_report_raw_path(raw_target: str) -> str:
+    """Return the raw URL path after rejecting unsafe outer URL syntax."""
     raw_text = str(raw_target or "")
     if any(forbidden_report_character(character) for character in raw_text):
-        return None
-    try:
-        parsed = urlparse(raw_text)
-    except (TypeError, ValueError):
-        return None
+        raise ValueError("Forbidden recovery-report character")
+    parsed = urlparse(raw_text)
     if parsed.fragment:
-        return None
+        raise ValueError("Recovery-report fragments are not allowed")
     raw_path = parsed.path or "/"
     if not raw_path.startswith("/"):
         raw_path = "/" + raw_path
-    if "\\\\" in raw_path:
-        return None
-    if re.search(r"%(?![0-9A-Fa-f]{{2}})", raw_path):
-        return None
+    if "\\\\" in raw_path or re.search(r"%(?![0-9A-Fa-f]{{2}})", raw_path):
+        raise ValueError("Unsafe recovery-report path")
+    return raw_path
 
+
+def _decode_recovery_report_validation_path(raw_path: str) -> None:
+    """Validate every repeated-decoding form without changing path identity."""
     validation_path = raw_path
     for _ in range(8):
         if any(
             forbidden_report_character(character)
             for character in validation_path
-        ):
-            return None
-        if "\\\\" in validation_path:
-            return None
-        # Encoded separators are rejected rather than decoded into a different
-        # upstream resource identity. Repeated encoding is caught on a later pass.
+        ) or "\\\\" in validation_path:
+            raise ValueError("Unsafe decoded recovery-report path")
         if re.search(r"%(?:2[fF]|5[cC])", validation_path):
-            return None
+            raise ValueError("Encoded path separator rejected")
         components = validation_path.split("/")
         if any(
-            component in (".", "..") or ":" in component
+            component in {{".", ".."}} or ":" in component
             for component in components
         ):
-            return None
-        next_path = unquote(validation_path)
-        if next_path == validation_path:
-            break
+            raise ValueError("Unsafe recovery-report path component")
+        if (next_path := unquote(validation_path)) == validation_path:
+            return
         validation_path = next_path
-    else:
-        return None
+    raise ValueError("Recovery-report path exceeded decode limit")
 
-    # Preserve existing valid percent escapes and separators exactly. Quote only
-    # characters that were supplied literally and are unsafe in an HTTP URL.
+
+def normalize_recovery_report_path(raw_target: str) -> str | None:
+    """Validate dangerous decoded forms without changing URL path identity."""
+    try:
+        raw_path = _validated_recovery_report_raw_path(raw_target)
+        _decode_recovery_report_validation_path(raw_path)
+    except (TypeError, ValueError):
+        return None
     return quote(raw_path, safe="/%-._~!$&'()*+,;=:@")
 
 
+
+
 def build_recovery_report_url(scheme: str, raw_host: str, raw_target: str) -> str | None:
+    """Build one validated recovery-report URL from request components."""
     host = normalize_recovery_report_host(raw_host, scheme)
     path = normalize_recovery_report_path(raw_target)
     if host is None or path is None:
@@ -8613,8 +10237,7 @@ def build_recovery_report_url(scheme: str, raw_host: str, raw_target: str) -> st
 
     decoded_path = path
     for _ in range(8):
-        next_path = unquote(decoded_path)
-        if next_path == decoded_path:
+        if (next_path := unquote(decoded_path)) == decoded_path:
             break
         decoded_path = next_path
     else:
@@ -8622,8 +10245,7 @@ def build_recovery_report_url(scheme: str, raw_host: str, raw_target: str) -> st
     components = [component for component in decoded_path.split("/") if component]
     route_path = "/" + "/".join(components)
 
-    canonical_model_path = MODEL_CANONICAL_PATHS.get(route_path.casefold())
-    if canonical_model_path is not None:
+    if (canonical_model_path := MODEL_CANONICAL_PATHS.get(route_path.casefold())) is not None:
         if route_path != canonical_model_path:
             return None
         if (scheme, hostname, canonical_model_path) not in MODEL_ROUTES:
@@ -8636,6 +10258,7 @@ def build_recovery_report_url(scheme: str, raw_host: str, raw_target: str) -> st
 
 
 def report_path_is_safe(path: Path) -> bool:
+    """Return whether the managed error-report path is a safe regular-file destination."""
     try:
         return stat.S_ISREG(path.lstat().st_mode)
     except FileNotFoundError:
@@ -8645,6 +10268,7 @@ def report_path_is_safe(path: Path) -> bool:
 
 
 def open_regular_report_fd(path: Path, flags: int, mode: int = 0o600) -> int:
+    """Open the managed report with regular-file and no-follow safety checks."""
     if not report_path_is_safe(path):
         raise OSError(f"Unsafe recovery report path: {{path}}")
     flags |= getattr(os, "O_CLOEXEC", 0)
@@ -8660,6 +10284,7 @@ def open_regular_report_fd(path: Path, flags: int, mode: int = 0o600) -> int:
 
 
 def read_error_report_text() -> str:
+    """Read the managed error report using the fail-closed regular-file path."""
     try:
         fd = open_regular_report_fd(ERROR_REPORT, os.O_RDONLY)
     except FileNotFoundError:
@@ -8673,17 +10298,17 @@ def read_error_report_text() -> str:
 def split_report_records(text: str) -> list[str]:
     """Split only on literal LF; Unicode separators remain ordinary text."""
     records = text.split("\\n")
-    if records and records[-1] == "":
+    if records and not records[-1]:
         records.pop()
     return [record[:-1] if record.endswith("\\r") else record for record in records]
 
 
 def atomic_write_error_report(lines: list[str]) -> None:
+    """Atomically replace the managed error report with durable UTF-8 text."""
     ERROR_REPORT.parent.mkdir(parents=True, exist_ok=True)
     if not report_path_is_safe(ERROR_REPORT):
         raise OSError(f"Unsafe recovery report path: {{ERROR_REPORT}}")
-    content = "\\n".join(line.rstrip("\\r\\n") for line in lines)
-    if content:
+    if content := "\\n".join(line.rstrip("\\r\\n") for line in lines):
         content += "\\n"
     fd, temporary_name = tempfile.mkstemp(
         prefix=ERROR_REPORT.name + ".",
@@ -8789,11 +10414,38 @@ def append_error_report(text):
             return False
 
 
+def _legacy_tls_sni_block_at(lines: list[str], index: int, separator: str) -> bool:
+    """Return whether one report index begins an obsolete successful-SNI block."""
+    return (
+        index + 4 < len(lines)
+        and lines[index].rstrip("\\r") == separator
+        and lines[index + 1].rstrip("\\r") == "TLS SNI Hostname"
+        and lines[index + 2].rstrip("\\r") == separator
+        and lines[index + 3].startswith("Client   : ")
+        and lines[index + 4].startswith("Hostname : ")
+    )
+
+
+def _without_legacy_tls_sni_blocks(lines: list[str]) -> list[str]:
+    """Return report records with legacy successful-SNI metadata removed."""
+    separator = "=" * 43
+    cleaned: list[str] = []
+    index = 0
+    while index < len(lines):
+        if _legacy_tls_sni_block_at(lines, index, separator):
+            if cleaned and not cleaned[-1].strip():
+                cleaned.pop()
+            index += 5
+            continue
+        cleaned.append(lines[index])
+        index += 1
+    while cleaned and not cleaned[0].strip():
+        cleaned.pop(0)
+    return cleaned
+
+
 def remove_legacy_tls_sni_report_entries():
     """Remove successful-SNI metadata written by older builds."""
-
-    separator = "=" * 43
-
     with LOG_LOCK:
         try:
             original_lines = split_report_records(read_error_report_text())
@@ -8801,38 +10453,14 @@ def remove_legacy_tls_sni_report_entries():
             return
         if not original_lines:
             return
-
-        cleaned_lines = []
-        index = 0
-
-        while index < len(original_lines):
-            current = original_lines[index].rstrip("\\r")
-            is_legacy_sni_block = (
-                current == separator
-                and index + 4 < len(original_lines)
-                and original_lines[index + 1].rstrip("\\r")
-                == "TLS SNI Hostname"
-                and original_lines[index + 2].rstrip("\\r")
-                == separator
-                and original_lines[index + 3].startswith("Client   : ")
-                and original_lines[index + 4].startswith("Hostname : ")
-            )
-            if is_legacy_sni_block:
-                if cleaned_lines and not cleaned_lines[-1].strip():
-                    cleaned_lines.pop()
-                index += 5
-                continue
-            cleaned_lines.append(original_lines[index])
-            index += 1
-
-        while cleaned_lines and not cleaned_lines[0].strip():
-            cleaned_lines.pop(0)
-        if cleaned_lines == original_lines:
+        if (cleaned_lines := _without_legacy_tls_sni_blocks(original_lines)) == original_lines:
             return
         try:
             atomic_write_error_report(cleaned_lines)
         except OSError:
             pass
+
+
 
 
 # ------------------------------------------------------------------
@@ -8880,8 +10508,7 @@ def bounded_query_decode(
     """Return decoded text plus whether another decode layer remains."""
     current = str(raw_query)
     for _ in range(maximum_rounds):
-        decoded = unquote(current)
-        if decoded == current:
+        if (decoded := unquote(current)) == current:
             return current, False
         current = decoded
     return current, unquote(current) != current
@@ -8891,47 +10518,42 @@ def format_query_for_log(raw_query: str) -> str:
     """Return a readable query string with nested secrets redacted."""
     if not raw_query:
         return "<none>"
-
     normalized_query, decode_limit_reached = bounded_query_decode(raw_query)
     if decode_limit_reached:
         return "<Redacted, do not post online>"
-
     pairs = []
     for segment in re.split(r"[&;]", normalized_query):
         if not segment:
             continue
-        parsed_segment = parse_qsl(segment, keep_blank_values=True)
-        if parsed_segment:
+        if parsed_segment := parse_qsl(segment, keep_blank_values=True):
             pairs.extend(parsed_segment)
         else:
             pairs.append((segment, ""))
-
     formatted_pairs = []
-    for name, value in pairs:
-        name, name_limit_reached = bounded_query_decode(name)
-        value, value_limit_reached = bounded_query_decode(value)
+    for raw_name, raw_value in pairs:
+        decoded_name, name_limit_reached = bounded_query_decode(raw_name)
+        decoded_value, value_limit_reached = bounded_query_decode(raw_value)
         if name_limit_reached or value_limit_reached:
             return "<Redacted, do not post online>"
-        name = sanitize_log_text(name)
-        value = sanitize_log_text(value)
-        if (
-            REDACT_SENSITIVE_HEADERS
-            and name.casefold() in SENSITIVE_QUERY_PARAMETERS
-        ):
-            value = "<Redacted, do not post online>"
-        formatted_pairs.append((name, value))
-
-    encoded_query = urlencode(formatted_pairs, doseq=True, safe="<>")
-    return encoded_query.replace(
+        safe_name = sanitize_log_text(decoded_name)
+        safe_value = sanitize_log_text(decoded_value)
+        if REDACT_SENSITIVE_HEADERS and safe_name.casefold() in SENSITIVE_QUERY_PARAMETERS:
+            safe_value = "<Redacted, do not post online>"
+        formatted_pairs.append((safe_name, safe_value))
+    return urlencode(formatted_pairs, doseq=True, safe="<>").replace(
         "<Redacted%2C+do+not+post+online>",
         "<Redacted, do not post online>",
     )
 
 
+
+
 # ------------------------------------------------------------------
 
 class PostBodyValidationError(ValueError):
+    """Represent a rejected POST body with a specific HTTP response status."""
     def __init__(self, status: HTTPStatus, message: str):
+        """Initialize this generated server object and its local state."""
         super().__init__(message)
         self.status = status
         self.message = message
@@ -8940,17 +10562,13 @@ class PostBodyValidationError(ValueError):
 def validated_post_content_length(headers) -> int:
     """Return a safe POST Content-Length or raise a precise HTTP error."""
 
-    transfer_encodings = headers.get_all("Transfer-Encoding", [])
-
-    if transfer_encodings:
+    if headers.get_all("Transfer-Encoding", []):
         raise PostBodyValidationError(
             HTTPStatus.NOT_IMPLEMENTED,
             "Transfer-Encoding is not supported",
         )
 
-    content_lengths = headers.get_all("Content-Length", [])
-
-    if not content_lengths:
+    if not (content_lengths := headers.get_all("Content-Length", [])):
         return 0
 
     if len(content_lengths) != 1:
@@ -8971,9 +10589,7 @@ def validated_post_content_length(headers) -> int:
             "Invalid Content-Length",
         )
 
-    length = int(raw_length, 10)
-
-    if length > MAX_POST_BODY_BYTES:
+    if (length := int(raw_length, 10)) > MAX_POST_BODY_BYTES:
         raise PostBodyValidationError(
             HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
             "POST body exceeds the configured limit",
@@ -8982,14 +10598,14 @@ def validated_post_content_length(headers) -> int:
     return length
 
 
-def file_sha256(path: Path) -> str:
+def safe_file_size_sha256(path: Path) -> tuple[int, str]:
+    """Return size and SHA-256 from one descriptor-validated Mirror file."""
+    _resolved, handle, metadata = open_safe_mirror_file(path)
     digest = hashlib.sha256()
-
-    with path.open("rb") as file:
-        for block in iter(lambda: file.read(1024 * 1024), b""):
+    with handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
-
-    return digest.hexdigest()
+    return metadata.st_size, digest.hexdigest()
 
 
 def resolve_sharpen_model(filename: str) -> Path | None:
@@ -9010,37 +10626,60 @@ def resolve_sharpen_model(filename: str) -> Path | None:
     candidates = [
         path
         for path in SHARPEN_JSON_ROOT.rglob("*")
-        if path.is_file() and path.name == filename
+        if path.name == filename and os.path.lexists(path)
     ]
 
     if not candidates:
         return None
 
+    # Preserve lexical candidates so the final safe opener can still detect a
+    # symlink/junction/reparse component.  Any unsafe alias candidate fails closed.
+    if (unsafe_candidate := next(
+        (
+            candidate
+            for candidate in candidates
+            if mirror_path_has_link_component(candidate)
+        ),
+        None,
+    )) is not None:
+        return unsafe_candidate
+
     if len(candidates) == 1:
         return candidates[0]
 
-    sizes = {{path.stat().st_size for path in candidates}}
+    try:
+        size_and_hash = [safe_file_size_sha256(candidate) for candidate in candidates]
+    except OSError:
+        return None
 
-    if len(sizes) != 1:
+    if len({{size for size, _digest in size_and_hash}}) != 1:
         emit_log_block([
             f"Ambiguous Sharpen filename with different sizes: {{filename}}",
         ])
         return None
 
-    expected_hash = file_sha256(candidates[0])
-
-    for candidate in candidates[1:]:
-        if file_sha256(candidate) != expected_hash:
-            emit_log_block([
-                f"Ambiguous Sharpen filename with different hashes: {{filename}}",
-            ])
-            return None
+    if len({{digest for _size, digest in size_and_hash}}) != 1:
+        emit_log_block([
+            f"Ambiguous Sharpen filename with different hashes: {{filename}}",
+        ])
+        return None
 
     return candidates[0]
 
-class TopazMirrorHandler(SimpleHTTPRequestHandler):
+class TopazMirrorHandler(SimpleHTTPRequestHandler):  # pylint: disable=too-many-public-methods
+    """Serve only captured and owned Topaz mirror routes over HTTP or HTTPS."""
     protocol_version = "HTTP/1.1"
     MAX_URL_DECODE_PASSES = 8
+
+    def __init__(self, *args, **kwargs):
+        """Initialize per-connection state before stdlib request handling begins."""
+        # BaseHTTPRequestHandler.handle() also initializes close_connection;
+        # setting the same initial value here makes the lifecycle explicit.
+        self.close_connection = True
+        self._pending_request_log_lines = []
+        self._result_url = None
+        super().__init__(*args, **kwargs)
+
     WINDOWS_RESERVED_PATH_NAMES = {{
         "con",
         "prn",
@@ -9052,87 +10691,81 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
     }}
 
     def _request_is_https(self) -> bool:
+        """Return whether the current request is carried by an SSL socket."""
         # Protocol identity belongs to this exact accepted connection.
         # Never infer HTTPS from client IP/source-port metadata: a separate
         # HTTP connection can legitimately reuse the same source port.
         return isinstance(self.connection, ssl.SSLSocket)
 
+    @staticmethod
+    def _split_request_host(raw_host: str) -> tuple[str, str | None]:
+        """Split a validated Host field into host and optional port text."""
+        port_text = None
+        if raw_host.startswith("["):
+            if (closing_bracket := raw_host.find("]")) <= 1:
+                raise ValueError("Invalid bracketed Host header")
+            host = raw_host[1:closing_bracket]
+            if suffix := raw_host[closing_bracket + 1:]:
+                if not suffix.startswith(":") or suffix.count(":") != 1:
+                    raise ValueError("Invalid Host port syntax")
+                port_text = suffix[1:]
+            return host, port_text
+        if raw_host.count(":") > 1:
+            raise ValueError("IPv6 Host values must use brackets")
+        if ":" in raw_host:
+            return raw_host.rsplit(":", 1)
+        return raw_host, None
+
+    def _validate_request_host_port(self, port_text: str | None) -> None:
+        """Validate an optional Host port against the accepted server endpoint."""
+        if port_text is None:
+            return
+        if not port_text or not port_text.isascii() or not port_text.isdecimal():
+            raise ValueError("Host port must be numeric")
+        port = int(port_text, 10)
+        if not 1 <= port <= 65535:
+            raise ValueError("Host port is outside the valid range")
+        expected_port = 443 if self._request_is_https() else 80
+        if port != expected_port:
+            raise ValueError(
+                f"Host port {{port}} does not match this server endpoint "
+                f"({{expected_port}} expected)"
+            )
+
     def validated_request_host(self) -> str:
         """Return a normalized Host name after HTTP/HTTPS port checks."""
         host_values = self.headers.get_all("Host", [])
-
         if self.request_version == "HTTP/1.1" and len(host_values) != 1:
             raise ValueError("HTTP/1.1 requires exactly one Host header")
-
         if not host_values:
             return ""
-
         if len(host_values) != 1:
             raise ValueError("Multiple Host headers are not allowed")
-
-        raw_host = host_values[0].strip()
-        if not raw_host:
+        if not (raw_host := host_values[0].strip()):
             raise ValueError("Host header is empty")
-
         if any(
             ord(character) < 33 or ord(character) == 127
             for character in raw_host
         ):
             raise ValueError("Host header contains whitespace or control characters")
-
-        port_text = None
-
-        if raw_host.startswith("["):
-            closing_bracket = raw_host.find("]")
-            if closing_bracket <= 1:
-                raise ValueError("Invalid bracketed Host header")
-            host = raw_host[1:closing_bracket]
-            suffix = raw_host[closing_bracket + 1:]
-            if suffix:
-                if not suffix.startswith(":") or suffix.count(":") != 1:
-                    raise ValueError("Invalid Host port syntax")
-                port_text = suffix[1:]
-        else:
-            if raw_host.count(":") > 1:
-                raise ValueError("IPv6 Host values must use brackets")
-            if ":" in raw_host:
-                host, port_text = raw_host.rsplit(":", 1)
-            else:
-                host = raw_host
-
+        host, port_text = self._split_request_host(raw_host)
         if not host:
             raise ValueError("Host name is empty")
-
         if any(character in host for character in "/\\\\?#@[]"):
             raise ValueError("Host header contains invalid characters")
-
-        if port_text is not None:
-            if (
-                not port_text
-                or not port_text.isascii()
-                or not port_text.isdecimal()
-            ):
-                raise ValueError("Host port must be numeric")
-
-            port = int(port_text, 10)
-            if not 1 <= port <= 65535:
-                raise ValueError("Host port is outside the valid range")
-
-            expected_port = 443 if self._request_is_https() else 80
-            if port != expected_port:
-                raise ValueError(
-                    f"Host port {{port}} does not match this server endpoint "
-                    f"({{expected_port}} expected)"
-                )
-
+        self._validate_request_host_port(port_text)
         return host.casefold()
+
+
 
     def list_directory(self, path):
         """Never expose filesystem directory indexes through the mirror."""
         self.send_error(HTTPStatus.FORBIDDEN, "Directory listing disabled")
-        return None
+
+
 
     def end_headers(self):
+        """Finalize response headers with the generated server defaults."""
         # Topaz requests are independent. Closing after one response prevents
         # stale keep-alive sockets and guarantees fresh TLS/SNI state.
         self.close_connection = True
@@ -9140,6 +10773,7 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def finish(self):
+        """Finish the request while cleaning per-request TLS metadata."""
         try:
             super().finish()
         finally:
@@ -9153,15 +10787,9 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         parsed,
         post_body=None,
     ):
+        """Build the pending request-log lines for one HTTP request."""
         trimmed_path = path.rstrip("/")
-        request_name = (
-            Path(trimmed_path).name
-            if trimmed_path
-            else "/"
-        )
-
-        is_https = self._request_is_https()
-
+        request_name = Path(trimmed_path).name if trimmed_path else "/"
         lines = [
             "",
             "=" * 60,
@@ -9171,10 +10799,8 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
             f"Request  : {{sanitize_log_text(request_name)}}",
             f"Client   : {{self.client_address[0]}}:{{self.client_address[1]}}",
         ]
-
-        if is_https:
+        if self._request_is_https():
             lines.append("Handshake: Succeeded")
-
         lines.extend([
             f"Method   : {{self.command}}",
             f"Protocol : {{self.request_version}}",
@@ -9183,44 +10809,31 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
             f"Query    : {{format_query_for_log(parsed.query)}}",
             "Headers  :",
         ])
-
         for header_name, header_value in self.headers.items():
-            normalized = header_name.lower()
-
-            if normalized == "host":
+            if (normalized := header_name.lower()) == "host":
                 continue
-
-            if (
-                REDACT_SENSITIVE_HEADERS
-                and normalized in SENSITIVE_HEADERS
-            ):
-                header_value = "<Redacted, do not post online>"
-
+            safe_header_value = header_value
+            if REDACT_SENSITIVE_HEADERS and normalized in SENSITIVE_HEADERS:
+                safe_header_value = "<Redacted, do not post online>"
             lines.append(
                 f"{{sanitize_log_text(header_name)}}: "
-                f"{{sanitize_log_text(header_value)}}"
+                f"{{sanitize_log_text(safe_header_value)}}"
             )
-
         lines.append("-" * 60)
-
         if post_body and LOG_REQUEST_BODIES:
             if REDACT_REQUEST_BODIES:
                 lines.append("Body      : <Redacted, do not post online>")
             else:
-                try:
-                    body_text = post_body.decode(
-                        "utf-8",
-                        errors="replace",
-                    )
-                except Exception:
-                    body_text = repr(post_body)
-
-                lines.append("Body      :")
-                lines.append(body_text)
-
+                body_text = (
+                    bytes(post_body).decode("utf-8", errors="replace")
+                    if isinstance(post_body, (bytes, bytearray))
+                    else repr(post_body)
+                )
+                lines.extend(("Body      :", body_text))
             lines.append("-" * 60)
-
         return lines
+
+
 
     def begin_request_log(
         self,
@@ -9229,6 +10842,7 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         parsed,
         post_body=None,
     ):
+        """Initialize request logging state before route handling begins."""
         self._pending_request_log_lines = self.build_request_log_lines(
             timestamp,
             path,
@@ -9237,59 +10851,35 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         )
         self._result_url = None
 
-    def validated_request_path(self, request_target=None):
-        """
-        Decode and validate a request path before any filesystem access.
-
-        The returned filesystem path is guaranteed to remain inside
-        MIRROR_ROOT after normalization and symlink resolution.
-        """
-
-        target = self.path if request_target is None else request_target
+    def _fully_decoded_request_path(self, target: str) -> str:
+        """Repeatedly decode one request path while enforcing the decode limit."""
         try:
-            raw_path = urlparse(target).path
+            decoded_path = urlparse(target).path
         except ValueError as error:
             raise ValueError("Malformed request target") from error
-        decoded_path = raw_path
-
         for _ in range(self.MAX_URL_DECODE_PASSES):
-            next_path = unquote(decoded_path)
-
-            if next_path == decoded_path:
-                break
-
+            if (next_path := unquote(decoded_path)) == decoded_path:
+                return decoded_path
             decoded_path = next_path
-        else:
-            raise ValueError("Request path exceeded URL decode limit")
+        raise ValueError("Request path exceeded URL decode limit")
 
+    def _normalized_request_components(self, decoded_path: str) -> list[str]:
+        """Validate URL/path components and return the normalized mirror components."""
         if any(
             ord(character) < 32 or ord(character) == 127
             for character in decoded_path
         ):
             raise ValueError("Control character in request path")
-
-        # Treat Windows separators as URL separators before validation.
         decoded_path = decoded_path.replace("\\\\", "/")
-
         if not decoded_path.startswith("/"):
             decoded_path = "/" + decoded_path
-
         components = decoded_path.split("/")
-
-        if any(component in (".", "..") for component in components):
+        if any(component in {{".", ".."}} for component in components):
             raise ValueError("Path traversal component rejected")
-
-        # Reject Windows drive/ADS syntax in every path component.
         if any(":" in component for component in components):
             raise ValueError("Windows-invalid path component rejected")
-
-        normalized_components = [
-            component
-            for component in components
-            if component
-        ]
-
-        for component in normalized_components:
+        normalized = [component for component in components if component]
+        for component in normalized:
             if component.endswith((" ", ".")) or any(
                 character in component for character in '<>"|?*'
             ):
@@ -9297,40 +10887,39 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
             reserved_base_name = component.split(".", 1)[0].rstrip(" .").casefold()
             if reserved_base_name in self.WINDOWS_RESERVED_PATH_NAMES:
                 raise ValueError("Windows-reserved path component rejected")
+        return normalized
 
-        normalized_path = "/" + "/".join(normalized_components)
-
-        if decoded_path.endswith("/") and normalized_path != "/":
-            normalized_path += "/"
-
-        # Certificate material is never part of the mirror namespace.
-        lowered_components = [
-            component.casefold()
-            for component in normalized_components
-        ]
-
-        if (
-            "certs" in lowered_components
-            or (
-                lowered_components
-                and lowered_components[-1] in ("cert.pem", "key.pem")
-            )
+    @staticmethod
+    def _request_mirror_candidate(normalized_components: list[str]) -> Path:
+        """Resolve normalized components while proving they remain inside Mirror."""
+        lowered = [component.casefold() for component in normalized_components]
+        if "certs" in lowered or (
+            lowered and lowered[-1] in {{"cert.pem", "key.pem"}}
         ):
             raise ValueError("Certificate path rejected")
-
         mirror_root = MIRROR_ROOT.resolve()
-        candidate = mirror_root.joinpath(*normalized_components).resolve(
-            strict=False,
-        )
-
+        candidate = mirror_root.joinpath(*normalized_components).resolve(strict=False)
         try:
             candidate.relative_to(mirror_root)
-        except ValueError as exc:
-            raise ValueError("Request escaped mirror root") from exc
+        except ValueError as error:
+            raise ValueError("Request escaped mirror root") from error
+        return candidate
 
+    def validated_request_path(self, request_target=None):
+        """Decode and validate a request path before any filesystem access."""
+        target = self.path if request_target is None else request_target
+        decoded_path = self._fully_decoded_request_path(target)
+        normalized_components = self._normalized_request_components(decoded_path)
+        normalized_path = "/" + "/".join(normalized_components)
+        if decoded_path.replace("\\\\", "/").endswith("/") and normalized_path != "/":
+            normalized_path += "/"
+        candidate = self._request_mirror_candidate(normalized_components)
         return normalized_path, candidate
 
+
+
     def reject_invalid_path(self, method, request_target=None):
+        """Reject one unsafe request path with a logged HTTP error."""
         target = self.path if request_target is None else request_target
         try:
             parsed = urlparse(target)
@@ -9347,6 +10936,7 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
 
     def log_request(self, code="-", size="-"):
+        """Log one completed HTTP request in the generated server format."""
         lines = list(
             getattr(self, "_pending_request_log_lines", [])
         )
@@ -9376,9 +10966,7 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
                 f"Status   : {{code}}",
             ])
 
-        result_url = getattr(self, "_result_url", None)
-
-        if result_url:
+        if result_url := getattr(self, "_result_url", None):
             lines.append(f"URL      : {{result_url}}")
 
         emit_log_block(lines)
@@ -9386,13 +10974,14 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         self._pending_request_log_lines = []
         self._result_url = None
 
-    def log_error(self, format, *args):
+    def log_error(self, format, *args):  # pylint: disable=redefined-builtin
+        """Suppress default HTTP error logging while retaining handler compatibility."""
+        # Keep BaseHTTPRequestHandler.log_error(format, *args) compatibility.
         return
 
     def log_blocked_request(self, method, client_address, path):
-        pending = getattr(self, "_pending_request_log_lines", None)
-
-        if pending is not None:
+        """Record a request that was blocked before normal route handling."""
+        if (pending := getattr(self, "_pending_request_log_lines", None)) is not None:
             pending.append(f"Blocked  : {{sanitize_log_text(path)}}")
 
         append_error_report(
@@ -9405,13 +10994,12 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
             f"Path     : {{sanitize_log_text(path)}}\\n"
         )
 
-    def current_timestamp(self) -> str:
-        current_time = datetime.now()
-        return (
-            current_time.strftime("%B %d, %Y %I:%M:%S.")
-            + f"{{current_time.microsecond // 1000:03d}}"
-            + current_time.strftime(" %p")
-        )
+    @staticmethod
+    def current_timestamp():
+        """Return the current local timestamp used by repeater log records."""
+        return datetime.now().strftime("%d/%b/%Y %H:%M:%S")
+
+
 
     def send_json(
         self,
@@ -9419,6 +11007,7 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         status: HTTPStatus = HTTPStatus.OK,
         extra_headers=(),
     ):
+        """Send a JSON response body with explicit status and headers."""
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(text)))
@@ -9438,97 +11027,56 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         missing_message: str = "JSON response not found",
         extra_headers=(),
     ):
-        # Fixed API response files must obey the same mirror-containment
-        # guarantees as ordinary static files.  Refuse runtime symlink
-        # substitution instead of following it outside (or elsewhere in)
-        # the mirror tree after startup validation has completed.
-        if source.is_symlink():
-            self.send_error(
-                HTTPStatus.FORBIDDEN,
-                "Unsafe API response path",
-            )
-            return
-
+        """Send one descriptor-validated JSON file from the offline mirror."""
         try:
-            mirror_root = MIRROR_ROOT.resolve(strict=True)
-            resolved_source = source.resolve(strict=True)
-            resolved_source.relative_to(mirror_root)
+            _resolved, handle, _metadata = open_safe_mirror_file(source)
         except FileNotFoundError:
-            self.send_error(
-                HTTPStatus.NOT_FOUND,
-                missing_message,
-            )
+            self.send_error(HTTPStatus.NOT_FOUND, missing_message)
             return
-        except (OSError, RuntimeError, ValueError):
-            self.send_error(
-                HTTPStatus.FORBIDDEN,
-                "Unsafe API response path",
-            )
+        except UnsafeMirrorPathError:
+            self.send_error(HTTPStatus.FORBIDDEN, "Unsafe API response path")
             return
-
-        if not resolved_source.is_file():
-            self.send_error(
-                HTTPStatus.NOT_FOUND,
-                missing_message,
-            )
+        except OSError:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "Unable to read API response")
             return
-
-        self.send_json(
-            resolved_source.read_bytes(),
-            status,
-            extra_headers,
-        )
+        with handle:
+            try:
+                body = handle.read()
+            except OSError:
+                self.send_error(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    "Unable to read API response",
+                )
+                return
+        self.send_json(body, status, extra_headers)
 
     def reject_post_body(self, error: PostBodyValidationError):
+        """Reject a POST body that violates the captured protocol contract."""
         # The request body has not been consumed.  Close the connection so
         # unread bytes cannot be interpreted as another HTTP request.
         self.close_connection = True
         self.send_error(error.status, error.message)
 
     def read_validated_post_body(self):
-        try:
-            length = validated_post_content_length(self.headers)
-        except PostBodyValidationError as error:
-            self.reject_post_body(error)
+        """Read exactly the validated POST body, rejecting timeout or truncation."""
+        if (content_length := validated_post_content_length(self.headers)) is None:
             return None
-
-        if length == 0:
+        if not content_length:
             return b""
-
-        previous_timeout = self.connection.gettimeout()
-
         try:
-            self.connection.settimeout(POST_BODY_READ_TIMEOUT_SECONDS)
-            body = self.rfile.read(length)
-        except (TimeoutError, OSError):
-            self.close_connection = True
-
-            try:
-                self.send_error(
-                    HTTPStatus.REQUEST_TIMEOUT,
-                    "Timed out while reading POST body",
-                )
-            except OSError:
-                pass
-
+            body = self.rfile.read(content_length)
+        except OSError:
+            self.send_error(HTTPStatus.REQUEST_TIMEOUT, "Unable to read request body")
             return None
-        finally:
-            try:
-                self.connection.settimeout(previous_timeout)
-            except OSError:
-                pass
-
-        if len(body) != length:
-            self.close_connection = True
-            self.send_error(
-                HTTPStatus.BAD_REQUEST,
-                "Incomplete POST body",
-            )
+        if len(body) != content_length:
+            self.send_error(HTTPStatus.BAD_REQUEST, "Incomplete request body")
             return None
-
         return body
 
+
+
     def handle_expect_100(self):
+        """Validate an Expect: 100-continue request before accepting its body."""
         if self.command != "POST":
             return super().handle_expect_100()
 
@@ -9555,139 +11103,147 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         return True
 
     def request_scheme(self) -> str:
+        """Return the request protocol from the accepted socket object."""
         return "https" if self._request_is_https() else "http"
 
-    def resolve_owned_model_request(
-        self,
-        scheme: str,
-        host: str,
-        path: str,
-    ):
-        """Return an owned model file, None for non-model, or False if denied."""
-        route_key = (scheme, host, path)
-        relative_path = MODEL_ROUTES.get(route_key)
-
-        if relative_path is not None:
-            return MIRROR_ROOT.joinpath(
-                *PurePosixPath(relative_path).parts
-            )
-
-        canonical_path = MODEL_CANONICAL_PATHS.get(path.casefold())
-        if canonical_path is not None:
-            # This URL path belongs to the model inventory but not to the
-            # request's exact scheme/host/path tuple. Reject rather than
-            # falling through to case-insensitive/static filesystem lookup.
+    @staticmethod
+    def _resolve_sharpen_alias(scheme: str, host: str, path: str):
+        """Resolve one owned Sharpen UUID alias, returning False when denied."""
+        filename = PurePosixPath(path).name
+        if (scheme, host, filename) not in SHARPEN_ALIAS_OWNERS:
             return False
+        if (candidate := resolve_sharpen_model(filename)) is None:
+            return False
+        try:
+            displayed_path = candidate.relative_to(MIRROR_ROOT)
+        except ValueError:
+            return False
+        emit_log_block([
+            "",
+            "Sharpen UUID alias resolved:",
+            f"Requested : {{path}}",
+            f"Serving   : /{{displayed_path.as_posix()}}",
+            "",
+        ])
+        return candidate
 
+    def resolve_owned_model_request(self, scheme: str, host: str, path: str):
+        """Return an owned model file, None for non-model, or False if denied."""
+        if (relative_path := MODEL_ROUTES.get((scheme, host, path))) is not None:
+            return MIRROR_ROOT.joinpath(*PurePosixPath(relative_path).parts)
+        if (relative_path := DISCOVERED_INVENTORY_ROUTES.get((scheme, host, path))) is not None:
+            return MIRROR_ROOT.joinpath(*PurePosixPath(relative_path).parts)
+        if (
+            path.casefold() in MODEL_CANONICAL_PATHS
+            or path.casefold() in DISCOVERED_INVENTORY_CANONICAL_PATHS
+        ):
+            return False
         if path.startswith("/v2/JSON_SHARPEN/"):
-            filename = PurePosixPath(path).name
-            if (scheme, host, filename) not in SHARPEN_ALIAS_OWNERS:
-                return False
-
-            resolved = resolve_sharpen_model(filename)
-            if resolved is None:
-                return False
-
-            resolved = resolved.resolve()
-            try:
-                displayed_path = resolved.relative_to(MIRROR_ROOT.resolve())
-            except ValueError:
-                return False
-
-            emit_log_block([
-                "",
-                "Sharpen UUID alias resolved:",
-                f"Requested : {{path}}",
-                f"Serving   : /{{displayed_path.as_posix()}}",
-                "",
-            ])
-            return resolved
-
+            return self._resolve_sharpen_alias(scheme, host, path)
         return None
 
-    def resolve_owned_server_asset_request(
-        self,
+
+
+
+
+    @staticmethod
+    def _resolve_owned_asset_route(
+        routes: dict,
+        canonical_paths: dict,
         scheme: str,
         host: str,
         path: str,
     ):
+        """Resolve one exact asset owner or False for a canonical non-owner."""
+        if (relative := routes.get((scheme, host, path))) is not None:
+            return MIRROR_ROOT.joinpath(*PurePosixPath(relative).parts)
+        if path.casefold() in canonical_paths:
+            return False
+        return None
+
+    def resolve_owned_server_asset_request(self, scheme: str, host: str, path: str):
         """Return a trusted Server Asset, None for unknown, or False if denied."""
-        probe_relative = PROBE_ASSET_ROUTES.get((scheme, host, path))
-        if probe_relative is not None:
-            return MIRROR_ROOT.joinpath(*PurePosixPath(probe_relative).parts)
-
-        probe_canonical = PROBE_ASSET_CANONICAL_PATHS.get(path.casefold())
-        if probe_canonical is not None:
-            # Probe/support assets are reserved to their exact pinned owners.
-            # This also rejects alternate-case path variants on Windows.
-            return False
-
-        recovered_relative = RECOVERED_ASSET_ROUTES.get((scheme, host, path))
-        if recovered_relative is not None:
-            return MIRROR_ROOT.joinpath(*PurePosixPath(recovered_relative).parts)
-
-        recovered_canonical = RECOVERED_ASSET_CANONICAL_PATHS.get(path.casefold())
-        if recovered_canonical is not None:
-            # A discovered support path is served only by source URL owners that
-            # have been verified and recorded in the Server Assets Manifest.
-            return False
-
-        canonical = SERVER_ASSET_CANONICAL_PATHS.get(path.casefold())
-        if canonical is None:
+        result = self._resolve_owned_asset_route(
+            PROBE_ASSET_ROUTES,
+            PROBE_ASSET_CANONICAL_PATHS,
+            scheme,
+            host,
+            path,
+        )
+        if result is not None:
+            return result
+        result = self._resolve_owned_asset_route(
+            RECOVERED_ASSET_ROUTES,
+            RECOVERED_ASSET_CANONICAL_PATHS,
+            scheme,
+            host,
+            path,
+        )
+        if result is not None:
+            return result
+        if (canonical := SERVER_ASSET_CANONICAL_PATHS.get(path.casefold())) is None:
             return None
         if path != canonical:
             return False
-        relative = canonical.lstrip("/")
-        return MIRROR_ROOT.joinpath(*PurePosixPath(relative).parts)
+        return MIRROR_ROOT.joinpath(*PurePosixPath(canonical.lstrip("/")).parts)
+
+
+
+
+
+    @staticmethod
+    def _parse_explicit_byte_range(
+        start_text: str,
+        end_text: str,
+        file_size: int,
+    ) -> tuple[int, int]:
+        """Parse a start-end or start- byte range."""
+        if not start_text.isdigit():
+            raise ValueError("Invalid byte range start")
+        if (start := int(start_text, 10)) >= file_size:
+            raise ValueError("Requested range starts beyond end of file")
+        if not end_text:
+            return start, file_size - 1
+        if not end_text.isdigit():
+            raise ValueError("Invalid byte range end")
+        if (end := int(end_text, 10)) < start:
+            raise ValueError("Invalid byte range order")
+        return start, min(end, file_size - 1)
+
+    @staticmethod
+    def _parse_suffix_byte_range(end_text: str, file_size: int) -> tuple[int, int]:
+        """Parse a suffix byte range of the form -N."""
+        if not end_text.isdigit():
+            raise ValueError("Invalid suffix byte range")
+        if (suffix_length := int(end_text, 10)) <= 0:
+            raise ValueError("Invalid suffix byte range")
+        return max(0, file_size - suffix_length), file_size - 1
 
     def parse_single_byte_range(self, file_size: int):
-        values = self.headers.get_all("Range", [])
-        if not values:
+        """Parse at most one RFC 7233 bytes range for the current request."""
+        if not (values := self.headers.get_all("Range", [])):
             return None
         if len(values) != 1:
             raise ValueError("Multiple Range headers are not supported")
-
-        value = values[0].strip()
-        if not value.lower().startswith("bytes="):
-            raise ValueError("Only byte ranges are supported")
-
-        specification = value[6:].strip()
-        if not specification or "," in specification:
+        raw_value = values[0].strip()
+        if not raw_value.lower().startswith("bytes="):
+            raise ValueError("Only bytes ranges are supported")
+        range_spec = raw_value[6:].strip()
+        if not range_spec or "," in range_spec or "-" not in range_spec:
             raise ValueError("Only one byte range is supported")
-        if specification.count("-") != 1:
-            raise ValueError("Invalid byte range")
-
-        start_text, end_text = specification.split("-", 1)
-
+        start_text, end_text = (part.strip() for part in range_spec.split("-", 1))
+        if file_size <= 0:
+            raise ValueError("Requested range is not satisfiable")
         if start_text:
-            if not start_text.isascii() or not start_text.isdecimal():
-                raise ValueError("Invalid byte-range start")
-            start = int(start_text, 10)
-            if start >= file_size:
-                raise ValueError("Byte-range start is beyond end of file")
+            return self._parse_explicit_byte_range(start_text, end_text, file_size)
+        return self._parse_suffix_byte_range(end_text, file_size)
 
-            if end_text:
-                if not end_text.isascii() or not end_text.isdecimal():
-                    raise ValueError("Invalid byte-range end")
-                end = int(end_text, 10)
-                if end < start:
-                    raise ValueError("Byte-range end precedes start")
-                end = min(end, file_size - 1)
-            else:
-                end = file_size - 1
-        else:
-            if not end_text or not end_text.isascii() or not end_text.isdecimal():
-                raise ValueError("Invalid suffix byte range")
-            suffix_length = int(end_text, 10)
-            if suffix_length <= 0 or file_size <= 0:
-                raise ValueError("Unsatisfiable suffix byte range")
-            suffix_length = min(suffix_length, file_size)
-            start = file_size - suffix_length
-            end = file_size - 1
 
-        return start, end
+
+
 
     def send_range_not_satisfiable(self, file_size: int, message: str):
+        """Send a 416 response with the required Content-Range metadata."""
         self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Range", f"bytes */{{file_size}}")
@@ -9698,327 +11254,239 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
-    def send_owned_model_file(self, model_path: Path):
-        """Serve one authorized model with GET/HEAD and single-byte ranges."""
+    def _open_owned_model_file(self, model_path: Path):
+        """Open one authorized Mirror file or send the matching HTTP error."""
         try:
-            resolved = model_path.resolve(strict=True)
-            resolved.relative_to(MIRROR_ROOT.resolve())
+            return open_safe_mirror_file(model_path)
         except FileNotFoundError:
             self.send_error(HTTPStatus.NOT_FOUND, "File not found")
-            return
-        except (OSError, ValueError):
+        except UnsafeMirrorPathError:
             self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
-            return
-
-        if not resolved.is_file():
-            self.send_error(HTTPStatus.NOT_FOUND, "File not found")
-            return
-
-        try:
-            file = resolved.open("rb")
         except OSError:
-            self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+            self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
+        return None
+
+    def _owned_file_not_modified(self, stat_result) -> bool:
+        """Apply If-Modified-Since when no Range or If-None-Match header supersedes it."""
+        if self.headers.get_all("Range", []):
+            return False
+        if "If-Modified-Since" not in self.headers or "If-None-Match" in self.headers:
+            return False
+        try:
+            modified_since = email.utils.parsedate_to_datetime(
+                self.headers["If-Modified-Since"]
+            )
+        except (TypeError, IndexError, OverflowError, ValueError):
+            return False
+        if modified_since.tzinfo is None:
+            modified_since = modified_since.replace(tzinfo=timezone.utc)
+        if modified_since.utcoffset() != timedelta(0):
+            return False
+        last_modified = datetime.fromtimestamp(
+            stat_result.st_mtime, timezone.utc
+        ).replace(microsecond=0)
+        if last_modified > modified_since:
+            return False
+        self.send_response(HTTPStatus.NOT_MODIFIED)
+        self.end_headers()
+        return True
+
+    def _owned_file_range(self, file_size: int):
+        """Return response range metadata or None after sending an invalid-range error."""
+        try:
+            byte_range = self.parse_single_byte_range(file_size)
+        except ValueError as error:
+            self.send_range_not_satisfiable(file_size, str(error))
+            return None
+        if byte_range is None:
+            return HTTPStatus.OK, 0, file_size - 1, file_size, None
+        start, end = byte_range
+        return (
+            HTTPStatus.PARTIAL_CONTENT,
+            start,
+            end,
+            end - start + 1,
+            byte_range,
+        )
+
+    def _send_owned_file_headers(
+        self,
+        resolved: Path,
+        stat_result,
+        range_state,
+    ) -> None:
+        """Send headers for one full or ranged owned-file response."""
+        status, start, end, content_length, byte_range = range_state
+        self.send_response(status)
+        self.send_header("Content-Type", self.guess_type(str(resolved)))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(content_length))
+        self.send_header(
+            "Last-Modified", self.date_time_string(stat_result.st_mtime)
+        )
+        if byte_range is not None:
+            self.send_header("Content-Range", f"bytes {{start}}-{{end}}/{{stat_result.st_size}}")
+        self.end_headers()
+
+    def _stream_owned_file(self, file, start: int, content_length: int) -> None:
+        """Stream exactly the selected owned-file byte range for GET requests."""
+        if self.command == "HEAD" or content_length <= 0:
+            return
+        file.seek(start)
+        remaining = content_length
+        while remaining > 0:
+            if not (block := file.read(min(1024 * 1024, remaining))):
+                break
+            self.wfile.write(block)
+            remaining -= len(block)
+
+    def send_owned_model_file(self, model_path: Path):
+        """Serve one authorized model with GET/HEAD and single-byte ranges."""
+        if (opened := self._open_owned_model_file(model_path)) is None:
+            return
+        resolved, file, stat_result = opened
+        with file:
+            if self._owned_file_not_modified(stat_result):
+                return
+            if (range_state := self._owned_file_range(stat_result.st_size)) is None:
+                return
+            self._send_owned_file_headers(resolved, stat_result, range_state)
+            self._stream_owned_file(file, range_state[1], range_state[3])
+
+
+
+    @staticmethod
+    def _reserved_read_namespace(path: str) -> bool:
+        """Return whether a captured API namespace must never fall through to files."""
+        return (
+            path in {{"/v1/config/", "/v1/track", "/event"}}
+            or path == "/v2/app_state"
+            or path.startswith("/v2/app_state/")
+            or path == "/v3/plutus"
+            or path.startswith("/v3/plutus/")
+            or path == "/api/v1/ownership"
+            or path.startswith("/api/v1/ownership/")
+        )
+
+    def _send_product_read_response(self, host: str, path: str) -> bool:
+        """Serve captured product GET/HEAD responses and return whether handled."""
+        if host != "api.topaz-labs.net" or not path.startswith("/v3/plutus/product/"):
+            return False
+        product_id = path.rsplit("/", 1)[-1]
+        product_messages = {{
+            "1464951": "Video AI product response not found",
+            "4973578": "Video AI Monthly product response not found",
+            "4400087": "Photo AI product response not found",
+            "5314504": f"Topaz product {{product_id}} response not found",
+            "5314503": f"Topaz product {{product_id}} response not found",
+            "5275739": f"Topaz product {{product_id}} response not found",
+            "5275738": f"Topaz product {{product_id}} response not found",
+            "5314473": f"Topaz product {{product_id}} response not found",
+            "5314472": f"Topaz product {{product_id}} response not found",
+            "5275705": f"Topaz product {{product_id}} response not found",
+            "5275704": f"Topaz product {{product_id}} response not found",
+            "5275719": f"Topaz product {{product_id}} response not found",
+            "5275720": f"Topaz product {{product_id}} response not found",
+            "5275726": f"Topaz product {{product_id}} response not found",
+            "5275728": f"Topaz product {{product_id}} response not found",
+        }}
+        if (missing_message := product_messages.get(product_id)) is None:
+            return False
+        self.send_json_file(
+            MIRROR_ROOT / "v3" / "plutus" / "product" / f"{{product_id}}.json",
+            missing_message=missing_message,
+        )
+        return True
+
+    def _send_probe_bytes(self, body: bytes) -> None:
+        """Send one embedded probe response body."""
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _send_probe_file(
+        self,
+        probe_file: Path,
+        *,
+        missing_fallback: bytes | None = None,
+    ) -> None:
+        """Serve one probe from a descriptor-validated Mirror file."""
+        try:
+            _resolved, handle, metadata = open_safe_mirror_file(probe_file)
+        except FileNotFoundError:
+            if missing_fallback is not None:
+                self._send_probe_bytes(missing_fallback)
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND, "Probe file not found")
+            return
+        except UnsafeMirrorPathError:
+            self.send_error(HTTPStatus.FORBIDDEN, "Unsafe probe path")
+            return
+        except OSError:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "Unable to read probe file")
             return
 
-        try:
-            stat_result = os.fstat(file.fileno())
-            file_size = stat_result.st_size
-
-            range_values = self.headers.get_all("Range", [])
-            if not range_values:
-                if (
-                    "If-Modified-Since" in self.headers
-                    and "If-None-Match" not in self.headers
-                ):
-                    try:
-                        modified_since = email.utils.parsedate_to_datetime(
-                            self.headers["If-Modified-Since"]
-                        )
-                    except (TypeError, IndexError, OverflowError, ValueError):
-                        modified_since = None
-
-                    if modified_since is not None:
-                        if modified_since.tzinfo is None:
-                            modified_since = modified_since.replace(
-                                tzinfo=timezone.utc
-                            )
-                        if modified_since.utcoffset() == timedelta(0):
-                            last_modified = datetime.fromtimestamp(
-                                stat_result.st_mtime,
-                                timezone.utc,
-                            ).replace(microsecond=0)
-                            if last_modified <= modified_since:
-                                self.send_response(HTTPStatus.NOT_MODIFIED)
-                                self.end_headers()
-                                return
-
-            try:
-                byte_range = self.parse_single_byte_range(file_size)
-            except ValueError as error:
-                self.send_range_not_satisfiable(file_size, str(error))
-                return
-
-            content_type = self.guess_type(str(resolved))
-
-            if byte_range is None:
-                start = 0
-                end = file_size - 1
-                content_length = file_size
-                status = HTTPStatus.OK
-            else:
-                start, end = byte_range
-                content_length = end - start + 1
-                status = HTTPStatus.PARTIAL_CONTENT
-
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Accept-Ranges", "bytes")
-            self.send_header("Content-Length", str(content_length))
-            self.send_header(
-                "Last-Modified",
-                self.date_time_string(stat_result.st_mtime),
-            )
-            if byte_range is not None:
-                self.send_header(
-                    "Content-Range",
-                    f"bytes {{start}}-{{end}}/{{file_size}}",
-                )
+        with handle:
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(metadata.st_size))
             self.end_headers()
-
-            if self.command == "HEAD" or content_length <= 0:
+            if self.command == "HEAD":
                 return
-
-            file.seek(start)
-            remaining = content_length
-            while remaining > 0:
-                block = file.read(min(1024 * 1024, remaining))
-                if not block:
+            while True:
+                if not (block := handle.read(64 * 1024)):
                     break
                 self.wfile.write(block)
-                remaining -= len(block)
-        finally:
-            file.close()
 
-    def handle_read_request(self):
-        try:
-            path, _ = self.validated_request_path()
-        except ValueError:
-            self.reject_invalid_path(self.command)
-            return
+    def _send_probe_read_response(self, host: str, path: str) -> bool:
+        """Serve the two captured text probe routes and return whether handled."""
+        route = PROBE_ASSET_ROUTES.get((self.request_scheme(), host, path))
+        if route == "test.txt":
+            self._send_probe_file(
+                MIRROR_ROOT / "test.txt",
+                missing_fallback=b"https://topazlabs.com/careers\\n",
+            )
+            return True
+        if route == "_test/models-bal-test.txt":
+            self._send_probe_file(MIRROR_ROOT / "_test" / "models-bal-test.txt")
+            return True
+        return False
 
-        parsed = urlparse(self.path)
-        timestamp = self.current_timestamp()
-        self.begin_request_log(timestamp, path, parsed)
-
-        try:
-            host = self.validated_request_host()
-        except ValueError as error:
-            self.send_error(HTTPStatus.BAD_REQUEST, str(error))
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path == "/v2/app_state/unauthed"
-        ):
+    def _send_misc_read_response(self, host: str, path: str) -> bool:
+        """Serve captured non-product API GET/HEAD responses."""
+        if host == "api.topaz-labs.net" and path == "/v2/app_state/unauthed":
             self.send_json_file(
-                MIRROR_ROOT
-                / "v2"
-                / "app_state"
-                / "VIDEO_7.1.5_unauthed.json",
+                MIRROR_ROOT / "v2" / "app_state" / "VIDEO_7.1.5_unauthed.json",
                 missing_message="Video AI app-state response not found",
             )
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path == "/v3/plutus/product/1464951"
-        ):
+            return True
+        if host == "api.topaz-labs.net" and path == "/v3/plutus/balance":
             self.send_json_file(
-                MIRROR_ROOT
-                / "v3"
-                / "plutus"
-                / "product"
-                / "1464951.json",
-                missing_message="Video AI product response not found",
-            )
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path == "/v3/plutus/product/4973578"
-        ):
-            self.send_json_file(
-                MIRROR_ROOT
-                / "v3"
-                / "plutus"
-                / "product"
-                / "4973578.json",
-                missing_message="Video AI Monthly product response not found",
-            )
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path.startswith("/v3/plutus/product/")
-        ):
-            product_id = path.rsplit("/", 1)[-1]
-            if product_id in (
-                "5314504",
-                "5314503",
-                "5275739",
-                "5275738",
-                "5314473",
-                "5314472",
-                "5275705",
-                "5275704",
-                "5275719",
-                "5275720",
-                "5275726",
-                "5275728",
-            ):
-                self.send_json_file(
-                    MIRROR_ROOT
-                    / "v3"
-                    / "plutus"
-                    / "product"
-                    / f"{{product_id}}.json",
-                    missing_message=(
-                        f"Topaz product {{product_id}} response not found"
-                    ),
-                )
-                return
-
-        if PROBE_ASSET_ROUTES.get(
-            (self.request_scheme(), host, path)
-        ) == "test.txt":
-            probe_file = MIRROR_ROOT / "test.txt"
-
-            if probe_file.is_file():
-                body = probe_file.read_bytes()
-            else:
-                body = b"https://topazlabs.com/careers\\n"
-
-            self.send_response(200)
-            self.send_header(
-                "Content-Type",
-                "text/plain; charset=utf-8",
-            )
-            self.send_header(
-                "Content-Length",
-                str(len(body)),
-            )
-            self.end_headers()
-
-            if self.command != "HEAD":
-                self.wfile.write(body)
-
-            return
-
-        if PROBE_ASSET_ROUTES.get(
-            (self.request_scheme(), host, path)
-        ) == "_test/models-bal-test.txt":
-            probe_file = (
-                MIRROR_ROOT
-                / "_test"
-                / "models-bal-test.txt"
-            )
-
-            if not probe_file.is_file():
-                self.send_error(404, "Probe file not found")
-                return
-
-            body = probe_file.read_bytes()
-
-            self.send_response(200)
-            self.send_header(
-                "Content-Type",
-                "text/plain; charset=utf-8",
-            )
-            self.send_header(
-                "Content-Length",
-                str(len(body)),
-            )
-            self.end_headers()
-
-            if self.command != "HEAD":
-                self.wfile.write(body)
-
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path == "/v3/plutus/product/4400087"
-        ):
-            self.send_json_file(
-                MIRROR_ROOT
-                / "v3"
-                / "plutus"
-                / "product"
-                / "4400087.json",
-                missing_message="Photo AI product response not found",
-            )
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path == "/v3/plutus/balance"
-        ):
-            self.send_json_file(
-                MIRROR_ROOT
-                / "v3"
-                / "plutus"
-                / "balance"
-                / "unauthorized.json",
+                MIRROR_ROOT / "v3" / "plutus" / "balance" / "unauthorized.json",
                 HTTPStatus.UNAUTHORIZED,
                 "Photo AI balance response not found",
             )
-            return
-
-        if (
-            host == "topazlabs.com"
-            and path == "/api/v1/ownership/"
-        ):
+            return True
+        if host == "topazlabs.com" and path == "/api/v1/ownership/":
             self.send_json_file(
-                MIRROR_ROOT
-                / "api"
-                / "v1"
-                / "ownership"
-                / "unauthorized.json",
+                MIRROR_ROOT / "api" / "v1" / "ownership" / "unauthorized.json",
                 HTTPStatus.UNAUTHORIZED,
                 "Adjust AI ownership response not found",
-                (
-                    (
-                        "Cache-Control",
-                        "no-store, no-cache, must-revalidate",
-                    ),
-                    ("Pragma", "no-cache"),
-                ),
+                (("Cache-Control", "no-store, no-cache, must-revalidate"), ("Pragma", "no-cache")),
             )
-            return
-
-        if path == "/v1/track":
-            # Captured endpoint is POST-only on et.topazlabs.com.
-            # GET/HEAD must not emulate it or fall through to static files.
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path == "/v2/app_state/"
-        ):
+            return True
+        if host == "api.topaz-labs.net" and path == "/v2/app_state/":
             self.send_json_file(
-                MIRROR_ROOT
-                / "v2"
-                / "app_state"
-                / "SHARPEN_4.1.0.json",
+                MIRROR_ROOT / "v2" / "app_state" / "SHARPEN_4.1.0.json",
                 missing_message="Sharpen app-state file not found",
             )
-            return
-
-        if (
-            host == "api.topaz-labs.net"
-            and path == "/v1/config/"
-        ):
+            return True
+        if host == "api.topaz-labs.net" and path == "/v1/config/":
+            # Captured response bytes intentionally preserve legacy whitespace.
+            # pylint: disable=trailing-whitespace
             body = b"""{{ 
           "success": true,
           "app_cname": "SHARPEN",
@@ -10034,67 +11502,63 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
             "enabled": true
           }}
         }}"""
-
+            # pylint: enable=trailing-whitespace
             self.send_json(body)
-            return
+            return True
+        return False
 
-        # Known captured API namespaces never fall through to the filesystem
-        # when the host or method does not match the captured request. Keep
-        # the namespace roots reserved too, so SimpleHTTPRequestHandler cannot
-        # expose a backing JSON filename or directory listing by alternate path.
-        if (
-            path in (
-                "/v1/config/",
-                "/v1/track",
-                "/event",
-            )
-            or path == "/v2/app_state"
-            or path.startswith("/v2/app_state/")
-            or path == "/v3/plutus"
-            or path.startswith("/v3/plutus/")
-            or path == "/api/v1/ownership"
-            or path.startswith("/api/v1/ownership/")
-        ):
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-
-        model_request = self.resolve_owned_model_request(
-            self.request_scheme(),
-            host,
-            path,
-        )
-        if model_request is False:
+    def _send_owned_read_response(self, host: str, path: str) -> None:
+        """Serve an exact owned model/server asset or return a final 404."""
+        scheme = self.request_scheme()
+        if (model_request := self.resolve_owned_model_request(scheme, host, path)) is False:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         if isinstance(model_request, Path):
             self.send_owned_model_file(model_request)
             return
-
-        server_asset_request = self.resolve_owned_server_asset_request(
-            self.request_scheme(),
-            host,
-            path,
-        )
-        if server_asset_request is False:
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
+        server_asset_request = self.resolve_owned_server_asset_request(scheme, host, path)
         if isinstance(server_asset_request, Path):
             self.send_owned_model_file(server_asset_request)
             return
-
-        # Unknown/untracked files never fall through to arbitrary Mirror bytes.
-        # A missing approved path still produces a 404 and may be learned by the
-        # recovery system on the next Creator run.
         self.send_error(HTTPStatus.NOT_FOUND)
-        return
+
+    def handle_read_request(self):
+        """Route one GET/HEAD request through owned model, asset, API, and file handlers."""
+        try:
+            path, _ = self.validated_request_path()
+        except ValueError:
+            self.reject_invalid_path(self.command)
+            return
+        parsed = urlparse(self.path)
+        self.begin_request_log(self.current_timestamp(), path, parsed)
+        try:
+            host = self.validated_request_host()
+        except ValueError as error:
+            self.send_error(HTTPStatus.BAD_REQUEST, str(error))
+            return
+        if self._send_misc_read_response(host, path):
+            return
+        if self._send_product_read_response(host, path):
+            return
+        if self._send_probe_read_response(host, path):
+            return
+        if path == "/v1/track" or self._reserved_read_namespace(path):
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        self._send_owned_read_response(host, path)
+
+
 
     def do_HEAD(self):
+        """Serve one HEAD request through the shared read-request dispatcher."""
         return self.handle_read_request()
 
     def do_GET(self):
+        """Serve one GET request through the shared read-request dispatcher."""
         return self.handle_read_request()
 
     def do_POST(self):
+        """Handle captured POST routes while rejecting unsupported bodies and hosts."""
         try:
             path, _ = self.validated_request_path()
         except ValueError:
@@ -10111,9 +11575,7 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
             self.send_error(HTTPStatus.BAD_REQUEST, str(error))
             return
 
-        post_body = self.read_validated_post_body()
-
-        if post_body is None:
+        if (post_body := self.read_validated_post_body()) is None:
             return
 
         self._pending_request_log_lines = self.build_request_log_lines(
@@ -10159,19 +11621,17 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
             return str(MIRROR_ROOT / "__blocked_request__")
 
         if exact_path.is_file():
+            if mirror_path_has_link_component(exact_path):
+                return str(MIRROR_ROOT / "__blocked_request__")
             return str(exact_path)
 
         if request_path.startswith("/v2/JSON_SHARPEN/"):
             filename = Path(request_path).name
-            resolved = resolve_sharpen_model(filename)
-
-            if resolved is not None:
-                resolved = resolved.resolve()
-
+            if (candidate := resolve_sharpen_model(filename)) is not None:
+                if mirror_path_has_link_component(candidate):
+                    return str(MIRROR_ROOT / "__blocked_request__")
                 try:
-                    displayed_path = resolved.relative_to(
-                        MIRROR_ROOT.resolve(),
-                    )
+                    displayed_path = candidate.relative_to(MIRROR_ROOT)
                 except ValueError:
                     return str(MIRROR_ROOT / "__blocked_request__")
 
@@ -10183,18 +11643,18 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
                     "",
                 ])
 
-                return str(resolved)
+                return str(candidate)
 
         return str(exact_path)
 
     def send_error(self, code, message=None, explain=None):
+        """Send a controlled HTTP error response and record request diagnostics."""
         headers = getattr(self, "headers", None)
         raw_host = headers.get("Host", "") if headers is not None else ""
         raw_target = getattr(self, "path", "") or ""
         scheme = "https" if self._request_is_https() else "http"
 
-        safe_url = build_recovery_report_url(scheme, raw_host, raw_target)
-        if safe_url is not None:
+        if (safe_url := build_recovery_report_url(scheme, raw_host, raw_target)) is not None:
             display_url = safe_url
         else:
             display_url = (
@@ -10214,13 +11674,16 @@ class TopazMirrorHandler(SimpleHTTPRequestHandler):
         super().send_error(code, message, explain)
 
 class QuietHTTPServer(ThreadingHTTPServer):
+    """Threading HTTP server that suppresses expected shutdown-time socket noise."""
 
     def get_request(self):
+        """Accept one raw HTTP connection without additional wrapping."""
         request, client_address = super().get_request()
         request.settimeout(HTTP_CLIENT_TIMEOUT_SECONDS)
         return request, client_address
 
     def handle_error(self, request, client_address):
+        """Handle a server-side request error with controlled diagnostics."""
         exc = sys.exc_info()[1]
 
         if isinstance(
@@ -10240,34 +11703,37 @@ class QuietHTTPServer(ThreadingHTTPServer):
 
 
 class LoggingHTTPSServer(ThreadingHTTPServer):
+    """Threading HTTPS server that wraps accepted sockets and records exact SNI ownership."""
     def __init__(self, server_address, handler_class, ssl_context):
+        """Initialize this generated server object and its local state."""
         super().__init__(server_address, handler_class)
         self.ssl_context = ssl_context
 
-    def process_request_thread(self, raw_socket, client_address):
-        tls_socket = None
+    def process_request_thread(self, request, client_address):
+        """Wrap one accepted TLS socket and isolate handshake/client failures."""
+        raw_socket = request
+        ssl_socket = None
         try:
             raw_socket.settimeout(TLS_HANDSHAKE_TIMEOUT_SECONDS)
             # Create the SSLSocket before negotiation so SNI metadata belongs
             # to the exact socket object even when the handshake later fails.
-            tls_socket = self.ssl_context.wrap_socket(
+            ssl_socket = self.ssl_context.wrap_socket(
                 raw_socket,
                 server_side=True,
                 do_handshake_on_connect=False,
             )
-            tls_socket.settimeout(TLS_HANDSHAKE_TIMEOUT_SECONDS)
-            tls_socket.do_handshake()
-            tls_socket.settimeout(HTTP_CLIENT_TIMEOUT_SECONDS)
-            # TLS negotiation occurs inside this worker thread. A client that
-            # never completes TLS cannot block the HTTPS accept loop.
-            super().process_request_thread(tls_socket, client_address)
+            ssl_socket.settimeout(TLS_HANDSHAKE_TIMEOUT_SECONDS)
+            ssl_socket.do_handshake()
+            ssl_socket.settimeout(HTTP_CLIENT_TIMEOUT_SECONDS)
+            # Delegate request execution to ThreadingMixIn so handler failures
+            # always reach handle_error() and shutdown_request() in its finally.
+            super().process_request_thread(ssl_socket, client_address)
             return
-
-        except (ssl.SSLError, socket.timeout, TimeoutError, OSError) as error:
+        except OSError as error:
             with LOG_LOCK:
                 host = (
-                    TLS_SNI.pop(tls_socket, "<unknown>")
-                    if tls_socket is not None
+                    TLS_SNI.pop(ssl_socket, "<unknown>")
+                    if ssl_socket is not None
                     else "<unknown>"
                 )
 
@@ -10292,18 +11758,19 @@ class LoggingHTTPSServer(ThreadingHTTPServer):
                 f"Error    : {{safe_error}}\\n"
                 f"Exception: {{safe_exception}}\\n"
             )
-
         finally:
-            if tls_socket is not None:
+            if ssl_socket is not None:
                 with LOG_LOCK:
-                    TLS_SNI.pop(tls_socket, None)
-            target = tls_socket if tls_socket is not None else raw_socket
+                    TLS_SNI.pop(ssl_socket, None)
+            target = ssl_socket if ssl_socket is not None else raw_socket
             try:
                 target.close()
             except OSError:
                 pass
 
+
     def handle_error(self, request, client_address):
+        """Handle a server-side request error with controlled diagnostics."""
         exc = sys.exc_info()[1]
         if isinstance(
             exc,
@@ -10325,7 +11792,8 @@ class QuietHTTPSServer(LoggingHTTPSServer):
     """Compatibility name; expected HTTPS disconnects are quiet in the base."""
 
 
-def log_tls_sni(ssl_socket, server_name, ssl_context):
+def log_tls_sni(ssl_socket, server_name, _ssl_context):
+    """Record TLS SNI metadata against the exact accepted SSL socket."""
     requested_host = sanitize_log_text(
         server_name or "<no SNI supplied>"
     )
@@ -10336,25 +11804,35 @@ def log_tls_sni(ssl_socket, server_name, ssl_context):
     try:
         with LOG_LOCK:
             TLS_SNI[ssl_socket] = requested_host
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
+        # SNI logging is optional metadata and must never abort TLS negotiation.
         pass
 
     # Successful SNI negotiation is connection metadata, not an error.
     # The hostname is retained only in memory for TLS diagnostics.
 
-def controlled_interrupt_handler(signum, frame):
+def controlled_interrupt_handler(_signum, _frame):
+    """Translate process interrupt signals into the controlled shutdown path."""
     print()
     print("Repeater server stopped by user.")
     raise SystemExit(130)
 
 
-def drop_sudo_privileges() -> None:
-    """Irreversibly drop root to the verified invoking sudo account."""
-    if os.name != "posix" or not hasattr(os, "geteuid"):
+def _close_server_quietly(server, started: bool) -> None:
+    """Best-effort shutdown that must not mask the primary server exit reason."""
+    if server is None:
         return
-    if os.geteuid() != 0:
-        return
+    try:
+        if started:
+            server.shutdown()
+        server.server_close()
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Cleanup is secondary to the already-determined shutdown reason.
+        pass
 
+
+def _sudo_target_identity() -> tuple[int, int]:
+    """Return the validated non-root target UID/GID from the sudo environment."""
     uid_text = os.environ.get("SUDO_UID", "")
     gid_text = os.environ.get("SUDO_GID", "")
     if not uid_text.isdigit() or not gid_text.isdigit():
@@ -10369,19 +11847,24 @@ def drop_sudo_privileges() -> None:
             "Refusing to retain root identity: target UID and GID "
             "must both be non-zero."
         )
+    return uid, gid
 
+
+def _sudo_account_for_uid(uid: int):
+    """Resolve the invoking sudo account for one validated UID."""
     try:
-        import pwd
-        account = pwd.getpwuid(uid)
+        import pwd  # pylint: disable=import-outside-toplevel
+        return pwd.getpwuid(uid)
     except (ImportError, KeyError) as error:
         raise RuntimeError(
             f"Cannot resolve the invoking sudo account for UID {{uid}}."
         ) from error
 
+
+def _apply_sudo_identity(uid: int, gid: int, account_name: str) -> None:
+    """Irreversibly apply supplementary groups, GID, and UID for the sudo user."""
     try:
-        # Restore the invoking user's normal supplementary groups before the
-        # irreversible UID/GID transition so group-controlled mirrors remain readable.
-        os.initgroups(account.pw_name, gid)
+        os.initgroups(account_name, gid)
         if hasattr(os, "setresgid"):
             os.setresgid(gid, gid, gid)
         else:
@@ -10395,29 +11878,35 @@ def drop_sudo_privileges() -> None:
             f"Failed to drop repeater privileges to UID {{uid}}, GID {{gid}}: {{error}}"
         ) from error
 
-    if os.geteuid() == 0 or (hasattr(os, "getegid") and os.getegid() == 0):
+
+def drop_sudo_privileges() -> None:
+    """Irreversibly drop root to the verified invoking sudo account."""
+    if os.name != "posix" or not hasattr(os, "geteuid") or os.geteuid():
+        return
+    uid, gid = _sudo_target_identity()
+    account = _sudo_account_for_uid(uid)
+    _apply_sudo_identity(uid, gid, account.pw_name)
+    if not os.geteuid() or (hasattr(os, "getegid") and not os.getegid()):
         raise RuntimeError("Repeater privilege drop did not remove root identity.")
-    print(
-        f"Server privileges dropped to {{account.pw_name}} "
-        f"(UID {{uid}}, GID {{gid}})."
-    )
+
+
 
 
 def display_certificate_summary(
-    certificate_installation_required: bool,
-    certificate_expiry_epoch: float,
-    certificate_source: str,
+    installation_required: bool,
+    expiry_epoch: float,
+    source_label: str,
 ) -> None:
     """Display the concise certificate status used by all launchers."""
     certificate_expiry_local = datetime.fromtimestamp(
-        certificate_expiry_epoch
+        expiry_epoch
     ).astimezone()
 
     print("=" * 43)
     print("[1/3] Local HTTPS Setup")
     print("=" * 43)
     print()
-    print("Certificate Source:", certificate_source)
+    print("Certificate Source:", source_label)
     print(
         "Certificate Expires (Local):",
         certificate_expiry_local.strftime("%Y-%m-%d %H:%M:%S %Z"),
@@ -10425,84 +11914,15 @@ def display_certificate_summary(
     print()
     print(
         "Certificate Installation (Local):",
-        "REQUIRED" if certificate_installation_required else "CURRENT",
+        "REQUIRED" if installation_required else "CURRENT",
     )
     print()
 
 
-if __name__ == "__main__":
-
-    import time
-
-    signal.signal(signal.SIGINT, controlled_interrupt_handler)
-
-    repeater_arguments = set(sys.argv[1:])
-    supported_repeater_arguments = set((
-        "--certificate-preflight",
-        "--launcher-prepared",
-    ))
-    unknown_repeater_arguments = sorted(
-        repeater_arguments - supported_repeater_arguments
-    )
-    if unknown_repeater_arguments:
-        print(
-            "Unknown repeater option(s): "
-            + ", ".join(unknown_repeater_arguments),
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
-
-    certificate_preflight_only = (
-        "--certificate-preflight" in repeater_arguments
-    )
-    launcher_prepared_certificate = (
-        "--launcher-prepared" in repeater_arguments
-    )
-    if certificate_preflight_only and launcher_prepared_certificate:
-        print(
-            "--certificate-preflight and --launcher-prepared "
-            "cannot be used together.",
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
-
-    validate_server_assets()
-
-    os.chdir(MIRROR_ROOT)
-
-    if certificate_preflight_only:
-        (
-            certificate_installation_required,
-            _certificate_thumbprint,
-            certificate_expiry_epoch,
-            certificate_source,
-        ) = prepare_server_start_certificate()
-        display_certificate_summary(
-            certificate_installation_required,
-            certificate_expiry_epoch,
-            certificate_source,
-        )
-        if certificate_installation_required:
-            confirm_refreshed_certificate_installation(
-                _certificate_thumbprint,
-                certificate_source,
-            )
-        raise SystemExit(0)
-
-    if os.name == "nt":
-        try:
-            import ctypes
-            windows_server_is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except (AttributeError, OSError):
-            windows_server_is_admin = False
-        if windows_server_is_admin:
-            print("ERROR: The Topaz Repeater Server does not require Administrator rights.")
-            print("Run the generated BAT normally. Administrator rights are requested")
-            print("only when certificate installation is required.")
-            raise SystemExit(1)
-
+def _display_prestart_security_notice(*, include_leading_separator: bool) -> None:
+    """Display the delayed certificate-removal safety notice."""
     time.sleep(4)
-    if not launcher_prepared_certificate:
+    if include_leading_separator:
         print("=" * 43)
     print()
     print("\\\\" * 43)
@@ -10528,23 +11948,27 @@ if __name__ == "__main__":
     time.sleep(5)
     print()
     print()
+
+
+def _display_prestart_easter_egg_art() -> None:
+    """Display the preserved source-view Easter-egg art and pacing."""
     print("⠀⠀⣠⣾⠿⣄⠀⠀⠀⢠⣾⠿⣯⣤⣴⣿⣿⣿⣿⣿⣿⣿⣿⣟⣋⣴⣿⣿⣿⣿⣿⣷⠀⠀⠀⡐⠋⠉⠁⠀⠀")
     time.sleep(1)
     print("⠀⣺⠟⠁⠀⠀⠁⠀⢠⣾⣿⢀⣘⣿⣿⣿⣿⣿⡿⢯⣽⣿⡿⠿⠿⣿⣿⣿⣿⣿⣿⣿⠀⣀⠀⠀⠀⠀⠀⠀⠀")
     time.sleep(1)
+    # Source-view Easter eggs intentionally retain their original alignment.
+    # pylint: disable=line-too-long
     #                                                                   <===== Did you really look at the source code? Twice the fun!
     print("⣺⠃⠀⠀⠀⠀⠀⠀⠻⣿⣿⣾⣿⡿⠋⠉⠀⠀⠀⠉⠋⠉⠀⠀⠀⠈⠙⢿⣿⣿⣿⣿⡇⠉⠲⣄⠀⠀⠀⣀⠀")
     time.sleep(1)
     #                                                                   <===== AirHeads, They're Out Of Control!
     print("⠁⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⣿⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠂⢸⣿⣿⣿⣿⡧⠀⠀⠈⠑⣤⠎⠁⠀")
     time.sleep(1)
-
     print("⠀⠀⠀⢀⣴⣇⠀⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⢀⢀⣠⣴⣤⣴⣿⣿⣿⣿⣿⡇⠀⠀⢀⡴⠋⠲⢄⠀")
     time.sleep(1)
     #                                                                   <===== If my name was Sebastian and I had a cool Jamaican accent, you’d totally help me. You Would. You know you would!
     print("⠀⣀⣴⡵⠋⠈⠑⢤⡀⠀⠸⣿⣿⣾⣿⣷⣿⣿⣿⣷⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣜⣿⠳⣤⠞⠉⠰⠀⠀⠀⠀")
     time.sleep(1)
-
     print("⢀⣵⠋⠀⠀⠀⠀⠀⠹⣆⠀⢻⣿⣿⣿⣿⡿⣿⣿⡿⠁⠹⣿⣿⠿⠟⠛⣹⡿⠀⣿⠿⣶⡿⢤⡀⠀⠁⠀⠀⠀")
     time.sleep(1)
     #                                                                   ===== Leaves from the vine...
@@ -10558,7 +11982,7 @@ if __name__ == "__main__":
     time.sleep(1)
     #                                                                   ===== Drifting in the foam...
     print("⠈⠴⣫⠎⠀⠀⠀⠈⠱⣤⠴⠁⠈⠑⢦⠀⠀⠀⣴⣾⣯⣭⣿⣿⣧⠀⠰⠀⠀⡇⠀⠀⠀⢿⣏⠀⠀⠀⠀⠀⠀")
-    time.sleep(1) 
+    time.sleep(1)
     #                                                                   ===== Little soldier boy...
     print("⢐⡽⠁⠀⠀⠀⠀⠀⠀⠘⠢⣀⠀⠀⠈⢆⢀⠀⠀⣍⠉⠉⠉⡸⠋⠀⠀⠀⠁⡇⠀⣠⠞⠁⠈⠑⢦⡀⠀⣠⠀")
     time.sleep(1)
@@ -10575,8 +11999,13 @@ if __name__ == "__main__":
     print("⠀⠀⠐⠀⠀⠀⠀⠀⠀⠀⢀⣠⠞⠉⠀⠀⠘⠣⣀⠳⠄⠀⠀⠀⠀⠀⢀⣴⡿⠁⠀⠀⠀⠀⠀⠀⠀⠈⠛⠲⡆")
     time.sleep(1)
     #                                                                   ===== Little Soilder Boy - Makko <3
+    # pylint: enable=line-too-long
     print("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⠁⠀⠀⠀⠀⠀⣈⠀⠙⠳⢤⣤⣤⣴⣶⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠")
     time.sleep(1)
+
+
+def _display_prestart_final_notice() -> None:
+    """Display the final prestart messages after the Easter-egg sequence."""
     print()
     print()
     print("         Never Going To Give You Up")
@@ -10589,52 +12018,148 @@ if __name__ == "__main__":
     print()
     print()
     time.sleep(5)
+
+
+def display_repeater_prestart_dialogue(*, include_leading_separator: bool) -> None:
+    """Display the delayed prestart safety notice and source-view Easter eggs."""
+    _display_prestart_security_notice(
+        include_leading_separator=include_leading_separator
+    )
+    _display_prestart_easter_egg_art()
+    _display_prestart_final_notice()
+
+
+
+
+def _parse_repeater_arguments() -> tuple[bool, bool, bool, bool, bool]:
+    """Validate internal launcher options and return the five mutually exclusive modes."""
+    repeater_arguments = set(sys.argv[1:])
+    supported_repeater_arguments = {{
+        "--certificate-preflight",
+        "--install-certificate-elevated",
+        "--launcher-prestart-display",
+        "--launcher-prepared-start",
+        "--launcher-prepared",
+    }}
+    if unknown_repeater_arguments := sorted(
+        repeater_arguments - supported_repeater_arguments
+    ):
+        print(
+            "Unknown repeater option(s): " + ", ".join(unknown_repeater_arguments),
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    modes = (
+        "--certificate-preflight" in repeater_arguments,
+        "--install-certificate-elevated" in repeater_arguments,
+        "--launcher-prestart-display" in repeater_arguments,
+        "--launcher-prepared-start" in repeater_arguments,
+        "--launcher-prepared" in repeater_arguments,
+    )
+    if sum(modes) > 1:
+        print("Repeater internal options cannot be combined.", file=sys.stderr)
+        raise SystemExit(2)
+    return modes
+
+
+def _run_elevated_certificate_install_mode() -> int:
+    """Perform the Unix-root-only approved certificate install helper mode."""
+    if os.name == "nt" or not hasattr(os, "geteuid") or os.geteuid():
+        print(
+            "ERROR: --install-certificate-elevated requires Unix root privileges.",
+            file=sys.stderr,
+        )
+        return 2
+    if not certificate_pair_is_valid(CERT_FILE, KEY_FILE):
+        print(
+            "ERROR: Refusing to install an invalid or expired certificate pair.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        _thumbprint = certificate_sha1_thumbprint(CERT_FILE)
+    except (OSError, TypeError, ValueError, ssl.SSLError) as error:
+        print(f"ERROR: Unable to validate pending certificate: {{error}}", file=sys.stderr)
+        return 2
+    if not _certificate_installation_is_pending(_thumbprint):
+        print(
+            "ERROR: Refusing certificate installation without matching pending state.",
+            file=sys.stderr,
+        )
+        return 2
+    return 0 if _install_local_certificate_elevated_only() else 1
+
+
+def _run_certificate_preflight_mode() -> int:
+    """Prepare, summarize, and if required install the startup certificate."""
+    (
+        installation_required,
+        certificate_thumbprint,
+        expiry_epoch,
+        source,
+    ) = prepare_server_start_certificate()
+    display_certificate_summary(installation_required, expiry_epoch, source)
+    if installation_required:
+        confirm_refreshed_certificate_installation(certificate_thumbprint, source)
+    return 0
+
+
+def _reject_windows_admin_server() -> None:
+    """Reject normal server startup from an elevated Windows process."""
+    if os.name != "nt":
+        return
+    try:
+        windows_server_is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except (AttributeError, OSError):
+        windows_server_is_admin = False
+    if windows_server_is_admin:
+        print("ERROR: The Topaz Repeater Server does not require Administrator rights.")
+        print("Run the generated BAT normally. Administrator rights are requested")
+        print("only when certificate installation is required.")
+        raise SystemExit(1)
+
+
+def _prepare_normal_server_certificate(
+    launcher_prepared_certificate: bool,
+    launcher_prepared_start_only: bool,
+) -> tuple[float, str]:
+    """Prepare the normal server certificate and complete trust confirmation if needed."""
+    (
+        installation_required,
+        certificate_thumbprint,
+        expiry_epoch,
+        source,
+    ) = prepare_server_start_certificate()
+    certificate_summary_already_displayed = (
+        launcher_prepared_certificate or launcher_prepared_start_only
+    )
+    if installation_required or not certificate_summary_already_displayed:
+        display_certificate_summary(installation_required, expiry_epoch, source)
+    if installation_required:
+        confirm_refreshed_certificate_installation(certificate_thumbprint, source)
+    return expiry_epoch, source
+
+
+def _serve_until_certificate_boundary(certificate_expiry_epoch: float) -> int:
+    """Run HTTP/HTTPS servers until interruption or the managed certificate boundary."""
     http80 = None
     http443 = None
     http80_started = False
     http443_started = False
-
-    certificate_installation_required, certificate_thumbprint, certificate_expiry_epoch, certificate_source = (
-        prepare_server_start_certificate()
-    )
-
-    if (
-        not launcher_prepared_certificate
-        or certificate_installation_required
-    ):
-        display_certificate_summary(
-            certificate_installation_required,
-            certificate_expiry_epoch,
-            certificate_source,
-        )
-
-    if certificate_installation_required:
-        confirm_refreshed_certificate_installation(
-            certificate_thumbprint,
-            certificate_source,
-        )
-
     shutdown_reason = None
     certificate_expired = False
-
     try:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
-
         context.set_servername_callback(log_tls_sni)
-
         http80 = QuietHTTPServer(("", HTTP_PORT), TopazMirrorHandler)
         http443 = QuietHTTPSServer(("", HTTPS_PORT), TopazMirrorHandler, context)
-
         drop_sudo_privileges()
-        # Clean legacy report blocks only after leaving elevated mode.
         remove_legacy_tls_sni_report_entries()
-
         threading.Thread(target=http80.serve_forever, daemon=True).start()
         http80_started = True
         threading.Thread(target=http443.serve_forever, daemon=True).start()
         http443_started = True
-
         print()
         print("Topaz Repeater Server Started")
         print("___________________________________________")
@@ -10643,8 +12168,6 @@ if __name__ == "__main__":
         print()
         print("Waiting for Topaz requests...")
         print()
-
-        # Keep the process alive only while the 30-minute certificate is valid.
         while True:
             seconds_until_shutdown = (
                 certificate_expiry_epoch
@@ -10658,36 +12181,56 @@ if __name__ == "__main__":
                 )
                 break
             threading.Event().wait(min(60.0, seconds_until_shutdown))
-
     except KeyboardInterrupt:
         print()
         print("Stopping servers...")
-
     finally:
-        if http80 is not None:
-            try:
-                if http80_started:
-                    http80.shutdown()
-                http80.server_close()
-            except Exception:
-                pass
-
-        if http443 is not None:
-            try:
-                if http443_started:
-                    http443.shutdown()
-                http443.server_close()
-            except Exception:
-                pass
-
+        _close_server_quietly(http80, http80_started)
+        _close_server_quietly(http443, http443_started)
         if shutdown_reason:
+            print()
+            print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             print(shutdown_reason)
         print("Server Shutdown Complete!")
-
     if certificate_expired:
         if not prompt_expired_certificate_cleanup():
-            raise SystemExit(1)
+            return 1
+    return 0
 
+
+def repeater_main() -> int:
+    """Run one validated internal launcher mode or the normal Repeater server."""
+    signal.signal(signal.SIGINT, controlled_interrupt_handler)
+    (
+        certificate_preflight_only,
+        elevated_certificate_install_only,
+        launcher_prestart_display_only,
+        launcher_prepared_start_only,
+        launcher_prepared_certificate,
+    ) = _parse_repeater_arguments()
+    if elevated_certificate_install_only:
+        return _run_elevated_certificate_install_mode()
+    validate_server_assets()
+    os.chdir(MIRROR_ROOT)
+    if certificate_preflight_only:
+        return _run_certificate_preflight_mode()
+    _reject_windows_admin_server()
+    if launcher_prestart_display_only:
+        display_repeater_prestart_dialogue(include_leading_separator=False)
+        return 0
+    if not launcher_prepared_start_only:
+        display_repeater_prestart_dialogue(
+            include_leading_separator=not launcher_prepared_certificate
+        )
+    certificate_expiry_epoch, _ = _prepare_normal_server_certificate(
+        launcher_prepared_certificate,
+        launcher_prepared_start_only,
+    )
+    return _serve_until_certificate_boundary(certificate_expiry_epoch)
+
+
+if __name__ == "__main__":
+    raise SystemExit(repeater_main())
 ''', encoding="utf-8")
 
 try:
@@ -10710,9 +12253,9 @@ print()
 # ============================================================
 
 INTEGRITY_SUCCESS_MESSAGE = (
-    "Download Integrity Result: SUCCESS (SHA-256 SKIPPED)"
+    "Download Integrity Result    : SUCCESS (SHA-256 SKIPPED)"
     if DEBUG_SKIP_FILE_SHA256_SCAN
-    else "Download Integrity Result: SUCCESS"
+    else "Download Integrity Result    : SUCCESS"
 )
 
 
@@ -10761,9 +12304,15 @@ def generate_windows_launcher() -> None:
         'if "!VERIFY_CODE!"=="0" goto CHECK_DOWNLOAD_RESULT',
         'if not "!VERIFY_CODE!"=="1" goto VERIFIER_FAILED',
         'if not exist "!REPAIR!" goto INTEGRITY_FAILED',
+        '!PYTHON_CMD! "!DOWNLOADER!" --repair-network-check',
+        'set "REPAIR_NETWORK_CODE=!ERRORLEVEL!"',
+        'if "!REPAIR_NETWORK_CODE!"=="130" goto CANCELLED',
+        'if "!REPAIR_NETWORK_CODE!"=="1" goto REPAIR_NETWORK_UNAVAILABLE',
+        'if "!REPAIR_NETWORK_CODE!"=="3" goto INTEGRITY_FAILED',
+        'if not "!REPAIR_NETWORK_CODE!"=="0" goto DOWNLOAD_FAILED',
         "echo.",
         "echo SHA-256 repair list detected. Re-running only required downloads...",
-        '!PYTHON_CMD! "!DOWNLOADER!" --launcher-mode',
+        '!PYTHON_CMD! "!DOWNLOADER!" --launcher-mode --repair-only',
         'set "DOWNLOAD_CODE=!ERRORLEVEL!"',
         'if "!DOWNLOAD_CODE!"=="130" goto CANCELLED',
         'if "!DOWNLOAD_CODE!"=="-1073741510" goto CANCELLED',
@@ -10786,17 +12335,20 @@ def generate_windows_launcher() -> None:
         'goto SERVER_PROMPT',
         ':DOWNLOAD_FAILED',
         "echo.",
-        "echo Download Integrity Result: FAILED",
+        "echo Download Integrity Result    : FAILED",
         'set "WORKFLOW_CODE=2"',
         'goto SERVER_PROMPT',
+        ':REPAIR_NETWORK_UNAVAILABLE',
+        'set "DOWNLOAD_CODE=1"',
+        'goto INTEGRITY_FAILED',
         ':INTEGRITY_FAILED',
         "echo.",
-        "echo Download Integrity Result: FAILED",
+        "echo Download Integrity Result    : FAILED",
         'set "WORKFLOW_CODE=1"',
         'goto SERVER_PROMPT',
         ':VERIFIER_FAILED',
         "echo.",
-        "echo Verification Result: FAILED",
+        "echo Verification Result          : FAILED",
         'set "WORKFLOW_CODE=2"',
         ':SERVER_PROMPT',
         'set "FINISHTIME=!TIME!"',
@@ -10823,6 +12375,12 @@ def generate_windows_launcher() -> None:
         ':START_SERVER_PROMPT',
         'set "STARTSERVER="',
         'set /p STARTSERVER=Start the Topaz Repeater Server now? (Y/N): ',
+        'if errorlevel 1 (',
+        '    set "BAT_CANCELLED=1"',
+        '    echo.',
+        '    echo Repeater server startup cancelled because input was closed.',
+        '    goto END_TOPAZ_SERVER',
+        ')',
         'if /I "!STARTSERVER!"=="Y" goto START_TOPAZ_SERVER',
         'if /I "!STARTSERVER!"=="YES" goto START_TOPAZ_SERVER',
         'if /I "!STARTSERVER!"=="N" goto SKIP_TOPAZ_SERVER',
@@ -10887,6 +12445,12 @@ def generate_windows_launcher() -> None:
         'set "HOST_IP="',
         'set "IP_CHOICE="',
         'set /p IP_CHOICE=Choose server IP option 1-!IP_COUNT!: ',
+        'if errorlevel 1 (',
+        '    set "BAT_CANCELLED=1"',
+        '    echo.',
+        '    echo Repeater server startup cancelled because input was closed.',
+        '    goto END_TOPAZ_SERVER',
+        ')',
         'if "!IP_CHOICE!"=="" goto CHOOSE_HOST_IP',
         'for /L %%N in (1,1,!IP_COUNT!) do (',
         '    if "!IP_CHOICE!"=="%%N" set "HOST_IP=!IP_%%N!"',
@@ -10901,6 +12465,12 @@ def generate_windows_launcher() -> None:
         ':CONFIRM_HOST_IP',
         'set "CONFIRM_IP="',
         'set /p CONFIRM_IP=Confirm? !HOST_IP! (Y/N): ',
+        'if errorlevel 1 (',
+        '    set "BAT_CANCELLED=1"',
+        '    echo.',
+        '    echo Repeater server startup cancelled because input was closed.',
+        '    goto END_TOPAZ_SERVER',
+        ')',
         'if /I "!CONFIRM_IP!"=="Y" goto HOST_IP_SELECTED',
         'if /I "!CONFIRM_IP!"=="YES" goto HOST_IP_SELECTED',
         'if /I "!CONFIRM_IP!"=="N" goto CHOOSE_ANOTHER_IP',
@@ -10983,7 +12553,7 @@ def generate_windows_launcher() -> None:
     OUT_BAT.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8", newline="")
 
 def validate_windows_launcher() -> None:
-    text = OUT_BAT.read_text(encoding="utf-8")
+    text = globals()["OUT_BAT"].read_text(encoding="utf-8")
     required = (
         "Topaz_Offline_Download_Creator_Downloader.py",
         "Topaz_Offline_Download_Creator_SHA256_Verifier.py",
@@ -11054,6 +12624,8 @@ def validate_windows_launcher() -> None:
 
     required_delayed_references = (
         '!PYTHON_CMD! "!DOWNLOADER!" --launcher-mode',
+        '!PYTHON_CMD! "!DOWNLOADER!" --launcher-mode --repair-only',
+        '!PYTHON_CMD! "!DOWNLOADER!" --repair-network-check',
         '!PYTHON_CMD! "!VERIFIER!"',
         '!PYTHON_CMD! "!REPEATER!" --certificate-preflight',
         '!PYTHON_CMD! "!REPEATER!" --launcher-prepared',
@@ -11071,6 +12643,7 @@ def validate_windows_launcher() -> None:
     required_download_verification_flow = (
         'if not "!DOWNLOAD_CODE!"=="0" if not "!DOWNLOAD_CODE!"=="1" goto DOWNLOAD_FAILED',
         'if not "!VERIFY_CODE!"=="1" goto VERIFIER_FAILED',
+        'if "!REPAIR_NETWORK_CODE!"=="3" goto INTEGRITY_FAILED',
         'if "!VERIFY_CODE!"=="1" goto INTEGRITY_FAILED',
         ':VERIFIER_FAILED',
         'set "WORKFLOW_CODE=2"',
@@ -11115,6 +12688,24 @@ def validate_windows_launcher() -> None:
             raise RuntimeError(
                 "Windows launcher is missing prompt-state hardening: "
                 f"{value}"
+            )
+
+    required_prompt_eof_blocks = (
+        'set /p STARTSERVER=Start the Topaz Repeater Server now? (Y/N): \n'
+        'if errorlevel 1 (\n'
+        '    set "BAT_CANCELLED=1"',
+        'set /p IP_CHOICE=Choose server IP option 1-!IP_COUNT!: \n'
+        'if errorlevel 1 (\n'
+        '    set "BAT_CANCELLED=1"',
+        'set /p CONFIRM_IP=Confirm? !HOST_IP! (Y/N): \n'
+        'if errorlevel 1 (\n'
+        '    set "BAT_CANCELLED=1"',
+    )
+    for value in required_prompt_eof_blocks:
+        if value not in text:
+            raise RuntimeError(
+                "Windows launcher prompt does not fail closed when stdin closes: "
+                + value.splitlines()[0]
             )
 
     prompt_position = text.find(
@@ -11327,8 +12918,11 @@ def generate_portable_downloader() -> None:
     unknown_size_paths_json = json.dumps(unknown_size_paths, separators=(",", ":"))
 
     downloader_source = rf'''#!/usr/bin/env python3
+"""Download, validate, repair, and resume the generated Topaz offline mirror."""
 # Generated by Topaz Offline Download Creator {VERSION} Build {BUILD}.
 # Shared Windows/macOS/Linux downloader with resumable partial files.
+# The generated filename and standalone module length are deliberate compatibility choices.
+# pylint: disable=invalid-name,too-many-lines
 
 import hashlib
 import json
@@ -11338,13 +12932,14 @@ import re
 import shutil
 import subprocess
 import sys
+import stat
 import tempfile
 import time
 import zipfile
 import zlib
 import lzma
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 VERSION = {VERSION!r}
 BUILD = {BUILD}
@@ -11357,6 +12952,7 @@ FAVICON_URL = (
     "https://cdn.prod.website-files.com/6005fac27a49a9cd477afb63/"
     "66207d4875f767e21d812b11_tnb-favicon-32.png"
 )
+# pylint: disable-next=line-too-long
 GROUPS = json.loads({inventory_json!r})
 
 CONFIG_ROOT = Path(__file__).resolve().parent
@@ -11365,10 +12961,20 @@ MIRROR_ROOT = SERVER_ROOT / "Mirror"
 MANIFEST_ROOT = SERVER_ROOT / "Manifests"
 REPAIR_PATH = MANIFEST_ROOT / "Topaz_Offline_Download_Creator_SHA256_Repair.json"
 SERVER_ASSET_MANIFEST = MANIFEST_ROOT / "Topaz_Offline_Download_Creator_Server_Assets_Manifest.json"
+DISCOVERED_INVENTORY_PATH = (
+    MANIFEST_ROOT / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+)
+DISCOVERED_INVENTORY_SCHEMA = "topaz-offline-discovered-inventory-v2"
+DISCOVERED_SCHEMA_VERSION = 2
+DISCOVERED_INVENTORY_SUFFIXES = frozenset({{
+    ".bin", ".data", ".pb", ".txt", ".tz", ".tz2", ".tz3",
+    ".xml", ".xz", ".yaml", ".zip",
+}})
 ERROR_REPORT = SERVER_ROOT / "Topaz_Offline_Download_Creator_Error.txt"
 
 
 def display_path(path: Path) -> str:
+    """Return a user-facing path relative to the generated package root when possible."""
     try:
         relative = path.resolve().relative_to(SERVER_ROOT.parent.resolve())
     except ValueError:
@@ -11377,8 +12983,9 @@ def display_path(path: Path) -> str:
 
 
 def report_url_is_safe(value: object) -> str | None:
+    """Return a normalized report URL only when it is safe to persist."""
     url = str(value or "").strip()
-    if not url or any(ord(character) < 32 or ord(character) == 127 for character in url):
+    if not url or any(not character.isprintable() for character in url):
         return None
     try:
         parsed = urlparse(url)
@@ -11393,6 +13000,7 @@ def report_url_is_safe(value: object) -> str | None:
 
 
 def error_report_path_is_safe() -> bool:
+    """Validate that the managed error-report path is a regular safe destination."""
     try:
         parent = ERROR_REPORT.parent
         if parent.is_symlink() or not parent.is_dir():
@@ -11406,100 +13014,195 @@ def error_report_path_is_safe() -> bool:
     return True
 
 
+def split_download_report_records(text: str) -> list[str]:
+    """Split only on literal LF; Unicode separators remain ordinary text."""
+    records = text.split("\n")
+    if records and not records[-1]:
+        records.pop()
+    return [record[:-1] if record.endswith("\r") else record for record in records]
+
+
 def read_error_report_lines() -> list[str]:
-    if not error_report_path_is_safe() or not ERROR_REPORT.exists():
-        return []
-    try:
-        return ERROR_REPORT.read_text(
-            encoding="utf-8", errors="replace"
-        ).splitlines()
-    except OSError:
-        return []
-
-
-def atomic_write_error_report_lines(lines: list[str]) -> bool:
+    """Read the managed error report, failing closed when its state is unsafe."""
     if not error_report_path_is_safe():
-        print(f"WARNING: Unsafe error report path: {{ERROR_REPORT}}")
-        return False
-    descriptor = -1
-    temporary_file = None
+        raise RuntimeError(f"Unsafe error report path: {{ERROR_REPORT}}")
+    if not ERROR_REPORT.exists():
+        return []
     try:
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=ERROR_REPORT.name + ".",
-            suffix=".update",
-            dir=str(ERROR_REPORT.parent),
+        return split_download_report_records(
+            ERROR_REPORT.read_text(encoding="utf-8", errors="replace")
         )
-        temporary_file = Path(temporary_name)
+    except OSError as error:
+        raise RuntimeError(f"Unable to read error report: {{error}}") from error
+
+
+def _write_error_report_stage(lines: list[str]) -> Path:
+    """Write report records to a durable staging file and return its path."""
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=ERROR_REPORT.name + ".",
+        suffix=".update",
+        dir=str(ERROR_REPORT.parent),
+    )
+    temporary_file = Path(temporary_name)
+    try:
         try:
             os.chmod(temporary_file, 0o600)
         except OSError:
             pass
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
             descriptor = -1
-            content = "\n".join(lines)
-            if content:
+            if content := "\n".join(lines):
                 content += "\n"
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        if not error_report_path_is_safe():
-            raise OSError("Error report path became unsafe during update.")
-        os.replace(temporary_file, ERROR_REPORT)
-        return True
-    except OSError as error:
+        return temporary_file
+    except OSError:
         if descriptor >= 0:
             try:
                 os.close(descriptor)
             except OSError:
                 pass
+        temporary_file.unlink(missing_ok=True)
+        raise
+
+
+def atomic_write_error_report_lines(lines: list[str]) -> bool:
+    """Atomically replace the managed error report with the supplied records."""
+    if not error_report_path_is_safe():
+        print(f"WARNING: Unsafe error report path: {{ERROR_REPORT}}")
+        return False
+    temporary_file = None
+    try:
+        temporary_file = _write_error_report_stage(lines)
+        if not error_report_path_is_safe():
+            raise OSError("Error report path became unsafe during update.")
+        os.replace(temporary_file, ERROR_REPORT)
+        return True
+    except OSError as error:
         if temporary_file is not None:
             temporary_file.unlink(missing_ok=True)
         print(f"WARNING: Unable to update error report: {{error}}")
         return False
 
 
+def _failed_download_header_matches(
+    lines: list[str],
+    index: int,
+    divider: str,
+) -> bool:
+    """Return whether the indexed report position begins the managed section."""
+    return (
+        index + 2 < len(lines)
+        and lines[index].strip() == divider
+        and lines[index + 1].strip() == "Failed Downloader Request"
+        and lines[index + 2].strip() == divider
+    )
+
+
+def _consume_failed_download_entries(
+    lines: list[str],
+    index: int,
+    entries: list[str],
+) -> int:
+    """Consume managed URL/fixed entries and return the next report index."""
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if stripped.startswith(("URL : ", "REPORTED-FIXED : ")):
+            if stripped not in entries:
+                entries.append(stripped)
+            index += 1
+            continue
+        if not stripped:
+            index += 1
+            continue
+        break
+    return index
+
+
+def _extract_failed_download_report(
+    lines: list[str],
+    divider: str,
+) -> tuple[list[str], list[str], int | None]:
+    """Extract failed-download entries while preserving unrelated report lines."""
+    entries: list[str] = []
+    preserved: list[str] = []
+    insert_at: int | None = None
+    index = 0
+    while index < len(lines):
+        if not _failed_download_header_matches(lines, index, divider):
+            preserved.append(lines[index])
+            index += 1
+            continue
+        if insert_at is None:
+            insert_at = len(preserved)
+        index = _consume_failed_download_entries(lines, index + 3, entries)
+    return entries, preserved, insert_at
+
+
+def _group_failed_download_report(lines: list[str], entry: str) -> list[str]:
+    """Return one canonical Failed Downloader Request section."""
+    divider = "==========================================="
+    entries, preserved, insert_at = _extract_failed_download_report(lines, divider)
+
+    fixed_prefix = "REPORTED-FIXED : "
+    unresolved_prefix = "URL : "
+    if entry.startswith(unresolved_prefix):
+        target_url = entry[len(unresolved_prefix):]
+        fixed_entry = fixed_prefix + target_url
+        entries = [entry if existing == fixed_entry else existing for existing in entries]
+    if entry not in entries:
+        entries.append(entry)
+
+    report_section = [divider, "Failed Downloader Request", divider, *entries]
+    if insert_at is None:
+        insert_at = len(preserved)
+        if preserved and preserved[-1].strip():
+            report_section.insert(0, "")
+    preserved[insert_at:insert_at] = report_section
+    return preserved
+
+
 def report_failed_download(url: str) -> bool:
-    safe_url = report_url_is_safe(url)
-    if safe_url is None:
+    """Record one unresolved downloader URL in the managed error report."""
+    if (safe_url := report_url_is_safe(url)) is None:
         print("WARNING: Failed download URL was not safe to report.")
         return False
     lines = read_error_report_lines()
-    unresolved = f"URL : {{safe_url}}"
-    fixed = f"REPORTED-FIXED : {{safe_url}}"
-    if unresolved in (line.strip() for line in lines):
+    if (unresolved := f"URL : {{safe_url}}") in (line.strip() for line in lines):
         return True
-    updated: list[str] = []
-    reopened = False
-    for line in lines:
-        if line.strip() == fixed:
-            leading = line[:len(line) - len(line.lstrip())]
-            updated.append(f"{{leading}}{{unresolved}}")
-            reopened = True
-        else:
-            updated.append(line)
-    if not reopened:
-        if updated and updated[-1].strip():
-            updated.append("")
-        updated.extend([
-            "===========================================",
-            "Failed Downloader Request",
-            "===========================================",
-            unresolved,
-        ])
+    fixed = f"REPORTED-FIXED : {{safe_url}}"
+    lines = [line for line in lines if line.strip() != fixed]
+    updated = _group_failed_download_report(lines, unresolved)
     return atomic_write_error_report_lines(updated)
+
+def reopen_fixed_download_report(url: str) -> bool:
+    """Reopen an existing fixed marker without inventing a new failed request."""
+    if (safe_url := report_url_is_safe(url)) is None:
+        return False
+    lines = read_error_report_lines()
+    if (fixed := f"REPORTED-FIXED : {{safe_url}}") not in (
+        line.strip() for line in lines
+    ):
+        return True
+    unresolved = f"URL : {{safe_url}}"
+    filtered = [line for line in lines if line.strip() != fixed]
+    return atomic_write_error_report_lines(
+        _group_failed_download_report(filtered, unresolved)
+    )
 
 
 def download_report_url_is_unresolved(url: str) -> bool:
-    safe_url = report_url_is_safe(url)
-    if safe_url is None:
+    """Return whether the managed error report still marks the URL unresolved."""
+    if (safe_url := report_url_is_safe(url)) is None:
         return False
     unresolved = f"URL : {{safe_url}}"
     return unresolved in (line.strip() for line in read_error_report_lines())
 
 
 def mark_download_report_fixed(url: str) -> bool:
-    safe_url = report_url_is_safe(url)
-    if safe_url is None:
+    """Transition one reported downloader URL from unresolved to fixed."""
+    if (safe_url := report_url_is_safe(url)) is None:
         return False
     lines = read_error_report_lines()
     unresolved = f"URL : {{safe_url}}"
@@ -11519,14 +13222,18 @@ def mark_download_report_fixed(url: str) -> bool:
 
 
 def sha256_file(path: Path) -> str:
+    """Return the uppercase SHA-256 digest of a local file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+        while True:
+            if not (chunk := handle.read(8 * 1024 * 1024)):
+                break
             digest.update(chunk)
     return digest.hexdigest().upper()
 
 
 def section(title: str) -> None:
+    """Display a formatted downloader status section heading."""
     print("=" * 43)
     exact_titles = {{
         "Video AI 7.1.5 Extra Package Missing Files":
@@ -11539,76 +13246,113 @@ def section(title: str) -> None:
     print()
 
 
-def active_network_adapter() -> bool:
-    system = platform.system().lower()
-    if system == "windows":
-        powershell = shutil.which("powershell") or shutil.which("pwsh")
-        if powershell:
-            command = (
-                "$items=@(Get-NetAdapter -ErrorAction SilentlyContinue | "
-                "Where-Object {{$_.Status -eq 'Up'}}); "
-                "if($items.Count -gt 0){{exit 0}}else{{exit 1}}"
-            )
-            try:
-                return subprocess.run(
-                    [powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                ).returncode == 0
-            except OSError:
-                return False
+def _windows_network_adapter_active() -> bool:
+    """Return whether Windows reports at least one active network adapter."""
+    if not (powershell := shutil.which("powershell") or shutil.which("pwsh")):
+        return False
+    command = (
+        "$items=@(Get-NetAdapter -ErrorAction SilentlyContinue | "
+        "Where-Object {{$_.Status -eq 'Up'}}); "
+        "if($items.Count -gt 0){{exit 0}}else{{exit 1}}"
+    )
+    try:
+        return not subprocess.run(
+            [
+                powershell, "-NoLogo", "-NoProfile", "-NonInteractive",
+                "-Command", command,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        ).returncode
+    except OSError:
         return False
 
-    if system == "linux":
-        network_root = Path("/sys/class/net")
-        if network_root.is_dir():
-            for interface in network_root.iterdir():
-                if interface.name == "lo":
-                    continue
-                try:
-                    state = (interface / "operstate").read_text(
-                        encoding="utf-8", errors="replace"
-                    ).strip().lower()
-                except OSError:
-                    continue
-                if state in {{"up", "unknown"}}:
-                    return True
-            return False
 
-    if system == "darwin":
-        ifconfig = shutil.which("ifconfig") or "/sbin/ifconfig"
+def _linux_network_adapter_active() -> bool:
+    """Return whether Linux reports an active non-loopback interface."""
+    network_root = Path("/sys/class/net")
+    if not network_root.is_dir():
+        return False
+    for interface in network_root.iterdir():
+        if interface.name == "lo":
+            continue
         try:
-            result = subprocess.run(
-                [ifconfig, "-a"], capture_output=True, text=True, check=False
-            )
+            state = (interface / "operstate").read_text(
+                encoding="utf-8", errors="replace"
+            ).strip().lower()
         except OSError:
-            return False
-        current_name = ""
-        current_lines: list[str] = []
-        def current_active() -> bool:
-            if current_name == "lo0":
-                return False
-            block = "\n".join(current_lines).lower()
-            return "status: active" in block or (
-                "<up," in block and "running" in block and "inet " in block
-            )
-        for raw_line in result.stdout.splitlines():
-            if raw_line and not raw_line[0].isspace() and ":" in raw_line:
-                if current_active():
-                    return True
-                current_name = raw_line.split(":", 1)[0]
-                current_lines = [raw_line]
-            else:
-                current_lines.append(raw_line)
-        return current_active()
+            continue
+        if state in {{"up", "unknown"}}:
+            return True
     return False
 
 
-def curl_command() -> str | None:
-    return shutil.which("curl") or shutil.which("curl.exe")
+def _darwin_interface_active(name: str, lines: list[str]) -> bool:
+    """Return whether one parsed macOS interface block appears active."""
+    if name == "lo0":
+        return False
+    interface_block = "\n".join(lines).lower()
+    return "status: active" in interface_block or (
+        "<up," in interface_block
+        and "running" in interface_block
+        and "inet " in interface_block
+    )
+
+
+def _darwin_network_adapter_active() -> bool:
+    """Return whether macOS reports an active non-loopback interface."""
+    ifconfig = shutil.which("ifconfig") or "/sbin/ifconfig"
+    try:
+        result = subprocess.run(
+            [ifconfig, "-a"], capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return False
+
+    current_name = ""
+    current_lines: list[str] = []
+    for raw_line in result.stdout.splitlines():
+        if raw_line and not raw_line[0].isspace() and ":" in raw_line:
+            if _darwin_interface_active(current_name, current_lines):
+                return True
+            current_name = raw_line.split(":", 1)[0]
+            current_lines = [raw_line]
+        else:
+            current_lines.append(raw_line)
+    return _darwin_interface_active(current_name, current_lines)
+
+
+def active_network_adapter() -> bool:
+    """Return whether the current platform has an active non-loopback network adapter."""
+    system = platform.system().lower()
+    if system == "windows":
+        return _windows_network_adapter_active()
+    if system == "linux":
+        return _linux_network_adapter_active()
+    if system == "darwin":
+        return _darwin_network_adapter_active()
+    return False
+
+
+def download_backend() -> tuple[str, str] | None:
+    """Select the supported curl or wget backend available on this system."""
+    system = platform.system().lower()
+    if system == "windows":
+        curl = shutil.which("curl") or shutil.which("curl.exe")
+        return ("curl", curl) if curl else None
+    if system in {{"linux", "darwin"}}:
+        if curl := shutil.which("curl"):
+            return ("curl", curl)
+        if wget := shutil.which("wget"):
+            return ("wget", wget)
+        return None
+    raise RuntimeError(f"Unsupported operating system: {{system}}")
 
 
 def downloader_hosts_file_path() -> Path:
+    """Return the platform hosts-file path used for offline override detection."""
     system = platform.system().lower()
     if system == "windows":
         system_root = os.environ.get("SystemRoot", r"C:\\Windows")
@@ -11619,6 +13363,7 @@ def downloader_hosts_file_path() -> Path:
 
 
 def active_hosts_mappings(hosts_file: Path) -> dict[str, str]:
+    """Read active hosts-file mappings for the requested hostnames."""
     try:
         lines = hosts_file.read_text(
             encoding="utf-8", errors="replace"
@@ -11630,34 +13375,32 @@ def active_hosts_mappings(hosts_file: Path) -> dict[str, str]:
 
     mappings: dict[str, str] = {{}}
     for raw_line in lines:
-        active_line = raw_line.split("#", 1)[0].strip()
-        if not active_line:
+        if not (active_line := raw_line.split("#", 1)[0].strip()):
             continue
         fields = active_line.split()
         if len(fields) < 2:
             continue
         address = fields[0]
         for hostname in fields[1:]:
-            normalized = hostname.rstrip(".").lower()
-            if normalized:
+            if normalized := hostname.rstrip(".").lower():
                 mappings[normalized] = address
     return mappings
 
 
 def active_hosts_override(url: str) -> tuple[Path, str, str] | None:
+    """Return the active offline hosts override for a download URL, if any."""
     parsed = urlparse(url)
-    host = (parsed.hostname or "").rstrip(".").lower()
-    if not host:
+    if not (host := (parsed.hostname or "").rstrip(".").lower()):
         raise RuntimeError(f"Download URL has no hostname: {{url}}")
     hosts_file = downloader_hosts_file_path()
     mappings = active_hosts_mappings(hosts_file)
-    mapping = mappings.get(host)
-    if mapping is None:
+    if (mapping := mappings.get(host)) is None:
         return None
     return hosts_file, host, mapping
 
 
 def report_hosts_download_block(url: str) -> bool:
+    """Report and reject a download URL currently redirected into the offline mirror."""
     try:
         override = active_hosts_override(url)
     except RuntimeError as error:
@@ -11680,18 +13423,63 @@ def report_hosts_download_block(url: str) -> bool:
     return True
 
 
-def topaz_website_reached(curl: str) -> bool:
+def wget_resolve_url(wget: str, url: str, allowed_schemes: set[str]) -> str | None:
+    """Resolve redirects without allowing wget to cross a forbidden scheme boundary."""
+    current = url
+    for _redirect in range(11):
+        parsed = urlparse(current)
+        if parsed.scheme.lower() not in allowed_schemes:
+            print(f"Blocked wget redirect to disallowed protocol: {{current}}")
+            return None
+        try:
+            result = subprocess.run(
+                [
+                    wget, "--spider", "--server-response", "--max-redirect=0",
+                    "--timeout=10", "--tries=1", current,
+                ],
+                capture_output=True, text=True, check=False,
+            )
+        except OSError as error:
+            print(f"wget execution failed: {{error}}")
+            return None
+        if not result.returncode:
+            return current
+        output = (result.stderr or "") + "\n" + (result.stdout or "")
+        locations = re.findall(r"^\s*Location:\s*(\S+)", output, flags=re.IGNORECASE | re.MULTILINE)
+        if not locations:
+            return None
+        redirected = urljoin(current, locations[-1])
+        if urlparse(redirected).scheme.lower() not in allowed_schemes:
+            print(f"Blocked wget redirect to disallowed protocol: {{redirected}}")
+            return None
+        current = redirected
+    print("wget redirect limit exceeded.")
+    return None
+
+
+def topaz_website_reached(backend: tuple[str, str]) -> bool:
+    """Probe Topaz connectivity through the selected download backend."""
     # Do not let the network probe itself loop back into the offline Repeater.
     if active_hosts_override(TOPAZ_PROBE_URL) is not None:
         return False
-    return subprocess.run(
-        [curl, "--silent", "--fail", "--location", "--output", os.devnull,
-         "--connect-timeout", "5", "--max-time", "10", TOPAZ_PROBE_URL],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
-    ).returncode == 0
+    backend_name, executable = backend
+    if backend_name == "curl":
+        return not subprocess.run(
+            [
+                executable, "--silent", "--fail", "--location", "--output", os.devnull,
+                "--connect-timeout", "5", "--max-time", "10", TOPAZ_PROBE_URL,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        ).returncode
+    if backend_name == "wget":
+        return wget_resolve_url(executable, TOPAZ_PROBE_URL, {{"https"}}) is not None
+    raise RuntimeError(f"Unsupported download backend: {{backend_name}}")
 
 
 def format_validation_size(size_bytes: int) -> str:
+    """Format a validation byte count for concise user-facing output."""
     size = max(0, int(size_bytes))
     if size >= 1_000_000_000:
         return f"{{size / 1_000_000_000:.2f}} GB"
@@ -11702,27 +13490,36 @@ def format_validation_size(size_bytes: int) -> str:
     return f"{{size}} bytes"
 
 
-def validate_zip_content(path: Path, size_bytes: int) -> bool:
-    print(f"Validating ZIP content: {{path.name}}", flush=True)
-    print(f"Size: {{format_validation_size(size_bytes)}}", flush=True)
-    started = time.monotonic()
+def validate_zip_content(
+    path: Path,
+    size_bytes: int,
+    *,
+    announce: bool = False,
+) -> bool:
+    """Validate ZIP structure and CRC content without extracting the archive."""
+    if announce:
+        print(f"Validating ZIP content: {{path.name}}", flush=True)
+        print(f"Size: {{format_validation_size(size_bytes)}}", flush=True)
+        started = time.monotonic()
     valid = False
     try:
         with zipfile.ZipFile(path) as archive:
             valid = archive.testzip() is None
     except (OSError, RuntimeError, zipfile.BadZipFile, zlib.error, lzma.LZMAError):
         valid = False
-    elapsed = time.monotonic() - started
-    status = "PASSED" if valid else "FAILED"
-    print(
-        f"ZIP content validation {{status}}: {{path.name}} "
-        f"({{elapsed:.2f}} seconds)",
-        flush=True,
-    )
+    if announce:
+        elapsed = time.monotonic() - started
+        status = "PASSED" if valid else "FAILED"
+        print(
+            f"ZIP content validation {{status}}: {{path.name}} "
+            f"({{elapsed:.2f}} seconds)",
+            flush=True,
+        )
     return valid
 
 
 def file_validation_signature(path: Path) -> tuple[int, int] | None:
+    """Return the stable size and modification signature used by validation caching."""
     try:
         if path.is_symlink() or not path.is_file():
             return None
@@ -11732,24 +13529,33 @@ def file_validation_signature(path: Path) -> tuple[int, int] | None:
         return None
 
 
+def _zip_file_is_valid(path: Path, actual_size: int, verify_zip_crc: bool) -> bool:
+    """Validate ZIP identity and optional full CRC content."""
+    content_suffix = path.suffix.casefold()
+    if content_suffix == ".part":
+        content_suffix = Path(path.stem).suffix.casefold()
+    if content_suffix != ".zip":
+        return False
+    if verify_zip_crc:
+        return validate_zip_content(path, actual_size)
+    return zipfile.is_zipfile(path)
+
+
 def file_is_valid(path: Path, expected_size: int, *, verify_zip_crc: bool = False) -> bool:
+    """Validate one file against expected size, digest, and optional ZIP CRC requirements."""
     try:
         if path.is_symlink() or not path.is_file():
             return False
         actual = path.stat().st_size
-        if expected_size > 0 and actual != expected_size:
-            return False
-        if actual <= 0:
-            return False
-        if verify_zip_crc:
-            if path.suffix.casefold() != ".zip":
-                return False
-            return validate_zip_content(path, actual)
-        if expected_size <= 0 and path.suffix.casefold() == ".zip":
-            return zipfile.is_zipfile(path)
-        return True
     except OSError:
         return False
+    if actual <= 0 or (expected_size > 0 and actual != expected_size):
+        return False
+    if verify_zip_crc:
+        return _zip_file_is_valid(path, actual, True)
+    if expected_size <= 0 and path.suffix.casefold() == ".zip":
+        return _zip_file_is_valid(path, actual, False)
+    return True
 
 
 def group_file_is_valid(
@@ -11759,6 +13565,7 @@ def group_file_is_valid(
     verify_zip_crc: bool,
     validation_cache: dict[str, tuple[tuple[int, int], bool]],
 ) -> bool:
+    """Validate one group item and reuse cached validation when safe."""
     if not verify_zip_crc:
         return file_is_valid(path, expected_size, verify_zip_crc=False)
 
@@ -11769,8 +13576,7 @@ def group_file_is_valid(
         return cached[1]
 
     valid = file_is_valid(path, expected_size, verify_zip_crc=True)
-    final_signature = file_validation_signature(path)
-    if final_signature is None:
+    if (final_signature := file_validation_signature(path)) is None:
         validation_cache.pop(cache_key, None)
     else:
         validation_cache[cache_key] = (final_signature, valid)
@@ -11782,6 +13588,7 @@ def cache_group_validation(
     valid: bool,
     validation_cache: dict[str, tuple[tuple[int, int], bool]],
 ) -> None:
+    """Cache one validated group item's current file signature."""
     signature = file_validation_signature(path)
     cache_key = str(path)
     if signature is None:
@@ -11790,7 +13597,18 @@ def cache_group_validation(
         validation_cache[cache_key] = (signature, bool(valid))
 
 
+def _favicon_payload_is_valid(size: int, prefix: bytes) -> bool:
+    """Return whether favicon bytes match an accepted favicon representation."""
+    if size == 239:
+        return True
+    return prefix.startswith((
+        bytes.fromhex("89504E470D0A1A0A"),
+        bytes.fromhex("00000100"),
+    ))
+
+
 def downloaded_support_file_is_valid(path: Path, source_url: str) -> bool:
+    """Validate a downloaded support asset before accepting it into the mirror."""
     if not file_is_valid(path, 0):
         return False
     try:
@@ -11800,34 +13618,27 @@ def downloaded_support_file_is_valid(path: Path, source_url: str) -> bool:
     except OSError:
         return False
     if source_url == FAVICON_URL:
-        # Keep favicon handling compatible with both the original local .ico asset
-        # and the current small upstream response. The
-        # 239-byte response is a deliberate favicon-only exception so it is
-        # registered and displayed as a normal support-asset download.
-        if size == 239:
-            return True
-        if prefix.startswith(bytes.fromhex("89504E470D0A1A0A")):
-            return True
-        if prefix.startswith(bytes.fromhex("00000100")):
-            return True
-        return False
+        # The 239-byte response is a deliberate favicon-only exception.
+        return _favicon_payload_is_valid(size, prefix)
     lowered = prefix.lstrip().lower()
-    if lowered.startswith((b"<!doctype html", b"<html")):
-        return False
-    return True
+    return not lowered.startswith((b"<!doctype html", b"<html"))
 
 
 def canonical_asset_payload(records: list[dict]) -> bytes:
+    """Return the canonical JSON payload used for generated support-asset records."""
     return json.dumps(
         records, ensure_ascii=False, separators=(",", ":")
     ).encode("utf-8")
 
 
-def record_downloaded_support_asset(path: Path, source_url: str) -> None:
+def _load_support_asset_manifest() -> tuple[dict, list[dict]]:
+    """Load and validate support-asset manifest metadata and payload checksum."""
     try:
         manifest = json.loads(SERVER_ASSET_MANIFEST.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise RuntimeError(f"Unable to read server support-asset manifest: {{error}}") from error
+        raise RuntimeError(
+            f"Unable to read server support-asset manifest: {{error}}"
+        ) from error
     if manifest.get("schema_version") != 1:
         raise RuntimeError("Unsupported server support-asset manifest schema.")
     if manifest.get("mirror_relative_root") != "Mirror":
@@ -11841,54 +13652,93 @@ def record_downloaded_support_asset(path: Path, source_url: str) -> None:
         raise RuntimeError("Server support-asset manifest count is invalid.")
     expected_payload = str(manifest.get("records_payload_sha256", "")).upper()
     actual_payload = hashlib.sha256(canonical_asset_payload(records)).hexdigest().upper()
-    if not re.fullmatch(r"[0-9A-F]{{64}}", expected_payload) or actual_payload != expected_payload:
+    if (
+        not re.fullmatch(r"[0-9A-F]{{64}}", expected_payload)
+        or actual_payload != expected_payload
+    ):
         raise RuntimeError("Server support-asset manifest payload checksum failed.")
+    return manifest, records
+
+
+def _validate_support_asset_record(
+    item: object,
+    seen: set[str],
+    mirror_resolved: Path,
+) -> None:
+    """Validate one existing support-asset record and its physical file."""
+    if not isinstance(item, dict):
+        raise RuntimeError("Invalid server support-asset record.")
+    relative_item = safe_relative_path(item.get("relative_path"))
+    if (key := relative_item.casefold()) in seen:
+        raise RuntimeError(f"Duplicate server support-asset path: {{relative_item}}")
+    seen.add(key)
+    try:
+        expected_size = int(item.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(
+            f"Invalid server support-asset size: {{relative_item}}"
+        ) from error
+    expected_sha = str(item.get("sha256", "")).upper()
+    if expected_size <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", expected_sha):
+        raise RuntimeError(
+            f"Invalid server support-asset integrity data: {{relative_item}}"
+        )
+    item_path = MIRROR_ROOT.joinpath(*PurePosixPath(relative_item).parts)
+    if mirror_path_has_link_component(item_path):
+        raise RuntimeError(
+            f"Server support asset contains a link-like path: {{relative_item}}"
+        )
+    item_path.resolve().relative_to(mirror_resolved)
+    if not item_path.is_file() or item_path.stat().st_size != expected_size:
+        raise RuntimeError(
+            f"Server support asset is missing or has the wrong size: {{relative_item}}"
+        )
+    if hashlib.sha256(item_path.read_bytes()).hexdigest().upper() != expected_sha:
+        raise RuntimeError(f"Server support-asset SHA-256 mismatch: {{relative_item}}")
+
+
+def _validate_support_asset_records(records: list[dict]) -> None:
+    """Validate all existing support-asset records before manifest mutation."""
     seen: set[str] = set()
     mirror_resolved = MIRROR_ROOT.resolve()
     for item in records:
-        if not isinstance(item, dict):
-            raise RuntimeError("Invalid server support-asset record.")
-        relative_item = safe_relative_path(item.get("relative_path"))
-        key = relative_item.casefold()
-        if key in seen:
-            raise RuntimeError(f"Duplicate server support-asset path: {{relative_item}}")
-        seen.add(key)
-        try:
-            expected_size = int(item.get("size_bytes", 0) or 0)
-        except (TypeError, ValueError) as error:
-            raise RuntimeError(f"Invalid server support-asset size: {{relative_item}}") from error
-        expected_sha = str(item.get("sha256", "")).upper()
-        if expected_size <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", expected_sha):
-            raise RuntimeError(f"Invalid server support-asset integrity data: {{relative_item}}")
-        item_path = MIRROR_ROOT.joinpath(*PurePosixPath(relative_item).parts)
-        item_path.resolve().relative_to(mirror_resolved)
-        if not item_path.is_file() or item_path.stat().st_size != expected_size:
-            raise RuntimeError(f"Server support asset is missing or has the wrong size: {{relative_item}}")
-        if hashlib.sha256(item_path.read_bytes()).hexdigest().upper() != expected_sha:
-            raise RuntimeError(f"Server support-asset SHA-256 mismatch: {{relative_item}}")
+        _validate_support_asset_record(item, seen, mirror_resolved)
+
+
+def _downloaded_support_record(path: Path, source_url: str) -> dict:
+    """Build the manifest record for one validated downloaded support asset."""
+    if mirror_path_has_link_component(path):
+        raise RuntimeError(f"Downloaded support asset contains a link-like path: {{path}}")
     resolved = path.resolve()
-    resolved.relative_to(MIRROR_ROOT.resolve())
-    relative = resolved.relative_to(MIRROR_ROOT.resolve()).as_posix()
+    mirror_resolved = MIRROR_ROOT.resolve()
+    resolved.relative_to(mirror_resolved)
+    relative = resolved.relative_to(mirror_resolved).as_posix()
     raw = path.read_bytes()
-    record = {{
+    return {{
         "relative_path": relative,
         "size_bytes": len(raw),
         "sha256": hashlib.sha256(raw).hexdigest().upper(),
         "source": "downloaded_support",
         "source_url": source_url,
     }}
+
+
+def _updated_support_asset_records(records: list[dict], record: dict) -> list[dict]:
+    """Merge one support-asset record by relative path and return canonical order."""
     records_by_path = {{
         str(item.get("relative_path", "")).casefold(): dict(item)
         for item in records
         if isinstance(item, dict) and item.get("relative_path")
     }}
-    records_by_path[relative.casefold()] = record
-    updated = sorted(records_by_path.values(), key=lambda item: str(item["relative_path"]).casefold())
-    manifest["asset_count"] = len(updated)
-    manifest["records_payload_sha256"] = hashlib.sha256(
-        canonical_asset_payload(updated)
-    ).hexdigest().upper()
-    manifest["files"] = updated
+    records_by_path[str(record["relative_path"]).casefold()] = record
+    return sorted(
+        records_by_path.values(),
+        key=lambda item: str(item["relative_path"]).casefold(),
+    )
+
+
+def _write_support_asset_manifest(manifest: dict) -> None:
+    """Atomically write the updated support-asset manifest."""
     SERVER_ASSET_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     descriptor, staged_name = tempfile.mkstemp(
         prefix=f".{{SERVER_ASSET_MANIFEST.name}}.",
@@ -11904,7 +13754,24 @@ def record_downloaded_support_asset(path: Path, source_url: str) -> None:
         staged.unlink(missing_ok=True)
 
 
+def record_downloaded_support_asset(path: Path, source_url: str) -> None:
+    """Register a newly downloaded support asset in the managed asset manifest."""
+    manifest, records = _load_support_asset_manifest()
+    _validate_support_asset_records(records)
+    updated = _updated_support_asset_records(
+        records,
+        _downloaded_support_record(path, source_url),
+    )
+    manifest["asset_count"] = len(updated)
+    manifest["records_payload_sha256"] = hashlib.sha256(
+        canonical_asset_payload(updated)
+    ).hexdigest().upper()
+    manifest["files"] = updated
+    _write_support_asset_manifest(manifest)
+
+
 def safe_relative_path(value: object) -> str:
+    """Normalize and validate one mirror-relative POSIX path."""
     text = str(value or "").replace("\\", "/").strip("/")
     path = PurePosixPath(text)
     if not text or path.is_absolute() or any(part in {{"", ".", ".."}} for part in path.parts):
@@ -11912,32 +13779,88 @@ def safe_relative_path(value: object) -> str:
     return path.as_posix()
 
 
+def path_is_link_like(path: Path) -> bool:
+    """Return whether one existing path is a symlink, junction, or reparse point."""
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction):
+        try:
+            if is_junction():
+                return True
+        except OSError:
+            return True
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(reparse_flag and attributes & reparse_flag)
+
+
+def mirror_path_has_link_component(path: Path) -> bool:
+    """Reject any link-like component below Mirror, including the final path."""
+    try:
+        relative = path.relative_to(MIRROR_ROOT)
+    except ValueError:
+        return True
+    candidates = (
+        MIRROR_ROOT.joinpath(*relative.parts[:index])
+        for index in range(1, len(relative.parts) + 1)
+    )
+    return any(
+        os.path.lexists(candidate) and path_is_link_like(candidate)
+        for candidate in candidates
+    )
+
+
+def _validate_mirror_parent(
+    current: Path,
+    relative: str,
+    mirror_resolved: Path,
+    *,
+    create_parents: bool,
+) -> bool:
+    """Validate one mirror parent component and optionally create it."""
+    if path_is_link_like(current):
+        raise RuntimeError(f"Downloader path contains a link-like component: {{relative}}")
+    if current.exists():
+        if not current.is_dir():
+            raise RuntimeError(f"Downloader parent is not a directory: {{relative}}")
+    else:
+        if not create_parents:
+            return False
+        current.mkdir()
+    try:
+        current.resolve().relative_to(mirror_resolved)
+    except (OSError, ValueError) as error:
+        raise RuntimeError(f"Downloader path escaped Mirror: {{relative}}") from error
+    return True
+
+
 def safe_mirror_destination(value: object, *, create_parents: bool = False) -> Path:
+    """Resolve one validated relative path inside the mirror root."""
     relative = safe_relative_path(value)
     MIRROR_ROOT.mkdir(parents=True, exist_ok=True)
     mirror_resolved = MIRROR_ROOT.resolve()
     parts = PurePosixPath(relative).parts
     current = MIRROR_ROOT
-
     for component in parts[:-1]:
         current = current / component
-        if current.is_symlink():
-            raise RuntimeError(f"Downloader path contains a symbolic link: {{relative}}")
-        if current.exists():
-            if not current.is_dir():
-                raise RuntimeError(f"Downloader parent is not a directory: {{relative}}")
-        elif create_parents:
-            current.mkdir()
-        else:
+        if not _validate_mirror_parent(
+            current,
+            relative,
+            mirror_resolved,
+            create_parents=create_parents,
+        ):
             break
-        try:
-            current.resolve().relative_to(mirror_resolved)
-        except (OSError, ValueError) as error:
-            raise RuntimeError(f"Downloader path escaped Mirror: {{relative}}") from error
 
     destination = MIRROR_ROOT.joinpath(*parts)
-    if destination.is_symlink():
-        raise RuntimeError(f"Downloader destination is a symbolic link: {{relative}}")
+    if path_is_link_like(destination):
+        raise RuntimeError(f"Downloader destination is link-like: {{relative}}")
     try:
         destination.parent.resolve().relative_to(mirror_resolved)
     except (OSError, ValueError) as error:
@@ -11946,6 +13869,7 @@ def safe_mirror_destination(value: object, *, create_parents: bool = False) -> P
 
 
 def discard_invalid_repair_list(reason: str) -> dict[str, tuple[int, str]]:
+    """Remove an invalid or unsafe SHA-256 repair-list file."""
     print(f"Warning: ignoring stale or invalid SHA-256 repair list: {{reason}}")
     removed = False
     try:
@@ -11963,74 +13887,101 @@ def discard_invalid_repair_list(reason: str) -> dict[str, tuple[int, str]]:
     if removed:
         print("Stale repair list removed. Continuing with normal download checks.")
     else:
-        print("Continuing with normal download checks; the verifier will rebuild the repair state if needed.")
+        print(
+            "Continuing with normal download checks; "
+            "the verifier will rebuild the repair state if needed."
+        )
     return {{}}
 
 
-def load_repair_paths() -> dict[str, tuple[int, str]]:
+def _read_repair_payload() -> dict | None:
+    """Read the repair-list payload or return None when no repair list exists."""
     if REPAIR_PATH.is_symlink():
-        return discard_invalid_repair_list("repair-list path is a symbolic link")
+        raise RuntimeError("repair-list path is a symbolic link")
     if not REPAIR_PATH.exists():
-        return {{}}
+        return None
     if not REPAIR_PATH.is_file():
-        return discard_invalid_repair_list("repair-list path is not a regular file")
-
+        raise RuntimeError("repair-list path is not a regular file")
     try:
         payload = json.loads(REPAIR_PATH.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        return discard_invalid_repair_list(f"unable to read JSON: {{error}}")
-
+        raise RuntimeError(f"unable to read JSON: {{error}}") from error
     if not isinstance(payload, dict):
-        return discard_invalid_repair_list("top-level JSON value is not an object")
+        raise RuntimeError("top-level JSON value is not an object")
+    return payload
+
+
+def _validated_repair_failures(payload: dict) -> list[dict]:
+    """Validate repair-list metadata and return its failure entries."""
     if payload.get("schema_version") != 3:
-        return discard_invalid_repair_list("unsupported or stale repair-list schema")
+        raise RuntimeError("unsupported or stale repair-list schema")
     if payload.get("creator_build") != BUILD:
-        return discard_invalid_repair_list("repair list belongs to a different creator build")
+        raise RuntimeError("repair list belongs to a different creator build")
     generated_utc = payload.get("generated_utc")
     if not isinstance(generated_utc, str) or not generated_utc.strip():
-        return discard_invalid_repair_list("repair list has no generation timestamp")
-    if str(payload.get("physical_records_payload_sha256", "")).upper() != PHYSICAL_RECORDS_PAYLOAD_SHA256:
-        return discard_invalid_repair_list("inventory checksum does not match this build")
-
+        raise RuntimeError("repair list has no generation timestamp")
+    if (
+        str(payload.get("physical_records_payload_sha256", "")).upper()
+        != PHYSICAL_RECORDS_PAYLOAD_SHA256
+    ):
+        raise RuntimeError("inventory checksum does not match this build")
     failures = payload.get("failures")
     if not isinstance(failures, list):
-        return discard_invalid_repair_list("failures field is not a list")
+        raise RuntimeError("failures field is not a list")
     canonical_failures = json.dumps(
         failures,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    expected_failures_hash = hashlib.sha256(canonical_failures).hexdigest().upper()
-    if str(payload.get("failures_payload_sha256", "")).upper() != expected_failures_hash:
-        return discard_invalid_repair_list("repair-list failure payload checksum is invalid")
+    expected_hash = hashlib.sha256(canonical_failures).hexdigest().upper()
+    if str(payload.get("failures_payload_sha256", "")).upper() != expected_hash:
+        raise RuntimeError("repair-list failure payload checksum is invalid")
+    return failures
 
-    repair_paths: dict[str, tuple[int, str]] = {{}}
-    for item in failures:
-        if not isinstance(item, dict):
-            return discard_invalid_repair_list("failure entry is not an object")
-        try:
-            relative = safe_relative_path(item.get("relative_path"))
-        except RuntimeError as error:
-            return discard_invalid_repair_list(str(error))
-        key = relative.casefold()
-        if key in repair_paths:
-            return discard_invalid_repair_list("repair list contains duplicate mirror paths")
-        reason = str(item.get("reason", ""))
-        if reason not in {{"missing", "size_mismatch", "hash_mismatch", "read_error", "unsafe_path"}}:
-            return discard_invalid_repair_list("repair list contains an invalid failure reason")
-        expected_size = item.get("expected_size")
-        expected_sha = str(item.get("expected_sha256", "")).upper()
-        if not isinstance(expected_size, int) or expected_size <= 0:
-            return discard_invalid_repair_list("repair list contains an invalid expected size")
-        if not re.fullmatch(r"[0-9A-F]{{64}}", expected_sha):
-            return discard_invalid_repair_list("repair list contains an invalid expected SHA-256")
-        repair_paths[key] = (expected_size, expected_sha)
 
-    return repair_paths
+def _validated_repair_entry(
+    item: object,
+    repair_paths: dict[str, tuple[int, str]],
+) -> tuple[str, tuple[int, str]]:
+    """Validate and normalize one repair-list failure entry."""
+    if not isinstance(item, dict):
+        raise RuntimeError("failure entry is not an object")
+    relative = safe_relative_path(item.get("relative_path"))
+    if (key := relative.casefold()) in repair_paths:
+        raise RuntimeError("repair list contains duplicate mirror paths")
+    reason = str(item.get("reason", ""))
+    allowed_reasons = {{
+        "missing", "size_mismatch", "hash_mismatch", "read_error", "unsafe_path",
+    }}
+    if reason not in allowed_reasons:
+        raise RuntimeError("repair list contains an invalid failure reason")
+    expected_size = item.get("expected_size")
+    expected_sha = str(item.get("expected_sha256", "")).upper()
+    if not isinstance(expected_size, int) or expected_size <= 0:
+        raise RuntimeError("repair list contains an invalid expected size")
+    if not re.fullmatch(r"[0-9A-F]{{64}}", expected_sha):
+        raise RuntimeError("repair list contains an invalid expected SHA-256")
+    return key, (expected_size, expected_sha)
+
+
+def load_repair_paths() -> dict[str, tuple[int, str]]:
+    """Load actionable SHA-256 repairs from the reserved schema-3 repair file."""
+    try:
+        if (payload := _read_repair_payload()) is None:
+            return {{}}
+        failures = _validated_repair_failures(payload)
+        repair_paths: dict[str, tuple[int, str]] = {{}}
+        for item in failures:
+            key, metadata = _validated_repair_entry(item, repair_paths)
+            repair_paths[key] = metadata
+        return repair_paths
+    except RuntimeError as error:
+        return discard_invalid_repair_list(str(error))
 
 
 def run_curl(command: list[str]) -> int:
+    """Run curl with the supplied argument vector and return its exit code."""
     try:
         return subprocess.run(command, check=False).returncode
     except OSError as error:
@@ -12038,151 +13989,294 @@ def run_curl(command: list[str]) -> int:
         return 127
 
 
-def download_file(
-    curl: str, *, url: str, destination: Path, expected_size: int,
-    force_repair: bool = False, expected_sha256: str = "",
-    partial_sha256: str = "", verify_zip_crc: bool = False,
-) -> bool:
-    # Never let an external download resolve through the local offline-server
-    # hosts override. The guard runs immediately before any
-    # destination/partial mutation and before curl is invoked.
-    if report_hosts_download_block(url):
-        return False
+def run_wget_download(
+    wget: str, *, url: str, output: Path, resume: bool,
+) -> int:
+    """Run wget for one download, optionally resuming an existing partial file."""
+    parsed = urlparse(url)
+    allowed_schemes = {{"http", "https"}} if parsed.scheme.lower() == "http" else {{"https"}}
+    if (resolved_url := wget_resolve_url(wget, url, allowed_schemes)) is None:
+        return 8
+    command = [
+        wget, "--max-redirect=0", "--tries=3", "--timeout=60",
+        "--no-verbose", "--output-document", str(output),
+    ]
+    if resume:
+        command.append("--continue")
+    command.append(resolved_url)
+    try:
+        return subprocess.run(command, check=False).returncode
+    except OSError as error:
+        print(f"wget execution failed: {{error}}")
+        return 127
 
+
+def _download_paths(
+    destination: Path,
+) -> tuple[str, Path, Path] | None:
+    """Validate destination/partial paths and return normalized download paths."""
     try:
         relative = destination.relative_to(MIRROR_ROOT).as_posix()
     except ValueError as error:
-        raise RuntimeError(f"Downloader destination is outside Mirror: {{destination}}") from error
+        raise RuntimeError(
+            f"Downloader destination is outside Mirror: {{destination}}"
+        ) from error
     destination = safe_mirror_destination(relative, create_parents=True)
     if destination.exists() and not destination.is_file():
         print(f"Refusing non-regular downloader destination: {{destination.name}}")
-        return False
-
+        return None
     partial = destination.with_name(destination.name + ".part")
-    if partial.is_symlink():
-        raise RuntimeError(f"Downloader partial path is a symbolic link: {{partial.name}}")
+    if path_is_link_like(partial):
+        raise RuntimeError(
+            f"Downloader partial path is link-like: {{partial.name}}"
+        )
     if partial.exists() and not partial.is_file():
         print(f"Refusing non-regular downloader partial path: {{partial.name}}")
-        return False
+        return None
+    return relative, destination, partial
 
-    expected_sha = str(expected_sha256 or "").upper()
-    partial_expected_sha = str(partial_sha256 or "").upper()
-    for label, digest in (("authoritative", expected_sha), ("partial", partial_expected_sha)):
+
+def _download_settings(
+    relative: str,
+    options: dict[str, object] | None,
+) -> dict[str, object]:
+    """Normalize and validate optional download integrity settings."""
+    settings = options or {{}}
+    expected_sha = str(settings.get("expected_sha256", "") or "").upper()
+    partial_expected_sha = str(settings.get("partial_sha256", "") or "").upper()
+    for label, digest in (
+        ("authoritative", expected_sha),
+        ("partial", partial_expected_sha),
+    ):
         if digest and not re.fullmatch(r"[0-9A-F]{{64}}", digest):
-            raise RuntimeError(
-                f"Invalid {{label}} SHA-256 metadata: {{relative}}"
-            )
+            raise RuntimeError(f"Invalid {{label}} SHA-256 metadata: {{relative}}")
     if expected_sha and partial_expected_sha and expected_sha != partial_expected_sha:
         raise RuntimeError(
             f"Conflicting authoritative SHA-256 metadata: {{relative}}"
         )
+    return {{
+        "force_repair": bool(settings.get("force_repair", False)),
+        "expected_sha": expected_sha,
+        "partial_expected_sha": partial_expected_sha,
+        "verify_zip_crc": bool(settings.get("verify_zip_crc", False)),
+        "close_report_on_success": bool(
+            settings.get("close_report_on_success", True)
+        ),
+    }}
 
-    partial_has_prior_bytes = partial.is_file()
-    if partial.is_file():
+
+def _download_request_state(
+    url: str,
+    destination: Path,
+    expected_size: int,
+    options: dict[str, object] | None,
+) -> dict[str, object] | None:
+    """Validate download paths/options and return mutable per-download state."""
+    if (paths := _download_paths(destination)) is None:
+        return None
+    relative, destination, partial = paths
+    state = _download_settings(relative, options)
+    state.update({{
+        "url": url,
+        "relative": relative,
+        "destination": destination,
+        "partial": partial,
+        "expected_size": int(expected_size),
+        "partial_has_prior_bytes": partial.is_file(),
+    }})
+    return state
+
+
+def _promote_full_size_partial(state: dict[str, object]) -> bool:
+    """Validate and promote an already complete partial download."""
+    partial = state["partial"]
+    destination = state["destination"]
+    url = str(state["url"])
+    expected_size = int(state["expected_size"])
+    candidate_sha = str(state["partial_expected_sha"] or state["expected_sha"])
+    if bool(state["partial_has_prior_bytes"]) and candidate_sha:
         try:
-            partial_size = partial.stat().st_size
-        except OSError:
-            partial_size = 0
-        if partial_size <= 0 or (expected_size > 0 and partial_size > expected_size):
+            partial_sha = sha256_file(partial)
+        except OSError as error:
+            print(f"Unable to verify full-size partial SHA-256: {{error}}")
+            report_failed_download(url)
+            return False
+        if partial_sha != candidate_sha:
+            print(f"REJECTED full-size partial SHA-256: {{destination.name}}")
             partial.unlink(missing_ok=True)
-            partial_has_prior_bytes = False
-        elif expected_size > 0 and partial_size == expected_size:
-            if force_repair:
-                print(
-                    "Full-size partial belongs to a SHA-256 repair; "
-                    "discarding it before redownload."
-                )
-                partial.unlink(missing_ok=True)
-                partial_has_prior_bytes = False
-            else:
-                candidate_sha = partial_expected_sha or expected_sha
-                if partial_has_prior_bytes and candidate_sha:
-                    try:
-                        partial_sha = sha256_file(partial)
-                    except OSError as error:
-                        print(f"Unable to verify full-size partial SHA-256: {{error}}")
-                        report_failed_download(url)
-                        return False
-                    if partial_sha != candidate_sha:
-                        print(f"REJECTED full-size partial SHA-256: {{destination.name}}")
-                        partial.unlink(missing_ok=True)
-                        report_failed_download(url)
-                        return False
-                valid = file_is_valid(
-                    partial, expected_size, verify_zip_crc=verify_zip_crc
-                )
-                if not valid:
-                    partial.unlink(missing_ok=True)
-                    report_failed_download(url)
-                    return False
-                os.replace(partial, destination)
-                mark_download_report_fixed(url)
-                return True
+            report_failed_download(url)
+            return False
+    if not file_is_valid(
+        partial, expected_size, verify_zip_crc=bool(state["verify_zip_crc"])
+    ):
+        partial.unlink(missing_ok=True)
+        report_failed_download(url)
+        return False
+    os.replace(partial, destination)
+    if (
+        bool(state["close_report_on_success"])
+        and not mark_download_report_fixed(url)
+    ):
+        print(
+            "Validated full-size partial was promoted, but "
+            "the error report could not be updated."
+        )
+        return False
+    return True
 
+
+def _prepare_existing_partial(state: dict[str, object]) -> bool | None:
+    """Normalize an existing partial or return its completed promotion result."""
+    partial = state["partial"]
+    if not partial.is_file():
+        state["partial_has_prior_bytes"] = False
+        return None
+    try:
+        partial_size = partial.stat().st_size
+    except OSError:
+        partial_size = 0
+    expected_size = int(state["expected_size"])
+    if partial_size <= 0 or 0 < expected_size < partial_size:
+        partial.unlink(missing_ok=True)
+        state["partial_has_prior_bytes"] = False
+        return None
+    if expected_size <= 0 or partial_size != expected_size:
+        return None
+    if bool(state["force_repair"]):
+        print(
+            "Full-size partial belongs to a SHA-256 repair; "
+            "discarding it before redownload."
+        )
+        partial.unlink(missing_ok=True)
+        state["partial_has_prior_bytes"] = False
+        return None
+    return _promote_full_size_partial(state)
+
+
+def _download_backend_state(
+    backend: tuple[str, str],
+    url: str,
+) -> dict[str, object]:
+    """Return backend execution metadata constrained to the URL's protocol."""
+    backend_name, executable = backend
     parsed_url = urlparse(url)
     allowed_protocol = "=http,https" if parsed_url.scheme.lower() == "http" else "=https"
-    base = [
-        curl, "--proto", allowed_protocol, "--proto-redir", allowed_protocol,
-        "--location", "--fail", "--retry", "3", "--retry-delay", "1",
-        "--connect-timeout", "10", "--speed-time", "60", "--speed-limit", "1024",
-        "--show-error",
-    ]
+    curl_base: list[str] | None = None
+    if backend_name == "curl":
+        curl_base = [
+            executable, "--proto", allowed_protocol, "--proto-redir", allowed_protocol,
+            "--location", "--fail", "--retry", "3", "--retry-delay", "1",
+            "--connect-timeout", "10", "--speed-time", "60",
+            "--speed-limit", "1024", "--show-error",
+        ]
+    elif backend_name != "wget":
+        raise RuntimeError(f"Unsupported download backend: {{backend_name}}")
+    return {{
+        "name": backend_name,
+        "executable": executable,
+        "curl_base": curl_base,
+    }}
 
-    if partial.is_file():
-        try:
-            resume_start_size = partial.stat().st_size
-        except OSError:
-            resume_start_size = 0
 
-        if report_hosts_download_block(url):
-            return False
-        code = run_curl(base + ["-C", "-", "-o", str(partial), url])
-        if code in {{33, 36}}:
-            print("Resume was rejected. Restarting this file from byte zero.")
-            partial.unlink(missing_ok=True)
-            partial_has_prior_bytes = False
-        elif code != 0:
-            current = partial.stat().st_size if partial.is_file() else 0
-            print(f"Download interrupted; partial file preserved at {{current}} bytes.")
-            report_failed_download(url)
-            return False
-        else:
-            try:
-                resume_end_size = partial.stat().st_size
-            except OSError:
-                resume_end_size = 0
+def _run_download_backend(
+    backend_state: dict[str, object],
+    state: dict[str, object],
+    *,
+    resume: bool,
+) -> int | None:
+    """Invoke the selected backend once, returning None when hosts block it."""
+    url = str(state["url"])
+    if report_hosts_download_block(url):
+        return None
+    partial = state["partial"]
+    if backend_state["name"] == "curl":
+        curl_base = backend_state["curl_base"]
+        assert isinstance(curl_base, list)
+        mode = ["-C", "-"] if resume else []
+        return run_curl(curl_base + mode + ["-o", str(partial), url])
+    return run_wget_download(
+        str(backend_state["executable"]),
+        url=url,
+        output=partial,
+        resume=resume,
+    )
 
-            resume_incomplete = (
-                expected_size <= 0 or resume_end_size < expected_size
-            )
-            if resume_incomplete and resume_end_size <= resume_start_size:
-                print(
-                    "Resume made no progress. "
-                    "Restarting this file from byte zero."
-                )
-                partial.unlink(missing_ok=True)
-                partial_has_prior_bytes = False
 
+def _file_size_or_zero(path: Path) -> int:
+    """Return a file size or zero when the size cannot be read."""
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _resume_partial_download(
+    state: dict[str, object],
+    backend_state: dict[str, object],
+) -> bool:
+    """Resume an existing partial and preserve or reset it based on progress."""
+    partial = state["partial"]
     if not partial.is_file():
-        partial_has_prior_bytes = False
-        if report_hosts_download_block(url):
-            return False
-        code = run_curl(base + ["-o", str(partial), url])
-        if code != 0:
-            current = partial.stat().st_size if partial.is_file() else 0
-            if current <= 0:
-                partial.unlink(missing_ok=True)
-            else:
-                print(f"Download interrupted; partial file preserved at {{current}} bytes.")
-            report_failed_download(url)
-            return False
+        return True
+    resume_start_size = _file_size_or_zero(partial)
+    if (code := _run_download_backend(
+        backend_state, state, resume=True
+    )) is None:
+        return False
+    if backend_state["name"] == "curl" and code in {{33, 36}}:
+        print("Resume was rejected. Restarting this file from byte zero.")
+        partial.unlink(missing_ok=True)
+        state["partial_has_prior_bytes"] = False
+        return True
+    if code:
+        current = partial.stat().st_size if partial.is_file() else 0
+        print(f"Download interrupted; partial file preserved at {{current}} bytes.")
+        report_failed_download(str(state["url"]))
+        return False
+    resume_end_size = _file_size_or_zero(partial)
+    expected_size = int(state["expected_size"])
+    resume_incomplete = expected_size <= 0 or resume_end_size < expected_size
+    if resume_incomplete and resume_end_size <= resume_start_size:
+        print("Resume made no progress. Restarting this file from byte zero.")
+        partial.unlink(missing_ok=True)
+        state["partial_has_prior_bytes"] = False
+    return True
 
+
+def _download_new_partial(
+    state: dict[str, object],
+    backend_state: dict[str, object],
+) -> bool:
+    """Download a fresh partial when no resumable partial remains."""
+    partial = state["partial"]
+    if partial.is_file():
+        return True
+    state["partial_has_prior_bytes"] = False
+    if (code := _run_download_backend(
+        backend_state, state, resume=False
+    )) is None:
+        return False
+    if not code:
+        return True
+    if (current := partial.stat().st_size if partial.is_file() else 0) <= 0:
+        partial.unlink(missing_ok=True)
+    else:
+        print(f"Download interrupted; partial file preserved at {{current}} bytes.")
+    report_failed_download(str(state["url"]))
+    return False
+
+
+def _partial_size_is_valid(state: dict[str, object]) -> bool:
+    """Validate completed partial size and preserve useful incomplete bytes."""
+    partial = state["partial"]
+    destination = state["destination"]
+    url = str(state["url"])
     try:
         actual_size = partial.stat().st_size
     except OSError:
         report_failed_download(url)
         return False
-
+    expected_size = int(state["expected_size"])
     if expected_size > 0 and actual_size != expected_size:
         print(f"INCOMPLETE: {{destination.name}}")
         print(f"Expected: {{expected_size}} bytes")
@@ -12198,228 +14292,894 @@ def download_file(
         partial.unlink(missing_ok=True)
         report_failed_download(url)
         return False
-
-    # Report/repair candidates use expected_sha. Any candidate that still
-    # contains pre-existing V2 partial bytes additionally requires partial_sha.
-    candidate_sha = expected_sha
-    if partial_has_prior_bytes and partial_expected_sha:
-        candidate_sha = partial_expected_sha
-    if candidate_sha:
-        try:
-            actual_sha = sha256_file(partial)
-        except OSError as error:
-            print(f"Unable to verify downloaded SHA-256: {{error}}")
-            report_failed_download(url)
-            return False
-        if actual_sha != candidate_sha:
-            print(f"REJECTED SHA-256 replacement: {{destination.name}}")
-            print(f"Expected SHA-256: {{candidate_sha}}")
-            print(f"Actual SHA-256  : {{actual_sha}}")
-            partial.unlink(missing_ok=True)
-            report_failed_download(url)
-            return False
-    elif force_repair:
-        raise RuntimeError(
-            f"SHA-256 repair is missing authoritative integrity metadata: {{relative}}"
-        )
-
-    if not file_is_valid(partial, expected_size, verify_zip_crc=verify_zip_crc):
-        print(f"FAILED integrity/content validation: {destination.name}")
-        partial.unlink(missing_ok=True)
-        report_failed_download(url)
-        return False
-
-    os.replace(partial, destination)
-    mark_download_report_fixed(url)
     return True
 
 
+def _partial_sha_is_valid(state: dict[str, object]) -> bool:
+    """Validate authoritative SHA metadata for one completed partial."""
+    candidate_sha = str(state["expected_sha"])
+    if bool(state["partial_has_prior_bytes"]) and state["partial_expected_sha"]:
+        candidate_sha = str(state["partial_expected_sha"])
+    if not candidate_sha:
+        if bool(state["force_repair"]):
+            raise RuntimeError(
+                "SHA-256 repair is missing authoritative integrity metadata: "
+                f"{{state['relative']}}"
+            )
+        return True
+    partial = state["partial"]
+    url = str(state["url"])
+    try:
+        actual_sha = sha256_file(partial)
+    except OSError as error:
+        print(f"Unable to verify downloaded SHA-256: {{error}}")
+        report_failed_download(url)
+        return False
+    if actual_sha == candidate_sha:
+        return True
+    destination = state["destination"]
+    print(f"REJECTED SHA-256 replacement: {{destination.name}}")
+    print(f"Expected SHA-256: {{candidate_sha}}")
+    print(f"Actual SHA-256  : {{actual_sha}}")
+    partial.unlink(missing_ok=True)
+    report_failed_download(url)
+    return False
 
-def process_asset(curl: str | None, downloads_enabled: bool) -> bool:
+
+def _completed_partial_is_valid(state: dict[str, object]) -> bool:
+    """Validate completed partial size, SHA-256, and optional ZIP content."""
+    if not _partial_size_is_valid(state) or not _partial_sha_is_valid(state):
+        return False
+    partial = state["partial"]
+    if file_is_valid(
+        partial,
+        int(state["expected_size"]),
+        verify_zip_crc=bool(state["verify_zip_crc"]),
+    ):
+        return True
+    print(f"FAILED integrity/content validation: {{state['destination'].name}}")
+    partial.unlink(missing_ok=True)
+    report_failed_download(str(state["url"]))
+    return False
+
+
+def _promote_completed_partial(state: dict[str, object]) -> bool:
+    """Promote a fully validated partial and close its report state."""
+    os.replace(state["partial"], state["destination"])
+    if (
+        bool(state["close_report_on_success"])
+        and not mark_download_report_fixed(str(state["url"]))
+    ):
+        print(
+            "Validated download was promoted, but "
+            "the error report could not be updated."
+        )
+        return False
+    return True
+
+
+def download_file(
+    backend: tuple[str, str],
+    *,
+    url: str,
+    destination: Path,
+    expected_size: int,
+    **options: object,
+) -> bool:
+    """Download or repair one physical mirror file with validation and resume handling."""
+    if report_hosts_download_block(url):
+        return False
+    if (state := _download_request_state(
+        url, destination, expected_size, options
+    )) is None:
+        return False
+    if (existing_result := _prepare_existing_partial(state)) is not None:
+        return existing_result
+    backend_state = _download_backend_state(backend, url)
+    if (
+        not _resume_partial_download(state, backend_state)
+        or not _download_new_partial(state, backend_state)
+        or not _completed_partial_is_valid(state)
+    ):
+        return False
+    return _promote_completed_partial(state)
+
+
+
+def _register_favicon(
+    destination: Path,
+    *,
+    report_failure_message: str,
+    success_message: str,
+) -> bool:
+    """Register a validated favicon and close its report state."""
+    try:
+        record_downloaded_support_asset(destination, FAVICON_URL)
+    except (OSError, ValueError, RuntimeError) as error:
+        report_failed_download(FAVICON_URL)
+        print(f"FAILED: favicon.ico integrity registration: {{error}}\n")
+        return False
+    if not mark_download_report_fixed(FAVICON_URL):
+        print(report_failure_message)
+        return False
+    print(success_message)
+    return True
+
+
+def _download_favicon(
+    backend: tuple[str, str],
+    destination: Path,
+) -> bool:
+    """Download, validate, register, and report the favicon support asset."""
+    if not download_file(
+        backend,
+        url=FAVICON_URL,
+        destination=destination,
+        expected_size=0,
+        close_report_on_success=False,
+    ):
+        report_failed_download(FAVICON_URL)
+        print("FAILED: favicon.ico\n")
+        return False
+    if not downloaded_support_file_is_valid(destination, FAVICON_URL):
+        destination.unlink(missing_ok=True)
+        report_failed_download(FAVICON_URL)
+        print("FAILED: favicon.ico downloaded unexpected/error content.\n")
+        return False
+    return _register_favicon(
+        destination,
+        report_failure_message=(
+            "FAILED: favicon.ico was validated and registered, but "
+            "the error report could not be updated.\n"
+        ),
+        success_message="Web Icon Downloaded and Registered Successfully.\n",
+    )
+
+
+def process_asset(backend: tuple[str, str] | None, downloads_enabled: bool) -> bool:
+    """Process one support asset, including embedded fallback and report-state handling."""
     destination = safe_mirror_destination("favicon.ico", create_parents=True)
     print("[Asset] favicon.ico")
     if downloaded_support_file_is_valid(destination, FAVICON_URL):
-        try:
-            record_downloaded_support_asset(destination, FAVICON_URL)
-        except (OSError, ValueError, RuntimeError) as error:
-            print(f"FAILED: favicon.ico integrity registration: {{error}}\n")
-            return False
-        mark_download_report_fixed(FAVICON_URL)
-        print("Already exists and integrity is registered. Skipping.\n")
-        return True
+        return _register_favicon(
+            destination,
+            report_failure_message=(
+                "FAILED: favicon.ico is valid, but the error report "
+                "could not be updated.\n"
+            ),
+            success_message="Already exists and integrity is registered. Skipping.\n",
+        )
     if destination.is_file():
         print("Existing favicon.ico failed support-content validation.")
-    if not downloads_enabled or curl is None:
+    if not downloads_enabled or backend is None:
+        report_failed_download(FAVICON_URL)
         print("FAILED: favicon.ico\n")
         return False
-    if download_file(curl, url=FAVICON_URL, destination=destination, expected_size=0):
-        if not downloaded_support_file_is_valid(destination, FAVICON_URL):
-            destination.unlink(missing_ok=True)
-            print("FAILED: favicon.ico downloaded unexpected/error content.\n")
-            return False
-        try:
-            record_downloaded_support_asset(destination, FAVICON_URL)
-        except (OSError, ValueError, RuntimeError) as error:
-            print(f"FAILED: favicon.ico integrity registration: {{error}}\n")
-            return False
-        print("Web Icon Downloaded and Registered Successfully.\n")
-        return True
-    print("FAILED: favicon.ico\n")
-    return False
+    return _download_favicon(backend, destination)
 
 
-def process_group(group: dict, curl: str | None, downloads_enabled: bool, repair_paths: dict[str, tuple[int, str]]) -> bool:
-    title = str(group["title"])
-    progress = str(group["progress"])
-    items = list(group["items"])
-    validation_cache: dict[str, tuple[tuple[int, int], bool]] = {{}}
-    section(title)
-    for index, item in enumerate(items, start=1):
-        relative = safe_relative_path(item["path"])
-        destination = safe_mirror_destination(relative, create_parents=True)
-        expected_size = int(item.get("size", 0) or 0)
-        authoritative_sha = str(item.get("sha256", "") or "").upper()
-        verify_zip_crc = bool(item.get("verify_zip_crc", False))
-        filename = str(item["filename"])
-        url = str(item["url"])
-        repair_key = relative.casefold()
-        repair_metadata = repair_paths.get(repair_key)
-        force_repair = repair_metadata is not None
-        repair_expected_sha = ""
-        if repair_metadata is not None:
-            repair_expected_size, repair_expected_sha = repair_metadata
-            if repair_expected_size != expected_size:
-                raise RuntimeError(
-                    f"Repair-list expected size does not match Downloader inventory: {{relative}}"
-                )
-            if authoritative_sha and repair_expected_sha != authoritative_sha:
-                raise RuntimeError(
-                    f"Repair-list SHA-256 does not match Downloader V2 inventory: {{relative}}"
-                )
-        print(f"[{{progress}} {{index}}/{{len(items)}}] {{filename}}")
-        existing_valid = group_file_is_valid(
-            destination,
-            expected_size,
-            verify_zip_crc=verify_zip_crc,
-            validation_cache=validation_cache,
+def _group_item_state(
+    item: dict,
+    repair_paths: dict[str, tuple[int, str]],
+) -> dict[str, object]:
+    """Normalize one group item and validate any matching repair metadata."""
+    relative = safe_relative_path(item["path"])
+    expected_size = int(item.get("size", 0) or 0)
+    authoritative_sha = str(item.get("sha256", "") or "").upper()
+    repair_key = relative.casefold()
+    repair_metadata = repair_paths.get(repair_key)
+    repair_expected_sha = ""
+    if repair_metadata is not None:
+        repair_expected_size, repair_expected_sha = repair_metadata
+        if repair_expected_size != expected_size:
+            raise RuntimeError(
+                "Repair-list expected size does not match Downloader inventory: "
+                f"{{relative}}"
+            )
+        if authoritative_sha and repair_expected_sha != authoritative_sha:
+            raise RuntimeError(
+                "Repair-list SHA-256 does not match Downloader V2 inventory: "
+                f"{{relative}}"
+            )
+    destination = safe_mirror_destination(relative, create_parents=True)
+    verify_zip_crc = bool(item.get("verify_zip_crc", False))
+    url = str(item["url"])
+    report_unresolved = download_report_url_is_unresolved(url)
+    defer_report_zip_validation = (
+        report_unresolved
+        and verify_zip_crc
+        and not authoritative_sha
+        and destination.is_file()
+    )
+    return {{
+        "relative": relative,
+        "destination": destination,
+        "expected_size": expected_size,
+        "authoritative_sha": authoritative_sha,
+        "verify_zip_crc": verify_zip_crc,
+        "filename": str(item["filename"]),
+        "url": url,
+        "repair_key": repair_key,
+        "force_repair": repair_metadata is not None,
+        "repair_expected_sha": repair_expected_sha,
+        "report_unresolved": report_unresolved,
+        "defer_report_zip_validation": defer_report_zip_validation,
+    }}
+
+
+def _group_existing_file_valid(
+    state: dict[str, object],
+    validation_cache: dict[str, tuple[tuple[int, int], bool]],
+) -> bool:
+    """Validate an existing group file using deferred ZIP policy when required."""
+    destination = state["destination"]
+    expected_size = int(state["expected_size"])
+    if bool(state["defer_report_zip_validation"]):
+        return file_is_valid(destination, expected_size, verify_zip_crc=False)
+    return group_file_is_valid(
+        destination,
+        expected_size,
+        verify_zip_crc=bool(state["verify_zip_crc"]),
+        validation_cache=validation_cache,
+    )
+
+
+def _reported_authoritative_existing_decision(
+    state: dict[str, object],
+    repair_paths: dict[str, tuple[int, str]],
+) -> tuple[bool, bool]:
+    """Handle authoritative SHA state for an existing reported file."""
+    destination = state["destination"]
+    url = str(state["url"])
+    authoritative_sha = str(state["authoritative_sha"])
+    try:
+        existing_sha = sha256_file(destination)
+    except OSError as error:
+        print(f"Unable to verify existing SHA-256: {{error}}")
+        existing_sha = ""
+    if existing_sha == authoritative_sha:
+        if not mark_download_report_fixed(url):
+            print(
+                "Existing file passed authoritative SHA-256, but "
+                "the error report could not be updated.\n"
+            )
+            return False, True
+        print("Already exists and authoritative SHA-256 matches. Skipping.\n")
+        return False, False
+    print("Existing file matches expected size but failed authoritative SHA-256.")
+    report_failed_download(url)
+    state["force_repair"] = True
+    state["repair_expected_sha"] = authoritative_sha
+    repair_paths[str(state["repair_key"])] = (
+        int(state["expected_size"]),
+        authoritative_sha,
+    )
+    return True, False
+
+
+def _existing_group_item_decision(
+    state: dict[str, object],
+    repair_paths: dict[str, tuple[int, str]],
+    validation_cache: dict[str, tuple[tuple[int, int], bool]],
+) -> tuple[bool, bool]:
+    """Return whether the item needs download and whether report state is incomplete."""
+    if bool(state["force_repair"]) or not _group_existing_file_valid(
+        state, validation_cache
+    ):
+        return True, False
+    if bool(state["report_unresolved"]) and state["authoritative_sha"]:
+        return _reported_authoritative_existing_decision(state, repair_paths)
+    report_incomplete = False
+    if (
+        bool(state["report_unresolved"])
+        and not bool(state["defer_report_zip_validation"])
+        and not mark_download_report_fixed(str(state["url"]))
+    ):
+        print(
+            "Existing file passed integrity validation, but "
+            "the error report could not be updated.\n"
         )
-        report_unresolved = download_report_url_is_unresolved(url)
-        if existing_valid and not force_repair:
-            if report_unresolved and authoritative_sha:
-                try:
-                    existing_sha = sha256_file(destination)
-                except OSError as error:
-                    print(f"Unable to verify existing SHA-256: {{error}}")
-                    existing_sha = ""
-                if existing_sha == authoritative_sha:
-                    mark_download_report_fixed(url)
-                    print("Already exists and authoritative SHA-256 matches. Skipping.\n")
-                    continue
-                print("Existing file matches expected size but failed authoritative SHA-256.")
-                report_failed_download(url)
-                force_repair = True
-                repair_expected_sha = authoritative_sha
-                repair_paths[repair_key] = (expected_size, authoritative_sha)
-            else:
-                if report_unresolved:
-                    # Supplemental records have no authoritative SHA-256; their
-                    # strongest available size/content validation is sufficient.
-                    mark_download_report_fixed(url)
-                print("Already exists with expected integrity. Skipping.\n")
-                continue
-        if force_repair:
-            print("SHA-256 repair requested; downloading a validated replacement.")
-        elif destination.exists():
-            print("Existing file failed size/content validation. Preserving it until replacement.")
-        if not downloads_enabled or curl is None:
-            report_failed_download(url)
-            print(f"FAILED: {{filename}}\n")
-            continue
-        report_sha = repair_expected_sha or (authoritative_sha if report_unresolved else "")
-        if download_file(
-            curl,
-            url=url,
-            destination=destination,
-            expected_size=expected_size,
-            force_repair=force_repair,
-            expected_sha256=report_sha,
-            partial_sha256=authoritative_sha,
-            verify_zip_crc=verify_zip_crc,
-        ):
-            if verify_zip_crc:
-                cache_group_validation(destination, True, validation_cache)
-            print(f"Verified expected size: {{expected_size}} bytes")
-            if report_sha:
-                print(f"Verified expected SHA-256: {{report_sha}}")
-            if force_repair and repair_key in repair_paths:
-                repair_paths.pop(repair_key, None)
-        else:
-            print(f"FAILED: {{filename}}")
-        print()
+        report_incomplete = True
+    if bool(state["defer_report_zip_validation"]):
+        print(
+            "Already exists with expected size. "
+            "Reported ZIP content validation is deferred.\n"
+        )
+    else:
+        print("Already exists with expected integrity. Skipping.\n")
+    return False, report_incomplete
 
-    section(str(group["missing_title"]))
-    failures: list[str] = []
+
+def _announce_group_download(state: dict[str, object]) -> None:
+    """Display why a group item is entering its download path."""
+    if bool(state["force_repair"]):
+        print("SHA-256 repair requested; downloading a validated replacement.")
+    elif state["destination"].exists():
+        print(
+            "Existing file failed size/content validation. "
+            "Preserving it until replacement."
+        )
+
+
+def _finish_group_download(
+    state: dict[str, object],
+    report_sha: str,
+    repair_paths: dict[str, tuple[int, str]],
+    validation_cache: dict[str, tuple[tuple[int, int], bool]],
+) -> None:
+    """Record a successful group download in caches, output, and repair state."""
+    if bool(state["verify_zip_crc"]):
+        cache_group_validation(state["destination"], True, validation_cache)
+    print(f"Verified expected size: {{state['expected_size']}} bytes")
+    if report_sha:
+        print(f"Verified expected SHA-256: {{report_sha}}")
+    if bool(state["force_repair"]):
+        repair_paths.pop(str(state["repair_key"]), None)
+    print()
+
+
+def _download_group_item(
+    state: dict[str, object],
+    backend: tuple[str, str] | None,
+    downloads_enabled: bool,
+    repair_paths: dict[str, tuple[int, str]],
+    validation_cache: dict[str, tuple[tuple[int, int], bool]],
+) -> bool:
+    """Download one group item and return whether its report state remains incomplete."""
+    _announce_group_download(state)
+    if not downloads_enabled or backend is None:
+        if bool(state["force_repair"]):
+            reopen_fixed_download_report(str(state["url"]))
+        print(f"FAILED: {{state['filename']}}\n")
+        return False
+    authoritative_sha = str(state["authoritative_sha"])
+    repair_expected_sha = str(state["repair_expected_sha"])
+    report_sha = repair_expected_sha or (
+        authoritative_sha if bool(state["report_unresolved"]) else ""
+    )
+    if download_file(
+        backend,
+        url=str(state["url"]),
+        destination=state["destination"],
+        expected_size=int(state["expected_size"]),
+        force_repair=bool(state["force_repair"]),
+        expected_sha256=report_sha,
+        partial_sha256=authoritative_sha,
+        verify_zip_crc=bool(state["verify_zip_crc"]),
+    ):
+        _finish_group_download(
+            state, report_sha, repair_paths, validation_cache
+        )
+        return False
+    report_incomplete = download_report_url_is_unresolved(str(state["url"]))
+    print(f"FAILED: {{state['filename']}}")
+    print()
+    return report_incomplete
+
+
+def _group_final_file_valid(
+    destination: Path,
+    expected_size: int,
+    *,
+    defer_report_zip_validation: bool,
+    verify_zip_crc: bool,
+    validation_cache: dict[str, tuple[tuple[int, int], bool]],
+) -> bool:
+    """Validate one group's final physical file using the applicable ZIP policy."""
+    if not destination.is_file():
+        return False
+    if defer_report_zip_validation:
+        return file_is_valid(
+            destination, expected_size, verify_zip_crc=False
+        )
+    return group_file_is_valid(
+        destination,
+        expected_size,
+        verify_zip_crc=verify_zip_crc,
+        validation_cache=validation_cache,
+    )
+
+
+def _group_failure_name(
+    item: dict,
+    repair_paths: dict[str, tuple[int, str]],
+    validation_cache: dict[str, tuple[tuple[int, int], bool]],
+) -> str | None:
+    """Return the item filename when final group validation still fails."""
+    relative = safe_relative_path(item["path"])
+    destination = safe_mirror_destination(relative, create_parents=True)
+    expected_size = int(item.get("size", 0) or 0)
+    authoritative_sha = str(item.get("sha256", "") or "").upper()
+    verify_zip_crc = bool(item.get("verify_zip_crc", False))
+    defer_report_zip_validation = (
+        download_report_url_is_unresolved(str(item["url"]))
+        and verify_zip_crc
+        and not authoritative_sha
+        and destination.is_file()
+    )
+    if _group_final_file_valid(
+        destination,
+        expected_size,
+        defer_report_zip_validation=defer_report_zip_validation,
+        verify_zip_crc=verify_zip_crc,
+        validation_cache=validation_cache,
+    ) and relative.casefold() not in repair_paths:
+        return None
+    return PurePosixPath(relative).name
+
+
+def _group_failure_names(
+    items: list[dict],
+    repair_paths: dict[str, tuple[int, str]],
+    validation_cache: dict[str, tuple[tuple[int, int], bool]],
+) -> list[str]:
+    """Return final missing, invalid, or still-repair-requested group files."""
+    failures = []
     for item in items:
-        relative = safe_relative_path(item["path"])
-        destination = safe_mirror_destination(relative, create_parents=True)
-        expected_size = int(item.get("size", 0) or 0)
-        verify_zip_crc = bool(item.get("verify_zip_crc", False))
-        if not destination.is_file():
-            failures.append(PurePosixPath(relative).name)
-        elif not group_file_is_valid(
-            destination,
-            expected_size,
-            verify_zip_crc=verify_zip_crc,
-            validation_cache=validation_cache,
-        ):
-            failures.append(PurePosixPath(relative).name)
-        elif relative.casefold() in repair_paths:
-            failures.append(PurePosixPath(relative).name)
+        if (
+            failure := _group_failure_name(item, repair_paths, validation_cache)
+        ) is not None:
+            failures.append(failure)
+    return failures
+
+
+def _display_group_result(
+    group: dict,
+    items: list[dict],
+    failures: list[str],
+    report_state_incomplete: bool,
+) -> bool:
+    """Display final group validation status and return its workflow result."""
     if not failures:
-        print(str(group["all_present"]) + "\n")
+        print(str(group["all_present"]))
+        if report_state_incomplete:
+            print("Error.txt still contains an unresolved URL for this group.\n")
+            return False
+        print()
         return True
     for failure in failures:
         print(failure)
-    print(f"\nMissing, wrong-size, or failed repair: {{len(failures)}} / {{len(items)}}\n")
+    print(
+        f"\nMissing, wrong-size, or failed repair: "
+        f"{{len(failures)}} / {{len(items)}}\n"
+    )
     return False
 
 
-def validate_inventory() -> dict[str, tuple[str, int, bool]]:
-    logical_count = sum(len(group["items"]) for group in GROUPS)
-    if logical_count != LOGICAL_INVENTORY_ENTRIES:
-        raise RuntimeError(f"Logical inventory mismatch: {{logical_count}} != {{LOGICAL_INVENTORY_ENTRIES}}")
+def process_group(
+    group: dict,
+    backend: tuple[str, str] | None,
+    downloads_enabled: bool,
+    repair_paths: dict[str, tuple[int, str]],
+) -> bool:
+    """Process one logical inventory group and report whether it completed successfully."""
+    progress = str(group["progress"])
+    items = list(group["items"])
+    validation_cache: dict[str, tuple[tuple[int, int], bool]] = {{}}
+    report_state_incomplete = False
+    section(str(group["title"]))
+    for index, item in enumerate(items, start=1):
+        state = _group_item_state(item, repair_paths)
+        print(f"[{{progress}} {{index}}/{{len(items)}}] {{state['filename']}}")
+        should_download, report_incomplete = _existing_group_item_decision(
+            state, repair_paths, validation_cache
+        )
+        report_state_incomplete = report_state_incomplete or report_incomplete
+        if should_download:
+            report_state_incomplete = (
+                _download_group_item(
+                    state,
+                    backend,
+                    downloads_enabled,
+                    repair_paths,
+                    validation_cache,
+                )
+                or report_state_incomplete
+            )
+    section(str(group["missing_title"]))
+    failures = _group_failure_names(items, repair_paths, validation_cache)
+    return _display_group_result(
+        group, items, failures, report_state_incomplete
+    )
+
+
+def reported_unhashed_zip_items() -> list[dict]:
+    """Return unresolved Error.txt ZIP records that lack authoritative SHA-256."""
+    candidates: list[dict] = []
+    seen: set[str] = set()
+    for group in runtime_groups():
+        for item in group["items"]:
+            if str(item.get("sha256", "") or "").strip():
+                continue
+            if not bool(item.get("verify_zip_crc", False)):
+                continue
+            relative = safe_relative_path(item["path"])
+            if PurePosixPath(relative).suffix.casefold() != ".zip":
+                continue
+            url = str(item["url"])
+            if not download_report_url_is_unresolved(url):
+                continue
+            if (key := relative.casefold()) in seen:
+                continue
+            seen.add(key)
+            candidates.append(item)
+    return candidates
+
+
+def _reported_zip_candidate(
+    item: dict,
+) -> tuple[str, Path, int, str, str]:
+    """Normalize one unresolved no-hash ZIP candidate."""
+    relative = safe_relative_path(item["path"])
+    destination = safe_mirror_destination(relative, create_parents=True)
+    expected_size = int(item.get("size", 0) or 0)
+    filename = str(item.get("filename") or PurePosixPath(relative).name)
+    return relative, destination, expected_size, filename, str(item["url"])
+
+
+def _reported_zip_actual_size(
+    destination: Path,
+    expected_size: int,
+) -> int | None:
+    """Return a valid candidate ZIP size or report why validation cannot continue."""
+    if not destination.is_file():
+        print("ZIP file is not present; content validation cannot run.\n")
+        return None
+    try:
+        actual_size = destination.stat().st_size
+    except OSError as error:
+        print(f"Unable to read ZIP size: {{error}}\n")
+        return None
+    if actual_size <= 0 or (
+        expected_size > 0 and actual_size != expected_size
+    ):
+        print(
+            "ZIP size validation FAILED: "
+            f"expected {{expected_size if expected_size > 0 else 'non-zero'}}, "
+            f"actual {{actual_size}}\n"
+        )
+        return None
+    return actual_size
+
+
+def _close_reported_zip(url: str) -> bool:
+    """Mark one validated reported ZIP fixed and print its result."""
+    if mark_download_report_fixed(url):
+        print("Reported ZIP validation completed and marked REPORTED-FIXED.\n")
+        return True
+    print("ZIP content passed, but the error report could not be updated.\n")
+    return False
+
+
+def _replace_reported_zip(
+    backend: tuple[str, str] | None,
+    downloads_enabled: bool,
+    *,
+    url: str,
+    destination: Path,
+    expected_size: int,
+) -> bool:
+    """Replace one invalid reported ZIP and close its report state when valid."""
+    print("Reported ZIP content validation FAILED.")
+    if not downloads_enabled or backend is None:
+        print(
+            "Reported ZIP content remains invalid; "
+            "replacement download is unavailable.\n"
+        )
+        return False
+    print("Attempting a validated replacement download.")
+    if not download_file(
+        backend,
+        url=url,
+        destination=destination,
+        expected_size=expected_size,
+        verify_zip_crc=True,
+        close_report_on_success=False,
+    ):
+        print("Reported ZIP content remains invalid.\n")
+        return False
+    if mark_download_report_fixed(url):
+        print(
+            "Reported ZIP replacement downloaded, validated, "
+            "and marked REPORTED-FIXED.\n"
+        )
+        return True
+    print(
+        "Reported ZIP replacement downloaded and validated, but "
+        "the error report could not be updated.\n"
+    )
+    return False
+
+
+def process_reported_unhashed_zip_validation(
+    backend: tuple[str, str] | None,
+    downloads_enabled: bool,
+) -> bool:
+    """Visibly validate and repair unresolved no-hash ZIPs reported in Error.txt."""
+    if not (candidates := reported_unhashed_zip_items()):
+        return True
+    section("Reported ZIP Content Validation")
+    all_valid = True
+    for index, item in enumerate(candidates, start=1):
+        _, destination, expected_size, filename, url = _reported_zip_candidate(item)
+        print(f"[ZIP {{index}}/{{len(candidates)}}] {{filename}}")
+        if (
+            actual_size := _reported_zip_actual_size(destination, expected_size)
+        ) is None:
+            all_valid = False
+            continue
+        if validate_zip_content(destination, actual_size, announce=True):
+            all_valid = _close_reported_zip(url) and all_valid
+            continue
+        replacement_valid = _replace_reported_zip(
+            backend,
+            downloads_enabled,
+            url=url,
+            destination=destination,
+            expected_size=expected_size,
+        )
+        all_valid = replacement_valid and all_valid
+    return all_valid
+
+
+def _discovered_source_urls(record: dict) -> list[str]:
+    """Return unique source URLs for one discovered physical inventory record."""
+    values: list[str] = []
+    if (primary := str(record.get("source_url", "") or "").strip()):
+        values.append(primary)
+    aliases = record.get("source_urls", [])
+    if isinstance(aliases, list):
+        for value in aliases:
+            text = str(value or "").strip()
+            if text and text not in values:
+                values.append(text)
+    return values
+
+
+def _read_discovered_inventory_payload() -> tuple[dict, list[dict]]:
+    """Return the validated optional discovered-inventory manifest payload."""
+    if not DISCOVERED_INVENTORY_PATH.exists():
+        return {{}}, []
+    if path_is_link_like(DISCOVERED_INVENTORY_PATH) or not DISCOVERED_INVENTORY_PATH.is_file():
+        raise RuntimeError("Discovered inventory manifest path is unsafe.")
+    try:
+        payload = json.loads(DISCOVERED_INVENTORY_PATH.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"Unable to read discovered inventory: {{error}}") from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema") != DISCOVERED_INVENTORY_SCHEMA
+        or payload.get("schema_version") != DISCOVERED_SCHEMA_VERSION
+        or payload.get("mirror_relative_root") != "Mirror"
+        or str(payload.get("hash_algorithm", "")).upper() != "SHA256"
+    ):
+        raise RuntimeError("Unsupported discovered inventory schema.")
+    records = payload.get("files")
+    if not isinstance(records, list):
+        raise RuntimeError("Discovered inventory file list is invalid.")
+    canonical = json.dumps(
+        records, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    expected_payload = str(payload.get("records_payload_sha256", "") or "").upper()
+    if (
+        not re.fullmatch(r"[0-9A-F]{{64}}", expected_payload)
+        or hashlib.sha256(canonical).hexdigest().upper() != expected_payload
+    ):
+        raise RuntimeError("Discovered inventory checksum failed.")
+    if records and payload.get("accepted_extensions") != sorted(DISCOVERED_INVENTORY_SUFFIXES):
+        raise RuntimeError("Discovered inventory extension policy failed.")
+    return payload, records
+
+
+def _validate_discovered_inventory_url(
+    url: str,
+    relative: str,
+    allowed_hosts: set[str],
+) -> None:
+    """Require one discovered source URL to match its mirror-relative inventory path."""
+    parsed = urlparse(url)
+    host = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+    if (
+        host not in allowed_hosts
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RuntimeError(f"Invalid discovered inventory URL: {{url}}")
+    if parsed.scheme not in {{"http", "https"}}:
+        raise RuntimeError(f"Invalid discovered inventory URL scheme: {{url}}")
+    if (
+        parsed.scheme == "http"
+        and (host != "models.topazlabs.com" or parsed.port not in (None, 80))
+    ):
+        raise RuntimeError(f"Invalid discovered inventory HTTP URL: {{url}}")
+    if parsed.scheme == "https" and parsed.port not in (None, 443):
+        raise RuntimeError(f"Invalid discovered inventory HTTPS URL: {{url}}")
+    if parsed.path != "/" + relative:
+        raise RuntimeError(f"Discovered inventory URL/path mismatch: {{relative}}")
+
+
+def _discovered_inventory_integrity(raw: dict, relative: str) -> tuple[int, str]:
+    """Return validated byte-size/SHA metadata for one discovered inventory record."""
+    try:
+        size = int(raw.get("size_bytes", 0) or 0)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid discovered inventory size: {{relative}}") from error
+    sha256 = str(raw.get("sha256", "") or "").upper()
+    if size <= 0 or not re.fullmatch(r"[0-9A-F]{{64}}", sha256):
+        raise RuntimeError(f"Invalid discovered inventory integrity metadata: {{relative}}")
+    if raw.get("source") != "recovered_404":
+        raise RuntimeError(f"Invalid discovered inventory source: {{relative}}")
+    return size, sha256
+
+
+def _discovered_downloader_record_items(
+    raw: object,
+    position: int,
+    base_paths: set[str],
+    seen: set[str],
+    allowed_hosts: set[str],
+) -> list[dict]:
+    """Validate one discovered physical record and expand its logical source URLs."""
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"Invalid discovered inventory record {{position}}.")
+    relative = safe_relative_path(raw.get("relative_path"))
+    if PurePosixPath(relative).suffix.casefold() not in DISCOVERED_INVENTORY_SUFFIXES:
+        raise RuntimeError(f"Unapproved discovered inventory extension: {{relative}}")
+    key = relative.casefold()
+    if key in base_paths:
+        raise RuntimeError(f"Discovered inventory duplicates base inventory: {{relative}}")
+    if key in seen:
+        raise RuntimeError(f"Duplicate discovered inventory path: {{relative}}")
+    seen.add(key)
+    size, sha256 = _discovered_inventory_integrity(raw, relative)
+    if not (urls := _discovered_source_urls(raw)):
+        raise RuntimeError(f"Discovered inventory has no source URL: {{relative}}")
+    for url in urls:
+        _validate_discovered_inventory_url(url, relative, allowed_hosts)
+    return [
+        {{
+            "url": url,
+            "path": relative,
+            "filename": PurePosixPath(relative).name,
+            "size": size,
+            "sha256": sha256,
+            "verify_zip_crc": False,
+        }}
+        for url in urls
+    ]
+
+
+def load_discovered_inventory_group() -> dict | None:
+    """Load the optional persistent discovered inventory as one downloader group."""
+    payload, records = _read_discovered_inventory_payload()
+    if not records:
+        return None
+    base_paths = {{
+        safe_relative_path(item["path"]).casefold()
+        for group in GROUPS
+        for item in group["items"]
+    }}
+    seen: set[str] = set()
+    items: list[dict] = []
     allowed_hosts = {{
-        "models.topazlabs.com", "image-models.topazlabs.com", "models-r2.topazlabs.com",
-        "models-bal.topazlabs.com", "veai-models.topazlabs.com", "video-models.topazlabs.com",
+        "models.topazlabs.com", "image-models.topazlabs.com",
+        "models-r2.topazlabs.com", "models-bal.topazlabs.com",
+        "veai-models.topazlabs.com", "video-models.topazlabs.com",
+        "downloads.topazlabs.com",
+    }}
+    for position, raw in enumerate(records, start=1):
+        items.extend(
+            _discovered_downloader_record_items(
+                raw, position, base_paths, seen, allowed_hosts
+            )
+        )
+    if int(payload.get("logical_entries", -1)) != len(items):
+        raise RuntimeError("Discovered inventory logical count failed.")
+    if int(payload.get("unique_physical_files", -1)) != len(seen):
+        raise RuntimeError("Discovered inventory physical count failed.")
+    return {{
+        "title": "Discovered Inventory",
+        "progress": "Discovered",
+        "missing_title": "Discovered Inventory Missing File",
+        "all_present": "All discovered inventory files are present.",
+        "items": items,
+    }}
+
+def runtime_groups() -> list[dict]:
+    """Return frozen downloader groups plus the optional persistent discovered group."""
+    groups = list(GROUPS)
+    if (discovered := load_discovered_inventory_group()) is not None:
+        groups.append(discovered)
+    return groups
+
+
+def _validated_inventory_url(item: dict, allowed_hosts: set[str]) -> str:
+    """Validate one inventory URL against the approved host set."""
+    url = str(item["url"])
+    if not url.startswith(("http://", "https://")):
+        raise RuntimeError(f"Unsupported download URL: {{url}}")
+    if (host := url.split("/", 3)[2].lower()) not in allowed_hosts:
+        raise RuntimeError(f"Unapproved download host: {{host}}")
+    if url.startswith("http://") and host != "models.topazlabs.com":
+        raise RuntimeError(f"Unapproved HTTP download URL: {{url}}")
+    return url
+
+
+def _validated_inventory_item(
+    item: dict,
+    allowed_hosts: set[str],
+) -> tuple[str, int, bool]:
+    """Validate one embedded inventory item and return its physical metadata."""
+    _validated_inventory_url(item, allowed_hosts)
+    relative = safe_relative_path(item["path"])
+    size = int(item.get("size", 0) or 0)
+    key = relative.casefold()
+    if size < 0 or (size <= 0 and key not in UNKNOWN_SIZE_PATHS):
+        raise RuntimeError(f"Missing expected size: {{relative}}")
+    if size > 0 and key in UNKNOWN_SIZE_PATHS:
+        raise RuntimeError(
+            f"Unexpected fixed size for captured unknown-size path: {{relative}}"
+        )
+    return relative, size, bool(item.get("verify_zip_crc", False))
+
+
+def _merge_inventory_item(
+    physical: dict[str, tuple[str, int, bool]],
+    relative: str,
+    size: int,
+    verify_zip_crc: bool,
+) -> None:
+    """Merge one validated physical inventory record, rejecting conflicts."""
+    key = relative.casefold()
+    if (previous := physical.get(key)) is not None:
+        if previous[1] != size:
+            raise RuntimeError(f"Conflicting expected sizes: {{relative}}")
+        verify_zip_crc = previous[2] or verify_zip_crc
+        relative = previous[0]
+    physical[key] = (relative, size, verify_zip_crc)
+
+
+def validate_inventory() -> dict[str, tuple[str, int, bool]]:
+    """Validate the frozen plus persistent discovered downloader inventory."""
+    groups = runtime_groups()
+    logical_count = sum(len(group["items"]) for group in groups)
+    discovered_group = (
+        groups[-1]
+        if groups and groups[-1].get("title") == "Discovered Inventory"
+        else None
+    )
+    discovered_logical = len(discovered_group["items"]) if discovered_group is not None else 0
+    expected_logical = LOGICAL_INVENTORY_ENTRIES + discovered_logical
+    if logical_count != expected_logical:
+        raise RuntimeError(
+            f"Logical inventory mismatch: {{logical_count}} != {{expected_logical}}"
+        )
+    allowed_hosts = {{
+        "models.topazlabs.com", "image-models.topazlabs.com",
+        "models-r2.topazlabs.com", "models-bal.topazlabs.com",
+        "veai-models.topazlabs.com", "video-models.topazlabs.com",
+        "downloads.topazlabs.com",
     }}
     physical: dict[str, tuple[str, int, bool]] = {{}}
-    for group in GROUPS:
+    for group in groups:
         for item in group["items"]:
-            url = str(item["url"])
-            if not url.startswith(("http://", "https://")):
-                raise RuntimeError(f"Unsupported download URL: {{url}}")
-            host = url.split("/", 3)[2].lower()
-            if host not in allowed_hosts:
-                raise RuntimeError(f"Unapproved download host: {{host}}")
-            if url.startswith("http://") and host != "models.topazlabs.com":
-                raise RuntimeError(f"Unapproved HTTP download URL: {{url}}")
-            relative = safe_relative_path(item["path"])
-            size = int(item.get("size", 0) or 0)
-            key = relative.casefold()
-            if size < 0 or (size == 0 and key not in UNKNOWN_SIZE_PATHS):
-                raise RuntimeError(f"Missing expected size: {{relative}}")
-            if size > 0 and key in UNKNOWN_SIZE_PATHS:
-                raise RuntimeError(f"Unexpected fixed size for captured unknown-size path: {{relative}}")
-            verify_zip_crc = bool(item.get("verify_zip_crc", False))
-            previous = physical.get(key)
-            if previous is not None:
-                if previous[1] != size:
-                    raise RuntimeError(f"Conflicting expected sizes: {{relative}}")
-                verify_zip_crc = previous[2] or verify_zip_crc
-                relative = previous[0]
-            physical[key] = (relative, size, verify_zip_crc)
-    if len(physical) != UNIQUE_PHYSICAL_FILES:
-        raise RuntimeError(f"Unique physical-file mismatch: {{len(physical)}} != {{UNIQUE_PHYSICAL_FILES}}")
+            relative, size, verify_zip_crc = _validated_inventory_item(
+                item, allowed_hosts
+            )
+            _merge_inventory_item(physical, relative, size, verify_zip_crc)
+    discovered_physical = 0
+    if discovered_group is not None:
+        discovered_physical = len({{
+            safe_relative_path(item["path"]).casefold()
+            for item in discovered_group["items"]
+        }})
+    expected_physical = UNIQUE_PHYSICAL_FILES + discovered_physical
+    if len(physical) != expected_physical:
+        raise RuntimeError(
+            f"Unique physical-file mismatch: {{len(physical)}} != {{expected_physical}}"
+        )
     return physical
 
 
@@ -12428,6 +15188,7 @@ def final_inventory_failures(
     repair_paths: dict[str, tuple[int, str]],
     asset_valid: bool,
 ) -> list[str]:
+    """Return remaining physical inventory paths that are not valid on disk."""
     failures: list[str] = []
     if not asset_valid:
         failures.append("Missing or invalid: favicon.ico")
@@ -12444,42 +15205,44 @@ def final_inventory_failures(
     return failures
 
 
-def parse_arguments(argv: list[str]) -> tuple[bool, bool]:
+def parse_arguments(argv: list[str]) -> tuple[bool, bool, bool, bool]:
+    """Return launcher, validation, repair-only, and repair-network-check flags."""
+    usage = (
+        "Usage: python Topaz_Offline_Download_Creator_Downloader.py "
+        "[--launcher-mode] [--repair-only] | --repair-network-check | --validate-only"
+    )
     if argv in (["-h"], ["--help"]):
-        print("Usage: python Topaz_Offline_Download_Creator_Downloader.py [--launcher-mode | --validate-only]")
+        print(usage)
         print()
         print("--launcher-mode suppresses the standalone final status line.")
-        print("--validate-only validates the embedded build-{BUILD} inventory only.")
+        print("--repair-only processes only paths in the current SHA-256 repair list.")
+        print("--repair-network-check reports whether repair downloads can be attempted.")
+        print("--validate-only validates the frozen build-{BUILD} plus discovered inventory metadata.")
         raise SystemExit(0)
-    if not argv:
-        return False, False
-    if argv == ["--launcher-mode"]:
-        return True, False
     if argv == ["--validate-only"]:
-        return False, True
+        return False, True, False, False
+    if argv == ["--repair-network-check"]:
+        return False, False, False, True
+    if not argv:
+        return False, False, False, False
+    allowed = {{"--launcher-mode", "--repair-only"}}
+    if len(argv) == len(set(argv)) and set(argv) <= allowed:
+        return "--launcher-mode" in argv, False, "--repair-only" in argv, False
     print(
         "ERROR: Unsupported downloader arguments: " + " ".join(argv),
         file=sys.stderr,
     )
-    print(
-        "Usage: python Topaz_Offline_Download_Creator_Downloader.py "
-        "[--launcher-mode | --validate-only]",
-        file=sys.stderr,
-    )
+    print(usage, file=sys.stderr)
     raise SystemExit(2)
 
 
-def main() -> int:
-    launcher_mode, validate_only = parse_arguments(sys.argv[1:])
-    physical_files = validate_inventory()
-    if validate_only:
-        print("Portable downloader validation: PASSED")
-        return 0
-    repair_paths = load_repair_paths()
-    unknown_repairs = set(repair_paths) - set(physical_files)
-    if unknown_repairs:
-        raise RuntimeError(f"Repair list contains unknown mirror paths: {{sorted(unknown_repairs)[:3]}}")
+def repair_downloads_available() -> bool:
+    """Return whether this host can attempt repair downloads without probing the network."""
+    return active_network_adapter() and download_backend() is not None
 
+
+def _display_downloader_header(repair_paths: dict[str, tuple[int, str]]) -> None:
+    """Display downloader identity, mirror location, and repair-request count."""
     MIRROR_ROOT.mkdir(parents=True, exist_ok=True)
     print("=" * 43)
     print("        Topaz Offline Downloader")
@@ -12489,19 +15252,26 @@ def main() -> int:
     if repair_paths:
         print(f"SHA-256 Repairs Requested: {{len(repair_paths)}}\n")
 
-    curl = curl_command()
+
+def _network_download_state() -> tuple[tuple[str, str] | None, bool]:
+    """Display network status and return backend plus download availability."""
+    backend = download_backend()
     print("Checking Network...")
     if not active_network_adapter():
         print("[OFFLINE] No active network adapter detected.")
         downloads_enabled = False
-    elif curl is None:
-        print("[LOCAL] Network adapter active, but curl was not found.")
+    elif backend is None:
+        if platform.system().lower() == "windows":
+            print("[LOCAL] Network adapter active, but curl was not found.")
+        else:
+            print("[LOCAL] Network adapter active, but curl and wget were not found.")
         downloads_enabled = False
-    elif topaz_website_reached(curl):
-        print("[ONLINE] Topaz website reached.")
-        downloads_enabled = True
     else:
-        print("[LOCAL] Network adapter active, but Topaz website was not reached.")
+        print(f"Download Utility: {{backend[0]}}")
+        if topaz_website_reached(backend):
+            print("[ONLINE] Topaz website reached.")
+        else:
+            print("[LOCAL] Network adapter active, but Topaz website was not reached.")
         downloads_enabled = True
     print("\n" + "=" * 43)
     print("           Network Check Complete.")
@@ -12512,23 +15282,170 @@ def main() -> int:
     else:
         print("Skipping downloads and checking existing files only.")
     print()
+    return backend, downloads_enabled
 
-    asset_valid = process_asset(curl, downloads_enabled)
-    group_results: list[bool] = []
-    for group in GROUPS:
-        group_results.append(
-            process_group(group, curl, downloads_enabled, repair_paths)
+
+def _process_download_groups(
+    backend: tuple[str, str] | None,
+    downloads_enabled: bool,
+    repair_paths: dict[str, tuple[int, str]],
+) -> bool:
+    """Process every logical download group and return whether all groups pass."""
+    all_groups_valid = True
+    # Every group must execute; all(generator) would short-circuit after failure.
+    for group in runtime_groups():  # pylint: disable=consider-using-any-or-all
+        if not process_group(group, backend, downloads_enabled, repair_paths):
+            all_groups_valid = False
+    return all_groups_valid
+
+
+def _repair_group_items(
+    group: dict,
+    repair_paths: dict[str, tuple[int, str]],
+) -> list[dict]:
+    """Return logical candidates whose physical paths are still repair-requested."""
+    return [
+        item
+        for item in group["items"]
+        if safe_relative_path(item["path"]).casefold() in repair_paths
+    ]
+
+
+def process_repair_group(
+    group: dict,
+    backend: tuple[str, str] | None,
+    downloads_enabled: bool,
+    repair_paths: dict[str, tuple[int, str]],
+) -> bool:
+    """Process only still-requested SHA-256 repairs from one logical group."""
+    if not (items := _repair_group_items(group, repair_paths)):
+        return True
+    validation_cache: dict[str, tuple[tuple[int, int], bool]] = {{}}
+    report_state_incomplete = False
+    attempted_items: list[dict] = []
+    section(str(group["title"]))
+    for item in items:
+        relative = safe_relative_path(item["path"])
+        if relative.casefold() not in repair_paths:
+            continue
+        attempted_items.append(item)
+        state = _group_item_state(item, repair_paths)
+        print(f"[{{group['progress']}} Repair] {{state['filename']}}")
+        should_download, report_incomplete = _existing_group_item_decision(
+            state, repair_paths, validation_cache
         )
-    groups_valid = all(group_results)
+        report_state_incomplete = report_state_incomplete or report_incomplete
+        if should_download:
+            report_state_incomplete = (
+                _download_group_item(
+                    state,
+                    backend,
+                    downloads_enabled,
+                    repair_paths,
+                    validation_cache,
+                )
+                or report_state_incomplete
+            )
+    section(str(group["missing_title"]))
+    failures = _group_failure_names(
+        attempted_items, repair_paths, validation_cache
+    )
+    return _display_group_result(
+        group, attempted_items, failures, report_state_incomplete
+    )
 
-    final_failures = final_inventory_failures(physical_files, repair_paths, asset_valid)
-    if groups_valid and not final_failures:
-        if not launcher_mode:
-            print("Download byte-count result: SUCCESS")
-        return 0
+
+def _process_repair_groups(
+    backend: tuple[str, str] | None,
+    downloads_enabled: bool,
+    repair_paths: dict[str, tuple[int, str]],
+) -> bool:
+    """Process only SHA-256 repair-list paths, retaining alternate URL fallbacks."""
+    all_repairs_valid = True
+    for group in runtime_groups():
+        if not repair_paths:
+            break
+        if not _repair_group_items(group, repair_paths):
+            continue
+        if not process_repair_group(group, backend, downloads_enabled, repair_paths):
+            all_repairs_valid = False
+    return all_repairs_valid and not repair_paths
+
+
+def _remaining_repair_failures(
+    physical: dict[str, tuple[str, int, bool]],
+    repair_paths: dict[str, tuple[int, str]],
+) -> list[str]:
+    """Return physical SHA-256 repair requests that remain unresolved."""
+    return [
+        f"SHA-256 repair download failed: {{physical[key][0]}}"
+        for key in sorted(repair_paths)
+    ]
+
+
+def _download_result_code(
+    launcher_mode: bool,
+    *,
+    groups_valid: bool,
+    reported_zip_valid: bool,
+    final_failures: list[str],
+) -> int:
+    """Return the final downloader workflow code and display standalone status."""
+    success = groups_valid and reported_zip_valid and not final_failures
     if not launcher_mode:
-        print("Download byte-count result: FAILED")
-    return 1
+        print(f"Download integrity result: {{'SUCCESS' if success else 'FAILED'}}")
+    return 0 if success else 1
+
+
+def main() -> int:
+    """Run downloader validation, download/repair work, and final integrity reporting."""
+    launcher_mode, validate_only, repair_only, repair_network_check = parse_arguments(sys.argv[1:])
+    if repair_network_check:
+        if not (repair_paths := load_repair_paths()):
+            return 3
+        return 0 if repair_downloads_available() else 1
+    physical_files = validate_inventory()
+    if validate_only:
+        print("Portable downloader validation: PASSED")
+        return 0
+    repair_paths = load_repair_paths()
+    if unknown_repairs := set(repair_paths) - set(physical_files):
+        raise RuntimeError(
+            f"Repair list contains unknown mirror paths: {{sorted(unknown_repairs)[:3]}}"
+        )
+    if repair_only and not repair_paths:
+        raise RuntimeError(
+            "Repair-only mode requires a valid non-empty SHA-256 repair list."
+        )
+    _display_downloader_header(repair_paths)
+    backend, downloads_enabled = _network_download_state()
+    if repair_only and not downloads_enabled:
+        return 1
+    if repair_only:
+        groups_valid = _process_repair_groups(
+            backend, downloads_enabled, repair_paths
+        )
+        reported_zip_valid = True
+        final_failures = _remaining_repair_failures(
+            physical_files, repair_paths
+        )
+    else:
+        asset_valid = process_asset(backend, downloads_enabled)
+        groups_valid = _process_download_groups(
+            backend, downloads_enabled, repair_paths
+        )
+        reported_zip_valid = process_reported_unhashed_zip_validation(
+            backend, downloads_enabled
+        )
+        final_failures = final_inventory_failures(
+            physical_files, repair_paths, asset_valid
+        )
+    return _download_result_code(
+        launcher_mode,
+        groups_valid=groups_valid,
+        reported_zip_valid=reported_zip_valid,
+        final_failures=final_failures,
+    )
 
 
 if __name__ == "__main__":
@@ -12536,10 +15453,10 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except KeyboardInterrupt:
         print("\nDownload workflow stopped by user.")
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except Exception as error:
         print(f"\nERROR: {{error}}", file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from None
 '''
     compile(downloader_source, str(OUT_PORTABLE_DOWNLOADER), "exec")
     OUT_PORTABLE_DOWNLOADER.write_text(downloader_source, encoding="utf-8", newline="\n")
@@ -12733,36 +15650,47 @@ if [ $DOWNLOAD_CODE -eq 130 ]; then echo "Workflow stopped by user."; exit 130; 
 WORKFLOW_CODE=0
 if [ $DOWNLOAD_CODE -ne 0 ] && [ $DOWNLOAD_CODE -ne 1 ]; then
     echo
-echo "Download Integrity Result: FAILED"
+echo "Download Integrity Result    : FAILED"
     WORKFLOW_CODE=2
 else
     "$PYTHON" "$VERIFIER"
     VERIFY_CODE=$?
     if [ $VERIFY_CODE -eq 130 ]; then echo "Workflow stopped by user."; exit 130; fi
     if [ $VERIFY_CODE -eq 1 ] && [ -f "$REPAIR" ]; then
-        echo
-echo "SHA-256 repair list detected. Re-running only required downloads..."
-        "$PYTHON" "$DOWNLOADER" --launcher-mode
-        DOWNLOAD_CODE=$?
-        if [ $DOWNLOAD_CODE -eq 130 ]; then echo "Workflow stopped by user."; exit 130; fi
-        if [ $DOWNLOAD_CODE -eq 0 ] || [ $DOWNLOAD_CODE -eq 1 ]; then
-            "$PYTHON" "$VERIFIER"
-            VERIFY_CODE=$?
-            if [ $VERIFY_CODE -eq 130 ]; then echo "Workflow stopped by user."; exit 130; fi
-        else
+        "$PYTHON" "$DOWNLOADER" --repair-network-check
+        REPAIR_NETWORK_CODE=$?
+        if [ $REPAIR_NETWORK_CODE -eq 130 ]; then echo "Workflow stopped by user."; exit 130; fi
+        if [ $REPAIR_NETWORK_CODE -eq 1 ]; then
+            DOWNLOAD_CODE=1
+        elif [ $REPAIR_NETWORK_CODE -eq 3 ]; then
+            DOWNLOAD_CODE=1
+        elif [ $REPAIR_NETWORK_CODE -ne 0 ]; then
             VERIFY_CODE=2
+        else
+            echo
+            echo "SHA-256 repair list detected. Re-running only required downloads..."
+            "$PYTHON" "$DOWNLOADER" --launcher-mode --repair-only
+            DOWNLOAD_CODE=$?
+            if [ $DOWNLOAD_CODE -eq 130 ]; then echo "Workflow stopped by user."; exit 130; fi
+            if [ $DOWNLOAD_CODE -eq 0 ] || [ $DOWNLOAD_CODE -eq 1 ]; then
+                "$PYTHON" "$VERIFIER"
+                VERIFY_CODE=$?
+                if [ $VERIFY_CODE -eq 130 ]; then echo "Workflow stopped by user."; exit 130; fi
+            else
+                VERIFY_CODE=2
+            fi
         fi
     fi
     if [ ${{VERIFY_CODE:-2}} -ne 0 ] && [ ${{VERIFY_CODE:-2}} -ne 1 ]; then
         echo
-echo "Verification Result: FAILED"
+echo "Verification Result          : FAILED"
         WORKFLOW_CODE=2
     elif [ ${{VERIFY_CODE:-2}} -eq 0 ] && [ $DOWNLOAD_CODE -eq 0 ]; then
         echo
 echo "{INTEGRITY_SUCCESS_MESSAGE}"
     else
         echo
-echo "Download Integrity Result: FAILED"
+echo "Download Integrity Result    : FAILED"
         WORKFLOW_CODE=1
     fi
 fi
@@ -12793,48 +15721,70 @@ echo "      Created by Github user 91ajames"
 echo
 echo "==========================================="
 echo
+SERVER_CODE=0
+SERVER_SKIPPED=0
 while :; do
     printf "Start the Topaz Repeater Server now? (Y/N): "
     if ! IFS= read -r STARTSERVER; then
         echo
         echo "Repeater server startup cancelled by user."
+        SERVER_CODE=130
         SERVER_CANCELLED=1
         break
     fi
     case "$STARTSERVER" in
         [Yy]|[Yy][Ee][Ss])
             echo
-            if [ -L "$ERROR_REPORT" ]; then
-                echo "ERROR: Recovery report path is a symbolic link: $ERROR_REPORT"
-                SERVER_CODE=1
-            else
-                sudo "$PYTHON" "$REPEATER" --certificate-preflight
-                SERVER_CODE=$?
-                if [ $SERVER_CODE -eq 0 ]; then
-{unix_network_hosts_block(platform_name)}
-                    if [ "${{SERVER_CANCELLED:-0}}" -ne 1 ]; then
-                        echo "[3/3] Repeater Server"
-                        echo "==========================================="
-                        echo
-                        sudo "$PYTHON" "$REPEATER" --launcher-prepared
-                        SERVER_CODE=$?
-                    else
-                        SERVER_CODE=130
-                    fi
-                fi
-            fi
-            if [ $SERVER_CODE -eq 130 ]; then
-                echo "Repeater server stopped or startup was cancelled by user."
-                SERVER_CANCELLED=1
-            elif [ $SERVER_CODE -ne 0 ]; then
-                WORKFLOW_CODE=2
-            fi
             break
             ;;
-        [Nn]|[Nn][Oo]) break ;;
+        [Nn]|[Nn][Oo])
+            echo "Topaz Repeater Server was not started."
+            SERVER_SKIPPED=1
+            break
+            ;;
         *) echo "Please type Y or N."; echo ;;
     esac
 done
+
+if [ $SERVER_CODE -eq 0 ] && [ $SERVER_SKIPPED -ne 1 ]; then
+    if [ -L "$ERROR_REPORT" ]; then
+        echo "ERROR: Recovery report path is a symbolic link: $ERROR_REPORT"
+        SERVER_CODE=1
+    else
+        "$PYTHON" "$REPEATER" --certificate-preflight
+        SERVER_CODE=$?
+        if [ $SERVER_CODE -eq 0 ]; then
+{unix_network_hosts_block(platform_name)}
+            if [ "${{SERVER_CANCELLED:-0}}" -ne 1 ]; then
+                echo "[3/3] Repeater Server"
+                echo "==========================================="
+                echo
+                "$PYTHON" "$REPEATER" --launcher-prestart-display
+                DIALOGUE_CODE=$?
+                if [ $DIALOGUE_CODE -eq 130 ]; then
+                    SERVER_CODE=130
+                    SERVER_CANCELLED=1
+                elif [ $DIALOGUE_CODE -ne 0 ]; then
+                    SERVER_CODE=$DIALOGUE_CODE
+                else
+                    echo
+                    sudo "$PYTHON" "$REPEATER" --launcher-prepared-start
+                    SERVER_CODE=$?
+                fi
+            else
+                SERVER_CODE=130
+            fi
+        fi
+    fi
+fi
+if [ $SERVER_CODE -eq 130 ]; then
+    if [ "${{SERVER_CANCELLED:-0}}" -ne 1 ]; then
+        echo "Repeater server stopped or startup was cancelled by user."
+    fi
+    SERVER_CANCELLED=1
+elif [ $SERVER_CODE -ne 0 ]; then
+    WORKFLOW_CODE=2
+fi
 if [ $WORKFLOW_CODE -eq 2 ]; then
     OVERALL_RESULT="FAILED"
     FINAL_CODE=2
@@ -12868,15 +15818,22 @@ def generate_linux_launcher() -> None:
     generate_unix_launcher(OUT_LINUX, "Linux")
 
 
+def native_unix_bash_executable() -> str | None:
+    """Return bash only on a native macOS/Linux creator host."""
+    if CURRENT_OS not in {"linux", "darwin"}:
+        return None
+    return shutil.which("bash")
+
+
 def validate_unix_launcher(
     path: Path,
     platform_name: str,
     *,
     allow_missing_bash: bool = False,
 ) -> None:
-    bash_executable = shutil.which("bash")
+    bash_executable = native_unix_bash_executable()
     if bash_executable is None:
-        if not allow_missing_bash:
+        if CURRENT_OS in {"linux", "darwin"} and not allow_missing_bash:
             raise RuntimeError(
                 f"Generated {platform_name} launcher syntax validation requires bash."
             )
@@ -12899,6 +15856,11 @@ def validate_unix_launcher(
     required_download_verification_flow = (
         'if [ $DOWNLOAD_CODE -ne 0 ] && [ $DOWNLOAD_CODE -ne 1 ]; then',
         'if [ $DOWNLOAD_CODE -eq 0 ] || [ $DOWNLOAD_CODE -eq 1 ]; then',
+        '"$PYTHON" "$DOWNLOADER" --repair-network-check',
+        'REPAIR_NETWORK_CODE=$?',
+        'if [ $REPAIR_NETWORK_CODE -eq 1 ]; then',
+        'elif [ $REPAIR_NETWORK_CODE -eq 3 ]; then',
+        'DOWNLOAD_CODE=1',
         'if [ ${VERIFY_CODE:-2} -ne 0 ] && [ ${VERIFY_CODE:-2} -ne 1 ]; then',
         'WORKFLOW_CODE=2',
         'OVERALL_RESULT="INCOMPLETE"',
@@ -12935,6 +15897,55 @@ def validate_unix_launcher(
     if '$((IP_CHOICE' in text or '[ "$IP_CHOICE" -lt' in text or '[ "$IP_CHOICE" -gt' in text:
         raise RuntimeError(
             f"Generated {platform_name} launcher performs arithmetic on raw IP choice input."
+        )
+    if 'sudo "$PYTHON" "$REPEATER" --certificate-preflight' in text:
+        raise RuntimeError(
+            f"Generated {platform_name} launcher elevates before certificate approval."
+        )
+    if '"$PYTHON" "$REPEATER" --certificate-preflight' not in text:
+        raise RuntimeError(
+            f"Generated {platform_name} launcher is missing unprivileged certificate preflight."
+        )
+    if '"$PYTHON" "$REPEATER" --launcher-prestart-display' not in text:
+        raise RuntimeError(
+            f"Generated {platform_name} launcher is missing unprivileged repeater pre-start dialogue."
+        )
+    if 'sudo "$PYTHON" "$REPEATER" --launcher-prepared-start' not in text:
+        raise RuntimeError(
+            f"Generated {platform_name} launcher is missing privileged low-port server startup."
+        )
+    banner_prompt_block = (
+        'echo "      Created by Github user 91ajames"\n'
+        'echo\n'
+        'echo "==========================================="\n'
+        'echo\n'
+        'SERVER_CODE=0\n'
+        'SERVER_SKIPPED=0\n'
+        'while :; do\n'
+        '    printf "Start the Topaz Repeater Server now? (Y/N): "'
+    )
+    if banner_prompt_block not in text:
+        raise RuntimeError(
+            f"Generated {platform_name} launcher is missing the server-banner "
+            "separator before the start prompt."
+        )
+
+    start_prompt_position = text.find('Start the Topaz Repeater Server now? (Y/N):')
+    preflight_position = text.find('"$PYTHON" "$REPEATER" --certificate-preflight')
+    network_position = text.find('[2/3] Network / Hosts Setup')
+    dialogue_position = text.find('"$PYTHON" "$REPEATER" --launcher-prestart-display')
+    sudo_start_position = text.find('sudo "$PYTHON" "$REPEATER" --launcher-prepared-start')
+    if not (
+        0 <= start_prompt_position
+        < preflight_position
+        < network_position
+        < dialogue_position
+        < sudo_start_position
+    ):
+        raise RuntimeError(
+            f"Generated {platform_name} launcher must ask for server approval before "
+            "certificate/network preparation, display the repeater dialogue afterward, "
+            "and elevate only for the final low-port bind/start."
         )
     if platform_name == "macOS" and "ifconfig" not in text:
         raise RuntimeError("Generated macOS launcher is missing ifconfig IPv4 discovery.")
@@ -12995,14 +16006,12 @@ if SHOW_DEVELOPER_VALIDATION:
             sys.executable,
             "-c",
             (
-                "import runpy, sys; "
+                "from datetime import datetime; import runpy, sys; "
                 "namespace = runpy.run_path(sys.argv[1]); "
                 "handler_class = namespace['TopazMirrorHandler']; "
                 "handler = object.__new__(handler_class); "
                 "timestamp = handler.current_timestamp(); "
-                "assert timestamp and timestamp[-3:] in (' AM', ' PM'); "
-                "milliseconds = timestamp.rsplit('.', 1)[1].split(' ', 1)[0]; "
-                "assert len(milliseconds) == 3 and milliseconds.isdigit(); "
+                "datetime.strptime(timestamp, '%d/%b/%Y %H:%M:%S'); "
                 "print(timestamp)"
             ),
             str(SERVER_PY),
@@ -13290,6 +16299,7 @@ RECOVERABLE_SUFFIXES = {
     ".tar",
     ".txt",
     ".xml",
+    ".yaml",
     ".tz",
     ".tz2",
     ".tz3",
@@ -13676,10 +16686,18 @@ for record in VIDEO_AI_715_CAPTURED_PACKAGE_RECORDS:
 
 
 def recovery_expected_integrity(path: Path) -> tuple[int, str]:
-    return RECOVERY_V2_INTEGRITY.get(
-        str(path.resolve()).casefold(),
-        (0, ""),
-    )
+    known = RECOVERY_V2_INTEGRITY.get(str(path.resolve()).casefold())
+    if known is not None:
+        return known
+    try:
+        relative = path.resolve().relative_to(MIRROR_ROOT.resolve()).as_posix()
+    except (OSError, ValueError):
+        return (0, "")
+    key = relative.casefold()
+    for record in (*load_discovered_inventory_records(), *load_discovered_asset_records()):
+        if record["relative_path"].casefold() == key:
+            return int(record["size_bytes"]), str(record["sha256"]).upper()
+    return (0, "")
 
 
 
@@ -13746,6 +16764,8 @@ def recovery_destination(url: str) -> Path | None:
             destination.resolve().relative_to(MIRROR_ROOT.resolve())
         except ValueError:
             return None
+        if mirror_path_has_link_component(destination):
+            return None
         return destination
 
     captured_package_path = CAPTURED_PACKAGE_RECOVERY_CANONICAL_PATHS.get(
@@ -13764,6 +16784,8 @@ def recovery_destination(url: str) -> Path | None:
         try:
             destination.resolve().relative_to(MIRROR_ROOT.resolve())
         except ValueError:
+            return None
+        if mirror_path_has_link_component(destination):
             return None
         return destination
 
@@ -13801,6 +16823,8 @@ def recovery_destination(url: str) -> Path | None:
         destination.resolve().relative_to(MIRROR_ROOT.resolve())
     except ValueError:
         return None
+    if mirror_path_has_link_component(destination):
+        return None
 
     return destination
 
@@ -13808,7 +16832,10 @@ def recovery_destination(url: str) -> Path | None:
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
             digest.update(chunk)
     return digest.hexdigest().upper()
 
@@ -13821,7 +16848,7 @@ def recovery_file_is_usable(
     content_suffix: str | None = None,
 ) -> bool:
     try:
-        if not path.is_file() or path.is_symlink():
+        if mirror_path_has_link_component(path) or not path.is_file():
             return False
 
         actual_size = path.stat().st_size
@@ -13961,6 +16988,93 @@ def restore_known_recovery_fallback(url: str, destination: Path) -> bool:
         raise
 
 
+def recovery_download_backend() -> tuple[str, str] | None:
+    """Return the supported recovery backend for the current platform."""
+    if CURRENT_OS == "windows":
+        curl = shutil.which("curl") or shutil.which("curl.exe")
+        return ("curl", curl) if curl else None
+    if CURRENT_OS in {"linux", "darwin"}:
+        curl = shutil.which("curl")
+        if curl:
+            return ("curl", curl)
+        wget = shutil.which("wget")
+        if wget:
+            return ("wget", wget)
+        return None
+    return None
+
+def recovery_wget_resolve_url(
+    wget: str, url: str, allowed_schemes: set[str],
+) -> str | None:
+    """Resolve wget redirects without crossing a forbidden source-scheme boundary."""
+    current = url
+    for _redirect in range(11):
+        if urlparse(current).scheme.lower() not in allowed_schemes:
+            print(f"Recovery blocked wget redirect to disallowed protocol: {current}")
+            return None
+        try:
+            result = subprocess.run(
+                [
+                    wget, "--spider", "--server-response", "--max-redirect=0",
+                    "--timeout=10", "--tries=1", current,
+                ],
+                capture_output=True, text=True, check=False,
+            )
+        except OSError as error:
+            print(f"Recovery wget execution failed: {error}")
+            return None
+        if result.returncode == 0:
+            return current
+        output = (result.stderr or "") + "\n" + (result.stdout or "")
+        locations = re.findall(
+            r"^\s*Location:\s*(\S+)", output,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+        if not locations:
+            return None
+        redirected = urljoin(current, locations[-1])
+        if urlparse(redirected).scheme.lower() not in allowed_schemes:
+            print(f"Recovery blocked wget redirect to disallowed protocol: {redirected}")
+            return None
+        current = redirected
+    print("Recovery wget redirect limit exceeded.")
+    return None
+
+def run_recovery_backend(
+    backend: tuple[str, str], *, url: str, output: Path, resume: bool,
+) -> int:
+    backend_name, executable = backend
+    parsed = urlparse(url)
+    if backend_name == "curl":
+        allowed_protocol = "=http,https" if parsed.scheme.lower() == "http" else "=https"
+        command = [
+            executable, "--proto", allowed_protocol, "--proto-redir", allowed_protocol,
+            "--location", "--fail", "--retry", "2", "--connect-timeout", "10",
+            "--speed-time", "60", "--speed-limit", "1024", "--show-error",
+        ]
+        if resume:
+            command.extend(["-C", "-"])
+        command.extend(["-o", str(output), url])
+    elif backend_name == "wget":
+        allowed_schemes = {"http", "https"} if parsed.scheme.lower() == "http" else {"https"}
+        resolved_url = recovery_wget_resolve_url(executable, url, allowed_schemes)
+        if resolved_url is None:
+            return 8
+        command = [
+            executable, "--max-redirect=0", "--tries=2", "--timeout=60",
+            "--no-verbose", "--output-document", str(output),
+        ]
+        if resume:
+            command.append("--continue")
+        command.append(resolved_url)
+    else:
+        raise RuntimeError(f"Unsupported recovery backend: {backend_name}")
+    try:
+        return subprocess.run(command, check=False).returncode
+    except OSError as error:
+        print(f"Recovery {backend_name} execution failed: {error}")
+        return 127
+
 def download_recovery_file(
     url: str,
     destination: Path,
@@ -13969,7 +17083,14 @@ def download_recovery_file(
     expected_sha256: str | None = None,
     content_suffix: str | None = None,
 ) -> bool:
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        ensure_mirror_directory(destination.parent)
+    except RuntimeError as error:
+        print(f"Recovery destination rejected: {error}")
+        return False
+    if mirror_path_has_link_component(destination):
+        print(f"Recovery destination rejected: link-like path component: {destination}")
+        return False
     temporary_file = destination.with_name(destination.name + ".part")
     if expected_size is None or expected_sha256 is None:
         known_size, known_sha = recovery_expected_integrity(destination)
@@ -13979,9 +17100,14 @@ def download_recovery_file(
             expected_sha256 = known_sha
     expected_size = int(expected_size or 0)
     expected_sha256 = str(expected_sha256 or "").upper()
-    parsed = urlparse(url)
-    allowed_protocol = "=http,https" if parsed.scheme == "http" else "=https"
+    backend = recovery_download_backend()
     validation_suffix = content_suffix or destination.suffix
+    if backend is None:
+        if CURRENT_OS == "windows":
+            print("Recovery unavailable: curl was not found.")
+        else:
+            print("Recovery unavailable: curl and wget were not found.")
+        return False
 
     if recovery_partial_exists(temporary_file):
         partial_size = temporary_file.stat().st_size
@@ -13998,23 +17124,16 @@ def download_recovery_file(
                 return True
             temporary_file.unlink(missing_ok=True)
 
-    base_command = [
-        CURL_COMMAND, "--proto", allowed_protocol, "--proto-redir", allowed_protocol,
-        "--location", "--fail", "--retry", "2", "--connect-timeout", "10",
-        "--speed-time", "60", "--speed-limit", "1024", "--show-error",
-    ]
-
     if recovery_partial_exists(temporary_file):
         resume_start_size = temporary_file.stat().st_size
 
-        result = subprocess.run(
-            base_command + ["-C", "-", "-o", str(temporary_file), url],
-            check=False,
+        result_code = run_recovery_backend(
+            backend, url=url, output=temporary_file, resume=True
         )
-        if result.returncode in {33, 36}:
+        if backend[0] == "curl" and result_code in {33, 36}:
             print("Recovery resume was rejected. Restarting from byte zero.")
             temporary_file.unlink(missing_ok=True)
-        elif result.returncode != 0:
+        elif result_code != 0:
             return False
         else:
             if not recovery_partial_exists(temporary_file):
@@ -14033,10 +17152,10 @@ def download_recovery_file(
 
     if not recovery_partial_exists(temporary_file):
         create_recovery_partial(temporary_file)
-        result = subprocess.run(
-            base_command + ["-o", str(temporary_file), url], check=False
+        result_code = run_recovery_backend(
+            backend, url=url, output=temporary_file, resume=False
         )
-        if result.returncode != 0:
+        if result_code != 0:
             try:
                 if temporary_file.stat().st_size <= 0:
                     temporary_file.unlink(missing_ok=True)
@@ -14176,7 +17295,14 @@ def recover_logged_404_files() -> bool:
         else:
             expected_size, expected_sha256 = recovery_expected_integrity(destination)
 
-        known_v2 = not known_embedded and expected_size > 0 and bool(expected_sha256)
+        known_v2 = (
+            not known_embedded
+            and RECOVERY_V2_INTEGRITY.get(str(destination.resolve()).casefold()) is not None
+        )
+        trusted_record = (
+            None if known_embedded or known_v2
+            else trusted_discovered_record(destination)
+        )
 
         if destination.is_file():
             if recovery_file_is_usable(
@@ -14201,7 +17327,6 @@ def recover_logged_404_files() -> bool:
                     print()
                     continue
 
-                trusted_record = trusted_recovered_server_asset_record(destination)
                 trusted_urls = (
                     recovered_asset_source_urls(trusted_record)
                     if trusted_record is not None
@@ -14230,7 +17355,7 @@ def recover_logged_404_files() -> bool:
                     try:
                         record_recovered_server_asset(url, destination)
                     except (OSError, ValueError, RuntimeError) as error:
-                        print(f"Integrity manifest update failed: {error}")
+                        print(f"Integrity/report update failed: {error}")
                         failed += 1
                         print()
                         continue
@@ -14250,23 +17375,23 @@ def recover_logged_404_files() -> bool:
                 print()
                 continue
 
-            if known_v2 or known_embedded:
+            if known_v2 or known_embedded or trusted_record is not None:
                 actual_size = destination.stat().st_size
                 actual_sha = sha256_file(destination) if actual_size > 0 else ""
                 if known_v2:
-                    print(
-                        "Existing known V2 file failed integrity validation "
-                        f"({actual_size} of {expected_size} bytes)."
-                    )
+                    label = "known V2 file"
+                elif known_embedded:
+                    label = "embedded support asset"
                 else:
-                    print(
-                        "Existing embedded support asset failed integrity validation "
-                        f"({actual_size} of {expected_size} bytes)."
-                    )
+                    label = "discovered file"
+                print(
+                    f"Existing {label} failed integrity validation "
+                    f"({actual_size} of {expected_size} bytes)."
+                )
                 if actual_size == expected_size and actual_sha != expected_sha256:
                     print("Existing file has the expected size but the wrong SHA-256.")
             else:
-                print("Existing untrusted support file failed validation.")
+                print("Existing untrusted static file failed validation.")
 
             if known_embedded:
                 print("Restoring the embedded known-good copy locally.")
@@ -14310,7 +17435,7 @@ def recover_logged_404_files() -> bool:
                 try:
                     record_recovered_server_asset(url, destination)
                 except (OSError, ValueError, RuntimeError) as error:
-                    print(f"Integrity manifest update failed: {error}")
+                    print(f"Integrity/report update failed: {error}")
                     failed += 1
                     print()
                     continue
@@ -14353,7 +17478,10 @@ def recover_logged_404_files() -> bool:
 def _self_test_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
             digest.update(chunk)
     return digest.hexdigest().upper()
 
@@ -14440,7 +17568,10 @@ def _self_test_manifest_database() -> str:
                 "Migrated Video AI 7.1.5 V2 integrity metadata failed: " + relative_path
             )
     overall_physical = len(physical_records) + len(captured_paths)
-    expected_overall_physical = len(physical_records) + len(captured_paths)
+    expected_overall_physical = len({
+        str(record["relative_path"]).replace("\\", "/").casefold()
+        for record in current_logical_inventory_records()
+    } | set(captured_paths))
     if overall_physical != expected_overall_physical:
         raise RuntimeError(
             f"Overall physical inventory mismatch: {{overall_physical}} != {{expected_overall_physical}}."
@@ -14934,7 +18065,7 @@ def _self_test_route_ownership() -> str:
                     sharpen_host,
                     sharpen_path,
                 )
-                if resolved != temporary_model.resolve():
+                if resolved != temporary_model:
                     raise RuntimeError("Sharpen UUID alias failed for its captured owner.")
                 if handler_class.resolve_owned_model_request(
                     resolver,
@@ -14954,6 +18085,111 @@ def _self_test_route_ownership() -> str:
     finally:
         resolver_globals["resolve_sharpen_model"] = saved_sharpen_resolver
         resolver_globals["MIRROR_ROOT"] = saved_repeater_mirror_root
+
+    # Exercise the real Sharpen alias resolver through a lexical final symlink.
+    # The alias route must preserve that lexical path until the descriptor-safe
+    # opener rejects it; resolving the symlink first would erase the evidence.
+    saved_alias_globals = {
+        "MIRROR_ROOT": resolver_globals["MIRROR_ROOT"],
+        "SHARPEN_JSON_ROOT": resolver_globals["SHARPEN_JSON_ROOT"],
+    }
+    try:
+        with tempfile.TemporaryDirectory(prefix="topaz-sharpen-link-selftest-") as temp_name:
+            alias_mirror = Path(temp_name).resolve() / "Mirror"
+            alias_root = alias_mirror / "v2" / "JSON_SHARPEN"
+            alias_link = alias_root / "linked-owner" / sharpen_filename
+            alias_target = alias_root / "real-owner" / (sharpen_filename + ".target")
+            alias_link.parent.mkdir(parents=True, exist_ok=True)
+            alias_target.parent.mkdir(parents=True, exist_ok=True)
+            alias_target.write_bytes(b"sharpen-link-target")
+            resolver_globals["MIRROR_ROOT"] = alias_mirror
+            resolver_globals["SHARPEN_JSON_ROOT"] = alias_root
+            link_created = False
+            try:
+                alias_link.symlink_to(alias_target)
+                link_created = True
+            except OSError as error:
+                if not (
+                    os.name == "nt"
+                    and getattr(error, "winerror", None) == 1314
+                ):
+                    raise
+            if link_created:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    alias_candidate = handler_class.resolve_owned_model_request(
+                        resolver,
+                        sharpen_scheme,
+                        sharpen_host,
+                        sharpen_path,
+                    )
+                if alias_candidate != alias_link:
+                    raise RuntimeError(
+                        "Sharpen alias resolution did not preserve the lexical link path."
+                    )
+                alias_handler = object.__new__(handler_class)
+                alias_statuses: list[int] = []
+                alias_handler.send_error = (
+                    lambda code, *_args, **_kwargs: alias_statuses.append(int(code))
+                )
+                if handler_class._open_owned_model_file(
+                    alias_handler, alias_candidate
+                ) is not None or alias_statuses != [HTTPStatus.FORBIDDEN]:
+                    raise RuntimeError(
+                        "Sharpen alias link path was not rejected by the safe opener."
+                    )
+                translated = handler_class.translate_path(alias_handler, sharpen_path)
+                if Path(translated).name != "__blocked_request__":
+                    raise RuntimeError(
+                        "Legacy Sharpen translate_path did not reject the link alias."
+                    )
+    finally:
+        resolver_globals.update(saved_alias_globals)
+
+    # Multiple Sharpen candidates may be resolved only from complete evidence.
+    # One unreadable/non-regular candidate makes the filename ambiguous rather
+    # than allowing the first otherwise-valid candidate to win by fallback.
+    saved_candidate_globals = {
+        "MIRROR_ROOT": resolver_globals["MIRROR_ROOT"],
+        "SHARPEN_JSON_ROOT": resolver_globals["SHARPEN_JSON_ROOT"],
+    }
+    try:
+        with tempfile.TemporaryDirectory(prefix="topaz-sharpen-candidate-selftest-") as temp_name:
+            candidate_mirror = Path(temp_name).resolve() / "Mirror"
+            candidate_root = candidate_mirror / "v2" / "JSON_SHARPEN"
+            resolver_globals["MIRROR_ROOT"] = candidate_mirror
+            resolver_globals["SHARPEN_JSON_ROOT"] = candidate_root
+            resolve_candidate = resolver_globals["resolve_sharpen_model"]
+
+            def candidate_path(owner: str) -> Path:
+                return candidate_root / owner / sharpen_filename
+
+            first = candidate_path("owner-a")
+            second = candidate_path("owner-b")
+            first.parent.mkdir(parents=True, exist_ok=True)
+            second.parent.mkdir(parents=True, exist_ok=True)
+
+            first.write_bytes(b"identical-sharpen")
+            second.write_bytes(b"identical-sharpen")
+            if resolve_candidate(sharpen_filename) not in {first, second}:
+                raise RuntimeError("Identical Sharpen candidates were not resolved.")
+
+            second.write_bytes(b"different-size")
+            if resolve_candidate(sharpen_filename) is not None:
+                raise RuntimeError("Different-size Sharpen candidates were not rejected.")
+
+            first.write_bytes(b"AAAA")
+            second.write_bytes(b"BBBB")
+            if resolve_candidate(sharpen_filename) is not None:
+                raise RuntimeError("Different-hash Sharpen candidates were not rejected.")
+
+            second.unlink()
+            second.mkdir()
+            if resolve_candidate(sharpen_filename) is not None:
+                raise RuntimeError(
+                    "Unvalidatable multiple Sharpen candidates did not fail closed."
+                )
+    finally:
+        resolver_globals.update(saved_candidate_globals)
 
     # BRISQUE is embedded for offline reconstruction but its V2 record still
     # owns the runtime model route. It must not leak through another host.
@@ -15058,10 +18294,102 @@ def _self_test_http_behavior() -> str:
         if invalid_range.response_headers.get("Content-Range") != "bytes */16":
             raise RuntimeError("416 Content-Range is incorrect.")
 
-    return "GET/HEAD 200; Range 206; invalid Range 416"
+    server_class = namespace["LoggingHTTPSServer"]
+    server_method_globals = server_class.process_request_thread.__globals__
+
+    class _SelfTestRawSocket:
+        def __init__(self):
+            self.timeouts = []
+            self.closed = False
+
+        def settimeout(self, value):
+            self.timeouts.append(value)
+
+        def close(self):
+            self.closed = True
+
+    class _SelfTestTLSSocket(_SelfTestRawSocket):
+        def __init__(self, handshake_error=None):
+            super().__init__()
+            self.handshake_error = handshake_error
+
+        def do_handshake(self):
+            if self.handshake_error is not None:
+                raise self.handshake_error
+
+    class _SelfTestSSLContext:
+        def __init__(self, tls_socket):
+            self.tls_socket = tls_socket
+
+        def wrap_socket(self, raw_socket, **_kwargs):
+            self.raw_socket = raw_socket
+            return self.tls_socket
+
+    # Force a non-OSError handler failure. ThreadingMixIn must catch it,
+    # call handle_error(), run shutdown_request(), and leave no exception.
+    raw_socket = _SelfTestRawSocket()
+    tls_socket = _SelfTestTLSSocket()
+    server = server_class.__new__(server_class)
+    server.ssl_context = _SelfTestSSLContext(tls_socket)
+    worker_events = []
+
+    def _raise_handler_failure(_request, _client_address):
+        raise RuntimeError("forced handler failure")
+
+    server.finish_request = _raise_handler_failure
+    server.handle_error = lambda _request, _client: worker_events.append(
+        ("handle_error", type(sys.exc_info()[1]).__name__)
+    )
+    server.shutdown_request = lambda request: (
+        worker_events.append(("shutdown", None)),
+        request.close(),
+    )
+    server.process_request_thread(raw_socket, ("127.0.0.1", 44300))
+    if raw_socket.timeouts != [namespace["TLS_HANDSHAKE_TIMEOUT_SECONDS"]]:
+        raise RuntimeError("HTTPS raw-socket handshake timeout was not restored.")
+    if tls_socket.timeouts != [
+        namespace["TLS_HANDSHAKE_TIMEOUT_SECONDS"],
+        namespace["HTTP_CLIENT_TIMEOUT_SECONDS"],
+    ]:
+        raise RuntimeError("HTTPS post-handshake client timeout was not restored.")
+    if worker_events != [("handle_error", "RuntimeError"), ("shutdown", None)]:
+        raise RuntimeError("HTTPS handler exception did not use ThreadingMixIn cleanup.")
+    if not tls_socket.closed:
+        raise RuntimeError("HTTPS handler-failure socket was not closed.")
+
+    # Force a generic handshake SSLError. It must be sanitized/reported without
+    # escaping as a traceback and its SNI state/socket must be cleaned up.
+    raw_socket = _SelfTestRawSocket()
+    tls_socket = _SelfTestTLSSocket(ssl.SSLError("forced handshake failure"))
+    server = server_class.__new__(server_class)
+    server.ssl_context = _SelfTestSSLContext(tls_socket)
+    emitted_blocks = []
+    reported_blocks = []
+    saved_emit = server_method_globals["emit_log_block"]
+    saved_append = server_method_globals["append_error_report"]
+    server_method_globals["emit_log_block"] = lambda lines: emitted_blocks.append(list(lines))
+    server_method_globals["append_error_report"] = lambda value: reported_blocks.append(value)
+    server_method_globals["TLS_SNI"][tls_socket] = "selftest.topazlabs.com"
+    try:
+        server.process_request_thread(raw_socket, ("127.0.0.1", 44301))
+    finally:
+        server_method_globals["emit_log_block"] = saved_emit
+        server_method_globals["append_error_report"] = saved_append
+    if not emitted_blocks or not reported_blocks:
+        raise RuntimeError("Generic TLS handshake failure was not controlled/reported.")
+    if "TLS / SSL Handshake Failure" not in reported_blocks[0]:
+        raise RuntimeError("TLS handshake report lost its controlled diagnostic section.")
+    if tls_socket in server_method_globals["TLS_SNI"] or not tls_socket.closed:
+        raise RuntimeError("TLS handshake failure did not clean SNI/socket state.")
+
+    return (
+        "GET/HEAD 200; Range 206; invalid Range 416; "
+        "HTTPS timeout/handler isolation/handshake reporting pass"
+    )
 
 
 def _self_test_recovery() -> str:
+    global MIRROR_ROOT
     import runpy
 
     downloader = runpy.run_path(str(OUT_PORTABLE_DOWNLOADER))
@@ -15105,7 +18433,7 @@ def _self_test_recovery() -> str:
             return 22
         downloader_globals["run_curl"] = failed_run_curl
         if downloader["download_file"](
-            "curl", url=failed_url, destination=failed_destination, expected_size=len(correct)
+            ("curl", "curl"), url=failed_url, destination=failed_destination, expected_size=len(correct)
         ):
             raise RuntimeError("Failed-download reporting self-test unexpectedly succeeded.")
         report_text = downloader_report.read_text(encoding="utf-8")
@@ -15113,7 +18441,7 @@ def _self_test_recovery() -> str:
             raise RuntimeError("Failed Downloader request was not written to the error report.")
         install_fake_downloader(correct)
         if not downloader["download_file"](
-            "curl", url=failed_url, destination=failed_destination, expected_size=len(correct)
+            ("curl", "curl"), url=failed_url, destination=failed_destination, expected_size=len(correct)
         ):
             raise RuntimeError("Failed-download retry self-test did not recover.")
         report_text = downloader_report.read_text(encoding="utf-8")
@@ -15124,7 +18452,7 @@ def _self_test_recovery() -> str:
         destination = mirror / "v1" / "missing.bin"
         install_fake_downloader(correct)
         if not downloader["download_file"](
-            "curl", url=url, destination=destination, expected_size=len(correct)
+            ("curl", "curl"), url=url, destination=destination, expected_size=len(correct)
         ):
             raise RuntimeError("Missing-file download self-test failed.")
         if destination.read_bytes() != correct or destination.with_name(destination.name + ".part").exists():
@@ -15135,7 +18463,7 @@ def _self_test_recovery() -> str:
         destination.write_bytes(b"OLD")
         install_fake_downloader(correct, assert_old=b"OLD")
         if not downloader["download_file"](
-            "curl", url=url, destination=destination, expected_size=len(correct),
+            ("curl", "curl"), url=url, destination=destination, expected_size=len(correct),
             force_repair=True, expected_sha256=expected_sha,
         ):
             raise RuntimeError("Wrong-size repair self-test failed.")
@@ -15153,7 +18481,7 @@ def _self_test_recovery() -> str:
         import io
         with contextlib.redirect_stdout(io.StringIO()):
             bad_sha_accepted = downloader["download_file"](
-                "curl", url=url, destination=destination, expected_size=len(correct),
+                ("curl", "curl"), url=url, destination=destination, expected_size=len(correct),
                 force_repair=True, expected_sha256=expected_sha,
             )
         if bad_sha_accepted:
@@ -15169,7 +18497,7 @@ def _self_test_recovery() -> str:
         before_calls = len(curl_calls)
         downloader_globals["report_hosts_download_block"] = lambda _url: True
         if downloader["download_file"](
-            "curl", url=url, destination=destination, expected_size=len(correct),
+            ("curl", "curl"), url=url, destination=destination, expected_size=len(correct),
             force_repair=True, expected_sha256=expected_sha,
         ):
             raise RuntimeError("Hosts feedback guard unexpectedly allowed a download.")
@@ -15202,17 +18530,43 @@ def _self_test_recovery() -> str:
     if recovery_destination("https://models.topazlabs.com/v1/track") is not None:
         raise RuntimeError("Blocked API route was accepted for static recovery.")
 
-    return "staging/SHA/hosts/report/unknown-support recovery"
+    if os.name != "nt":
+        saved_creator_mirror = MIRROR_ROOT
+        try:
+            with tempfile.TemporaryDirectory(prefix="topaz-creator-link-recovery-selftest-") as temp_name:
+                MIRROR_ROOT = Path(temp_name).resolve() / "Mirror"
+                real_parent = MIRROR_ROOT / "real"
+                real_parent.mkdir(parents=True)
+                linked_parent = MIRROR_ROOT / "linked"
+                linked_parent.symlink_to(real_parent, target_is_directory=True)
+                linked_url = "https://models.topazlabs.com/linked/future-model.tz3"
+                if recovery_destination(linked_url) is not None:
+                    raise RuntimeError(
+                        "Creator recovery accepted a link-like Mirror parent."
+                    )
+                if download_recovery_file(
+                    linked_url, linked_parent / "future-model.tz3",
+                    expected_size=1, expected_sha256="A" * 64,
+                ):
+                    raise RuntimeError(
+                        "Creator recovery wrote through a link-like Mirror parent."
+                    )
+        finally:
+            MIRROR_ROOT = saved_creator_mirror
+
+    return "staging/SHA/hosts/report/unknown-static recovery + link policy"
 
 
 def _self_test_embedded_assets() -> str:
-    global DOWNLOADER_TEST_FILE, BRISQUE_FILE
+    global DOWNLOADER_TEST_FILE, BRISQUE_FILE, MIRROR_ROOT
 
     saved_downloader_test = DOWNLOADER_TEST_FILE
     saved_brisque = BRISQUE_FILE
+    saved_mirror_root = MIRROR_ROOT
     try:
         with tempfile.TemporaryDirectory(prefix="topaz-embedded-selftest-") as temp_name:
-            root = Path(temp_name)
+            root = Path(temp_name).resolve()
+            MIRROR_ROOT = root
             DOWNLOADER_TEST_FILE = root / "_test" / "downloader-test.txt"
             BRISQUE_FILE = root / "v1" / "brisque.xml"
 
@@ -15237,12 +18591,13 @@ def _self_test_embedded_assets() -> str:
     finally:
         DOWNLOADER_TEST_FILE = saved_downloader_test
         BRISQUE_FILE = saved_brisque
+        MIRROR_ROOT = saved_mirror_root
 
     return "downloader-test.txt + brisque.xml exact offline reconstruction"
 
 
 def _self_test_server_assets() -> str:
-    global SERVER_ASSET_MANIFEST_FILE, MIRROR_ROOT
+    global SERVER_ASSET_MANIFEST_FILE, MIRROR_ROOT, DISCOVERED_INVENTORY_FILE, DISCOVERED_ASSETS_FILE
     import runpy
 
     namespace = runpy.run_path(str(SERVER_PY))
@@ -15308,6 +18663,67 @@ def _self_test_server_assets() -> str:
     finally:
         SERVER_ASSET_MANIFEST_FILE = saved_manifest_file
 
+    # Prove recovered provenance is pruned once the current V2 inventory owns
+    # that destination, while the embedded Server Assets remain intact.
+    saved_manifest_file = SERVER_ASSET_MANIFEST_FILE
+    promoted_file = MIRROR_ROOT / "v1" / "v2-promotion-prune-selftest.bin"
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="topaz-server-assets-v2-promotion-selftest-"
+        ) as temp_name:
+            SERVER_ASSET_MANIFEST_FILE = Path(temp_name) / "Server_Assets_Manifest.json"
+            promoted_file.parent.mkdir(parents=True, exist_ok=True)
+            promoted_file.write_bytes(b"v2-promotion-prune-selftest\n")
+            stale = server_asset_record(
+                promoted_file,
+                source="recovered_404",
+                source_url=(
+                    "https://models.topazlabs.com/v1/"
+                    "v2-promotion-prune-selftest.bin"
+                ),
+            )
+            stale_records = [stale]
+            stale_manifest = {
+                "schema_version": 1,
+                "creator_version": VERSION,
+                "creator_build": BUILD,
+                "mirror_relative_root": "Mirror",
+                "hash_algorithm": "SHA256",
+                "asset_count": len(stale_records),
+                "records_payload_sha256": hashlib.sha256(
+                    canonical_server_asset_payload(stale_records)
+                ).hexdigest().upper(),
+                "files": stale_records,
+            }
+            SERVER_ASSET_MANIFEST_FILE.write_text(
+                json.dumps(stale_manifest, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            promoted_relative = promoted_file.relative_to(MIRROR_ROOT).as_posix()
+            write_server_asset_manifest(
+                v2_owned_keys={promoted_relative.casefold()}
+            )
+            migrated = json.loads(
+                SERVER_ASSET_MANIFEST_FILE.read_text(encoding="utf-8")
+            )
+            if any(
+                isinstance(item, dict)
+                and str(item.get("relative_path", "")).casefold()
+                == promoted_relative.casefold()
+                for item in migrated.get("files", [])
+            ):
+                raise RuntimeError(
+                    "V2-owned historical recovered Server Asset was not pruned."
+                )
+            if int(migrated.get("asset_count", -1)) != 24:
+                raise RuntimeError(
+                    "V2-promotion pruning changed the embedded Server Assets baseline."
+                )
+    finally:
+        promoted_file.unlink(missing_ok=True)
+        SERVER_ASSET_MANIFEST_FILE = saved_manifest_file
+
     # Prove corrupt dynamic provenance is rejected without touching the real manifest.
     saved_mirror_root = MIRROR_ROOT
     try:
@@ -15334,12 +18750,237 @@ def _self_test_server_assets() -> str:
     finally:
         MIRROR_ROOT = saved_mirror_root
 
-    return f"24 embedded baseline; manifest count {len(records)}; stale dynamic precedence + corrupt provenance rejected"
+    # Prove the two persistent discovery side manifests remain separate from
+    # actionable schema-3 repair state and classify accepted extensions correctly.
+    saved_discovered_inventory = DISCOVERED_INVENTORY_FILE
+    saved_discovered_assets = DISCOVERED_ASSETS_FILE
+    saved_discovery_server_manifest = SERVER_ASSET_MANIFEST_FILE
+    discovery_test_root = MIRROR_ROOT / "_selftest_discovered"
+    shutil.rmtree(discovery_test_root, ignore_errors=True)
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="topaz-discovered-side-manifests-selftest-"
+        ) as temp_name:
+            temp_root = Path(temp_name).resolve()
+            DISCOVERED_INVENTORY_FILE = (
+                temp_root / "Manifests" / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+            )
+            DISCOVERED_ASSETS_FILE = (
+                temp_root / "Manifests" / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+            )
+            SERVER_ASSET_MANIFEST_FILE = (
+                temp_root / "Manifests" / "Topaz_Offline_Download_Creator_Server_Assets_Manifest.json"
+            )
+            inventory_file = discovery_test_root / "future-model-selftest.tz3"
+            asset_file = discovery_test_root / "future-support-selftest.svg"
+            inventory_file.parent.mkdir(parents=True, exist_ok=True)
+            asset_file.parent.mkdir(parents=True, exist_ok=True)
+            inventory_file.write_bytes(b"future-model-selftest\n")
+            asset_file.write_bytes(b"<svg>future-support-selftest</svg>\n")
+            inventory_url = "https://video-models.topazlabs.com/_selftest_discovered/future-model-selftest.tz3"
+            asset_url = "https://downloads.topazlabs.com/_selftest_discovered/future-support-selftest.svg"
+
+            record_discovered_inventory(inventory_url, inventory_file)
+            record_discovered_asset(asset_url, asset_file)
+
+            inventory_payload = json.loads(DISCOVERED_INVENTORY_FILE.read_text(encoding="utf-8"))
+            asset_payload = json.loads(DISCOVERED_ASSETS_FILE.read_text(encoding="utf-8"))
+            if (
+                inventory_payload.get("schema") != DISCOVERED_INVENTORY_SCHEMA
+                or inventory_payload.get("schema_version") != DISCOVERED_SCHEMA_VERSION
+                or inventory_payload.get("logical_entries") != 1
+                or inventory_payload.get("unique_physical_files") != 1
+            ):
+                raise RuntimeError("Discovered inventory side-manifest framing failed.")
+            if (
+                asset_payload.get("schema") != DISCOVERED_ASSETS_SCHEMA
+                or asset_payload.get("schema_version") != DISCOVERED_SCHEMA_VERSION
+                or asset_payload.get("asset_count") != 1
+            ):
+                raise RuntimeError("Discovered assets side-manifest framing failed.")
+            if len(load_discovered_inventory_records()) != 1:
+                raise RuntimeError("Discovered inventory record count failed.")
+            if len(load_discovered_asset_records()) != 1:
+                raise RuntimeError("Discovered asset record count failed.")
+
+            alias_url = (
+                "https://models-r2.topazlabs.com/"
+                "_selftest_discovered/future-model-selftest.tz3"
+            )
+            record_discovered_inventory(alias_url, inventory_file)
+            alias_payload = json.loads(
+                DISCOVERED_INVENTORY_FILE.read_text(encoding="utf-8")
+            )
+            if (
+                alias_payload.get("logical_entries") != 2
+                or alias_payload.get("unique_physical_files") != 1
+            ):
+                raise RuntimeError(
+                    "Discovered inventory did not separate logical aliases from physical files."
+                )
+
+            # Prove legacy recovered Server Assets migrate into the correct
+            # side manifest, then leave only support assets in runtime Server Assets.
+            DISCOVERED_INVENTORY_FILE.unlink(missing_ok=True)
+            DISCOVERED_ASSETS_FILE.unlink(missing_ok=True)
+            legacy_records = [
+                server_asset_record(
+                    inventory_file, source="recovered_404", source_url=inventory_url
+                ),
+                server_asset_record(
+                    asset_file, source="recovered_404", source_url=asset_url
+                ),
+            ]
+            legacy_payload = canonical_server_asset_payload(legacy_records)
+            SERVER_ASSET_MANIFEST_FILE.parent.mkdir(parents=True, exist_ok=True)
+            SERVER_ASSET_MANIFEST_FILE.write_text(
+                json.dumps({
+                    "schema_version": 1,
+                    "creator_version": VERSION,
+                    "creator_build": BUILD,
+                    "mirror_relative_root": "Mirror",
+                    "hash_algorithm": "SHA256",
+                    "asset_count": len(legacy_records),
+                    "records_payload_sha256": hashlib.sha256(legacy_payload).hexdigest().upper(),
+                    "files": legacy_records,
+                }, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            sync_recovered_assets_report_from_server_assets(set())
+            if len(load_discovered_inventory_records()) != 1:
+                raise RuntimeError("Recovered model/package did not migrate to discovered inventory.")
+            if len(load_discovered_asset_records()) != 1:
+                raise RuntimeError("Recovered support file did not migrate to discovered assets.")
+            write_server_asset_manifest(v2_owned_keys=set())
+            rebuilt_server = json.loads(
+                SERVER_ASSET_MANIFEST_FILE.read_text(encoding="utf-8")
+            )
+            rebuilt_paths = {
+                str(item.get("relative_path", "")).casefold(): item.get("source")
+                for item in rebuilt_server.get("files", [])
+                if isinstance(item, dict)
+            }
+            inventory_relative = inventory_file.relative_to(MIRROR_ROOT).as_posix().casefold()
+            asset_relative = asset_file.relative_to(MIRROR_ROOT).as_posix().casefold()
+            if inventory_relative in rebuilt_paths:
+                raise RuntimeError("Discovered inventory remained double-owned by Server Assets.")
+            if rebuilt_paths.get(asset_relative) != "recovered_404":
+                raise RuntimeError("Discovered support asset was lost from runtime Server Assets.")
+
+            # An accepted inventory extension must not be accepted by the asset manifest.
+            try:
+                write_discovered_manifest(
+                    [server_asset_record(inventory_file, source="recovered_404", source_url=inventory_url)],
+                    inventory=False,
+                )
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("Accepted inventory extension was misclassified as an asset.")
+
+            actionable_repair = (
+                temp_root / "Manifests" / "Topaz_Offline_Download_Creator_SHA256_Repair.json"
+            )
+            repair_failure = {
+                "relative_path": "v1/actionable-repair-selftest.bin",
+                "reason": "hash_mismatch",
+                "expected_size": 64,
+                "expected_sha256": "A" * 64,
+                "actual": "B" * 64,
+            }
+            repair_failures = [repair_failure]
+            repair_failures_bytes = json.dumps(
+                repair_failures,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            repair_payload = {
+                "schema_version": 3,
+                "creator_build": BUILD,
+                "generated_utc": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "physical_records_payload_sha256": V2_PHYSICAL_RECORDS_PAYLOAD_SHA256,
+                "failures_payload_sha256": hashlib.sha256(repair_failures_bytes).hexdigest().upper(),
+                "failures": repair_failures,
+            }
+            actionable_repair.write_text(
+                json.dumps(repair_payload, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            actionable_before = actionable_repair.read_bytes()
+            # Rewriting either side manifest must never touch actionable repair state.
+            write_discovered_manifest(load_discovered_inventory_records(), inventory=True)
+            write_discovered_manifest(load_discovered_asset_records(), inventory=False)
+            if actionable_repair.read_bytes() != actionable_before:
+                raise RuntimeError("Discovery side-manifest write modified actionable repair state.")
+            downloader_for_coexistence = runpy.run_path(str(OUT_PORTABLE_DOWNLOADER))
+            downloader_for_coexistence["load_repair_paths"].__globals__["REPAIR_PATH"] = actionable_repair
+            if len(downloader_for_coexistence["load_repair_paths"]()) != 1:
+                raise RuntimeError("Generated Downloader rejected coexisting schema-3 repair state.")
+
+            # Simulate a future frozen-manifest promotion. A stale side record for
+            # an already base-owned path must be removed instead of double-counted.
+            base_logical = next(
+                item
+                for item in current_logical_inventory_records()
+                if PurePosixPath(str(item["relative_path"])).suffix.casefold()
+                in DISCOVERED_INVENTORY_SUFFIXES
+            )
+            base_physical = next(
+                item
+                for item in validated_v2_physical_records()
+                if str(item["relative_path"]).casefold()
+                == str(base_logical["relative_path"]).casefold()
+            )
+            promoted_record = {
+                "relative_path": str(base_logical["relative_path"]),
+                "size_bytes": int(base_physical["size_bytes"]),
+                "sha256": str(base_physical["sha256"]).upper(),
+                "source": "recovered_404",
+                "source_url": str(base_logical["url"]),
+            }
+            promoted_records = [promoted_record]
+            promoted_bytes = canonical_discovered_payload(promoted_records)
+            DISCOVERED_INVENTORY_FILE.write_text(
+                json.dumps({
+                    "schema": DISCOVERED_INVENTORY_SCHEMA,
+                    "schema_version": DISCOVERED_SCHEMA_VERSION,
+                    "creator_version": VERSION,
+                    "creator_build": BUILD,
+                    "generated_utc": datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "mirror_relative_root": "Mirror",
+                    "hash_algorithm": "SHA256",
+                    "logical_entries": 1,
+                    "unique_physical_files": 1,
+                    "accepted_extensions": sorted(DISCOVERED_INVENTORY_SUFFIXES),
+                    "records_payload_sha256": hashlib.sha256(promoted_bytes).hexdigest().upper(),
+                    "files": promoted_records,
+                }, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            if prune_discovered_inventory_promoted_to_base() != 1:
+                raise RuntimeError("Promoted discovered inventory was not pruned.")
+            if DISCOVERED_INVENTORY_FILE.exists():
+                raise RuntimeError("Empty promoted discovered inventory side manifest remained.")
+    finally:
+        shutil.rmtree(discovery_test_root, ignore_errors=True)
+        DISCOVERED_INVENTORY_FILE = saved_discovered_inventory
+        DISCOVERED_ASSETS_FILE = saved_discovered_assets
+        SERVER_ASSET_MANIFEST_FILE = saved_discovery_server_manifest
+
+    return (
+        f"24 embedded baseline; manifest count {len(records)}; stale dynamic precedence + "
+        "V2 promotion pruned; corrupt provenance rejected; discovery migration/promotion + repair coexistence passed"
+    )
 
 
 def _self_test_generated_programs() -> str:
     import contextlib
     import io
+    from http import HTTPStatus
 
     generated = (
         OUT_PORTABLE_DOWNLOADER,
@@ -15348,8 +18989,18 @@ def _self_test_generated_programs() -> str:
     )
     for path in generated:
         try:
-            compile(path.read_bytes(), str(path), "exec")
-        except (OSError, SyntaxError) as exc:
+            source_bytes = path.read_bytes()
+        except OSError as exc:
+            raise RuntimeError(
+                f"Unable to read generated program: {path.name}: {exc}"
+            ) from exc
+        if b"\x1B" in source_bytes:
+            raise RuntimeError(
+                f"Generated program contains a literal ESC control byte: {path.name}."
+            )
+        try:
+            compile(source_bytes, str(path), "exec")
+        except SyntaxError as exc:
             raise RuntimeError(
                 f"Generated program compile failed: {path.name}: {exc}"
             ) from exc
@@ -15381,9 +19032,31 @@ def _self_test_generated_programs() -> str:
 
     verifier_source = OUT_PORTABLE_SHA256_VERIFIER.read_text(encoding="utf-8")
     required_verifier_markers = (
-        'logical_record_count = v2_logical_record_count + len(supplemental_records)',
-        'Verifying File Set: 0 / {logical_record_count}',
-        'Verified File Set        : ',
+        'load_discovered_inventory_records(',
+        '+ discovered_logical_count',
+        'File SHA and Download Validation',
+        'VALIDATION_LABEL_WIDTH = len("File/Content Integrity Result")',
+        'return f"{label:<{VALIDATION_LABEL_WIDTH}}: {value}"',
+        'validation_line("Verifying File Set", f"0 / {logical_record_count}")',
+        '"Verified File Set",',
+        'result["sha256_validated"] = sha256_validated_logical_entries',
+        'result["sha256_expected"] = sum(',
+        '"Inventory SHA-256 Verified"',
+        '"Server Asset SHA-256 Verified"',
+        'server_sha_validated != server_sha_expected',
+        'write_repair_list(index, result["failures"])',
+        'any(',
+        'failure.get("reason") in {"hash_mismatch", "read_error"}',
+        'validation_line("SHA-256 Integrity Result",',
+        'validation_line("File/Content Integrity Result",',
+        'DISCOVERED_INVENTORY_PATH',
+        'DISCOVERED_ASSETS_PATH',
+        'validation_line("Discovered Inventory Entries", discovered_inventory_entries)',
+        'validation_line("Discovered Asset Files", discovered_assets)',
+        '"~Discovered_Inventory.v2.json",',
+        '"~Discovered_Assets.v2.json",',
+        'print("Report File(s) to Script Creator")',
+        'mirror_path_has_link_component',
         'processed_logical_entries != logical_record_count',
         'with zipfile.ZipFile(path) as archive:',
         'bad_member = archive.testzip()',
@@ -15405,6 +19078,8 @@ def _self_test_generated_programs() -> str:
         '/ {v2_logical_record_count}',
         'V2-verified',
         removed_v2_success_marker,
+        'repair_path_is_script_creator_report',
+        'validation_line("Found Repair Report", "~SHA256_Repair.json")',
     )
     for marker in forbidden_verifier_markers:
         if marker in verifier_source:
@@ -15422,6 +19097,7 @@ def _self_test_generated_programs() -> str:
         'with zipfile.ZipFile(path) as archive:',
         'valid = archive.testzip() is None',
         'verify_zip_crc=verify_zip_crc',
+        'if content_suffix == ".part":',
         'import zlib',
         'import lzma',
         'zipfile.BadZipFile, zlib.error',
@@ -15431,16 +19107,45 @@ def _self_test_generated_programs() -> str:
         'authoritative_sha = str(item.get("sha256", "") or "").upper()',
         'allowed_protocol = "=http,https" if parsed_url.scheme.lower() == "http" else "=https"',
         'report_failed_download(url)',
-        'partial_sha256: str = ""',
-        'partial_has_prior_bytes = partial.is_file()',
+        'settings.get("partial_sha256", "")',
+        '"partial_has_prior_bytes": partial.is_file()',
         'partial_sha256=authoritative_sha',
         'physical: dict[str, tuple[str, int, bool]]',
         'verify_zip_crc = previous[2] or verify_zip_crc',
-        'group_results: list[bool] = []',
-        'if groups_valid and not final_failures:',
-        'def validate_zip_content(path: Path, size_bytes: int) -> bool:',
+        'def _process_download_groups(',
+        'def _process_repair_groups(',
+        'process_repair_group(',
+        '--repair-only',
+        '--repair-network-check',
+        'def _validated_repair_failures(payload: dict) -> list[dict]:',
+        'if not repair_paths:',
+        'return 3',
+        'def repair_downloads_available()',
+        'all_groups_valid = True',
+        'for group in runtime_groups():',
+        'load_discovered_inventory_group',
+        'path_is_link_like',
+        'success = groups_valid and reported_zip_valid and not final_failures',
+        'def validate_zip_content(',
+        'announce: bool = False',
         'Validating ZIP content: {path.name}',
         'ZIP content validation {status}: {path.name}',
+        'def process_reported_unhashed_zip_validation(',
+        'downloads_enabled: bool',
+        'section("Reported ZIP Content Validation")',
+        'reported_zip_valid = process_reported_unhashed_zip_validation(',
+        'Attempting a validated replacement download.',
+        'Reported ZIP replacement downloaded and validated, but ',
+        'download_report_url_is_unresolved(url)',
+        'verify_zip_crc=True',
+        'settings.get("close_report_on_success", True)',
+        'close_report_on_success=False',
+        'def split_download_report_records(text: str) -> list[str]:',
+        'any(not character.isprintable() for character in url)',
+        'report_failed_download(FAVICON_URL)',
+        'if not mark_download_report_fixed(FAVICON_URL):',
+        'report_state_incomplete = False',
+        "FAILED integrity/content validation: {state['destination'].name}",
         'def group_file_is_valid(',
         'validation_cache: dict[str, tuple[tuple[int, int], bool]]',
         'file_validation_signature(path)',
@@ -15450,12 +19155,970 @@ def _self_test_generated_programs() -> str:
                 "Generated Downloader is missing supplemental ZIP CRC validation: " + marker
             )
 
+    forbidden_downloader_markers = (
+        'return all(\n        process_group(group, backend, downloads_enabled, repair_paths)',
+        'DISCOVERED_ASSETS_SCHEMA',
+        '_payload_is_script_creator_report',
+        '_validate_script_creator_report_payload',
+    )
+    for marker in forbidden_downloader_markers:
+        if marker in downloader_source:
+            raise RuntimeError(
+                "Generated Downloader can short-circuit later download groups: " + marker
+            )
+
+    repeater_source = SERVER_PY.read_text(encoding="utf-8")
+    for marker in (
+        'ssl_socket.settimeout(HTTP_CLIENT_TIMEOUT_SECONDS)',
+        'super().process_request_thread(ssl_socket, client_address)',
+        'TLS / SSL Handshake Failure',
+        'TLS_SNI.pop(ssl_socket, None)',
+        'DISCOVERED_INVENTORY_ROUTES',
+        'validate_discovered_inventory()',
+        'def open_safe_mirror_file(path: Path):',
+        'def safe_file_size_sha256(path: Path)',
+        'return open_safe_mirror_file(model_path)',
+        'open_safe_mirror_file(file_path)',
+        'Unsafe probe path',
+    ):
+        if marker not in repeater_source:
+            raise RuntimeError(
+                "Generated Repeater is missing HTTPS worker isolation: " + marker
+            )
+    if 'ssl_socket.settimeout(None)' in repeater_source:
+        raise RuntimeError(
+            "Generated Repeater restored an unbounded post-handshake client timeout."
+        )
+
     # Confirm both generated programs reject a same-size non-ZIP and a ZIP whose
     # member bytes were corrupted without changing the archive length. This is
     # the supplemental package case where no authoritative SHA-256 is available.
     import runpy
     downloader_namespace = runpy.run_path(str(OUT_PORTABLE_DOWNLOADER))
     verifier_namespace = runpy.run_path(str(OUT_PORTABLE_SHA256_VERIFIER))
+    repeater_namespace = runpy.run_path(str(SERVER_PY))
+
+    # Prove one persistent discovered model/package is authoritative across the
+    # Verifier, Downloader, and Repeater without modifying the frozen V2 files.
+    with tempfile.TemporaryDirectory(prefix="topaz-discovered-inventory-runtime-selftest-") as temp_name:
+        temp_root = Path(temp_name).resolve()
+        mirror = temp_root / "Mirror"
+        discovered_path = temp_root / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+        relative = "future-runtime-selftest/model.tz3"
+        model_path = mirror.joinpath(*PurePosixPath(relative).parts)
+        model_path.parent.mkdir(parents=True)
+        model_bytes = b"discovered-runtime-selftest\n"
+        model_path.write_bytes(model_bytes)
+        model_url = "https://video-models.topazlabs.com/" + relative
+        discovered_records = [{
+            "relative_path": relative,
+            "size_bytes": len(model_bytes),
+            "sha256": hashlib.sha256(model_bytes).hexdigest().upper(),
+            "source": "recovered_404",
+            "source_url": model_url,
+        }]
+        discovered_bytes = json.dumps(
+            discovered_records,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        discovered_payload = {
+            "schema": DISCOVERED_INVENTORY_SCHEMA,
+            "schema_version": DISCOVERED_SCHEMA_VERSION,
+            "creator_version": VERSION,
+            "creator_build": BUILD,
+            "generated_utc": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "mirror_relative_root": "Mirror",
+            "hash_algorithm": "SHA256",
+            "logical_entries": 1,
+            "unique_physical_files": 1,
+            "accepted_extensions": sorted(DISCOVERED_INVENTORY_SUFFIXES),
+            "records_payload_sha256": hashlib.sha256(discovered_bytes).hexdigest().upper(),
+            "files": discovered_records,
+        }
+        discovered_path.write_text(
+            json.dumps(discovered_payload, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        verifier_loader = verifier_namespace["load_discovered_inventory_records"]
+        verifier_globals = verifier_loader.__globals__
+        saved_verifier_discovery = {
+            "DISCOVERED_INVENTORY_PATH": verifier_globals["DISCOVERED_INVENTORY_PATH"],
+            "MIRROR_ROOT": verifier_globals["MIRROR_ROOT"],
+        }
+        verifier_globals["DISCOVERED_INVENTORY_PATH"] = discovered_path
+        verifier_globals["MIRROR_ROOT"] = mirror
+        try:
+            loaded_records, loaded_logical = verifier_loader([], [])
+            if loaded_logical != 1 or len(loaded_records) != 1:
+                raise RuntimeError("Generated Verifier lost discovered inventory counts.")
+            verified = verifier_namespace["verify_inventory"](loaded_records, [], [], 1)
+            if (
+                verified["failures"]
+                or verified["processed"] != 1
+                or verified["validated"] != 1
+                or verified["sha256_validated"] != 1
+            ):
+                raise RuntimeError("Generated Verifier rejected valid discovered inventory bytes.")
+            model_path.write_bytes(b"corrupt-discovered-runtime\n")
+            corrupt = verifier_namespace["verify_inventory"](loaded_records, [], [], 1)
+            if not corrupt["failures"] or corrupt["failures"][0].get("reason") != "size_mismatch":
+                raise RuntimeError("Generated Verifier did not reject corrupt discovered inventory.")
+            model_path.write_bytes(model_bytes)
+        finally:
+            verifier_globals.update(saved_verifier_discovery)
+
+        downloader_loader = downloader_namespace["load_discovered_inventory_group"]
+        downloader_globals = downloader_loader.__globals__
+        saved_downloader_discovery = {
+            "DISCOVERED_INVENTORY_PATH": downloader_globals["DISCOVERED_INVENTORY_PATH"],
+            "GROUPS": downloader_globals["GROUPS"],
+            "LOGICAL_INVENTORY_ENTRIES": downloader_globals["LOGICAL_INVENTORY_ENTRIES"],
+            "UNIQUE_PHYSICAL_FILES": downloader_globals["UNIQUE_PHYSICAL_FILES"],
+        }
+        downloader_globals["DISCOVERED_INVENTORY_PATH"] = discovered_path
+        downloader_globals["GROUPS"] = []
+        downloader_globals["LOGICAL_INVENTORY_ENTRIES"] = 0
+        downloader_globals["UNIQUE_PHYSICAL_FILES"] = 0
+        try:
+            discovered_group = downloader_loader()
+            if (
+                discovered_group is None
+                or len(discovered_group.get("items", [])) != 1
+                or discovered_group["items"][0].get("url") != model_url
+            ):
+                raise RuntimeError("Generated Downloader lost discovered inventory routing.")
+            physical = downloader_namespace["validate_inventory"]()
+            if set(physical) != {relative.casefold()}:
+                raise RuntimeError("Generated Downloader did not count discovered inventory.")
+        finally:
+            downloader_globals.update(saved_downloader_discovery)
+
+        repeater_validator = repeater_namespace["validate_discovered_inventory"]
+        repeater_globals = repeater_validator.__globals__
+        saved_repeater_discovery = {
+            "DISCOVERED_INVENTORY_MANIFEST": repeater_globals["DISCOVERED_INVENTORY_MANIFEST"],
+            "MIRROR_ROOT": repeater_globals["MIRROR_ROOT"],
+            "DISCOVERED_INVENTORY_ROUTES": dict(
+                repeater_globals["DISCOVERED_INVENTORY_ROUTES"]
+            ),
+            "DISCOVERED_INVENTORY_CANONICAL_PATHS": dict(
+                repeater_globals["DISCOVERED_INVENTORY_CANONICAL_PATHS"]
+            ),
+        }
+        repeater_globals["DISCOVERED_INVENTORY_MANIFEST"] = discovered_path
+        repeater_globals["MIRROR_ROOT"] = mirror
+        try:
+            repeater_validator()
+            route_key = ("https", "video-models.topazlabs.com", "/" + relative)
+            if repeater_globals["DISCOVERED_INVENTORY_ROUTES"].get(route_key) != relative:
+                raise RuntimeError("Generated Repeater lost discovered inventory ownership.")
+            model_path.write_bytes(b"same-size-corrupt-selftest!!!"[:len(model_bytes)])
+            if model_path.stat().st_size != len(model_bytes):
+                model_path.write_bytes(b"X" * len(model_bytes))
+            try:
+                repeater_validator()
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("Generated Repeater accepted corrupt discovered inventory bytes.")
+            model_path.write_bytes(model_bytes)
+        finally:
+            repeater_globals["DISCOVERED_INVENTORY_MANIFEST"] = (
+                saved_repeater_discovery["DISCOVERED_INVENTORY_MANIFEST"]
+            )
+            repeater_globals["MIRROR_ROOT"] = saved_repeater_discovery["MIRROR_ROOT"]
+            repeater_globals["DISCOVERED_INVENTORY_ROUTES"].clear()
+            repeater_globals["DISCOVERED_INVENTORY_ROUTES"].update(
+                saved_repeater_discovery["DISCOVERED_INVENTORY_ROUTES"]
+            )
+            repeater_globals["DISCOVERED_INVENTORY_CANONICAL_PATHS"].clear()
+            repeater_globals["DISCOVERED_INVENTORY_CANONICAL_PATHS"].update(
+                saved_repeater_discovery["DISCOVERED_INVENTORY_CANONICAL_PATHS"]
+            )
+
+    # Server Assets remain outside model/package totals but participate in
+    # Verifier integrity, while Discovered Assets are a provenance subset that
+    # must match the trusted Server Assets manifest exactly.
+    with tempfile.TemporaryDirectory(prefix="topaz-server-asset-verifier-selftest-") as temp_name:
+        temp_root = Path(temp_name).resolve()
+        mirror = temp_root / "Mirror"
+        mirror.mkdir()
+        server_manifest = temp_root / "Server_Assets_Manifest.json"
+        discovered_assets_path = temp_root / "Discovered_Assets.v2.json"
+        discovered_inventory_path = temp_root / "Discovered_Inventory.v2.json"
+        relative = "support/runtime-selftest.svg"
+        asset_path = mirror.joinpath(*PurePosixPath(relative).parts)
+        asset_path.parent.mkdir(parents=True)
+        asset_bytes = b"server-asset-selftest\n"
+        asset_sha = hashlib.sha256(asset_bytes).hexdigest().upper()
+        asset_url = "https://models.topazlabs.com/" + relative
+        server_record = {
+            "relative_path": relative,
+            "size_bytes": len(asset_bytes),
+            "sha256": asset_sha,
+            "source": "recovered_404",
+            "source_url": asset_url,
+        }
+        discovered_record = dict(server_record)
+
+        def write_server_manifest(records):
+            canonical = json.dumps(
+                records, ensure_ascii=False, separators=(",", ":")
+            ).encode("utf-8")
+            payload = {
+                "schema_version": 1,
+                "creator_version": VERSION,
+                "creator_build": BUILD,
+                "mirror_relative_root": "Mirror",
+                "hash_algorithm": "SHA256",
+                "asset_count": len(records),
+                "records_payload_sha256": hashlib.sha256(canonical).hexdigest().upper(),
+                "files": records,
+            }
+            server_manifest.write_text(
+                json.dumps(payload, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+
+        def write_discovered_assets(records):
+            canonical = json.dumps(
+                records,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            payload = {
+                "schema": DISCOVERED_ASSETS_SCHEMA,
+                "schema_version": DISCOVERED_SCHEMA_VERSION,
+                "creator_version": VERSION,
+                "creator_build": BUILD,
+                "generated_utc": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "mirror_relative_root": "Mirror",
+                "hash_algorithm": "SHA256",
+                "asset_count": len(records),
+                "records_payload_sha256": hashlib.sha256(canonical).hexdigest().upper(),
+                "files": records,
+            }
+            discovered_assets_path.write_text(
+                json.dumps(payload, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+
+        asset_path.write_bytes(asset_bytes)
+        write_server_manifest([server_record])
+        write_discovered_assets([discovered_record])
+
+        server_loader = verifier_namespace["load_server_asset_records"]
+        verifier_asset_globals = server_loader.__globals__
+        saved_asset_globals = {
+            "SERVER_ASSET_MANIFEST_PATH": verifier_asset_globals[
+                "SERVER_ASSET_MANIFEST_PATH"
+            ],
+            "DISCOVERED_ASSETS_PATH": verifier_asset_globals["DISCOVERED_ASSETS_PATH"],
+            "DISCOVERED_INVENTORY_PATH": verifier_asset_globals[
+                "DISCOVERED_INVENTORY_PATH"
+            ],
+            "MIRROR_ROOT": verifier_asset_globals["MIRROR_ROOT"],
+        }
+        verifier_asset_globals["SERVER_ASSET_MANIFEST_PATH"] = server_manifest
+        verifier_asset_globals["DISCOVERED_ASSETS_PATH"] = discovered_assets_path
+        verifier_asset_globals["DISCOVERED_INVENTORY_PATH"] = discovered_inventory_path
+        verifier_asset_globals["MIRROR_ROOT"] = mirror
+        try:
+            server_records = server_loader()
+            discovered_assets = verifier_namespace["load_discovered_asset_records"](
+                server_records
+            )
+            if len(server_records) != 1 or len(discovered_assets) != 1:
+                raise RuntimeError(
+                    "Generated Verifier lost Server/Discovered Asset accounting."
+                )
+
+            def server_asset_verification_result():
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return verifier_namespace["verify_inventory"](
+                        [], [], server_records, 0
+                    )
+
+            def server_asset_failure_reason():
+                failures = server_asset_verification_result()["server_asset_failures"]
+                return failures[0]["reason"] if failures else ""
+
+            report_function = verifier_namespace["report_verification_result"]
+            report_globals = report_function.__globals__
+            saved_report_globals = {
+                name: report_globals[name]
+                for name in (
+                    "write_repair_list",
+                    "count_reported_entries",
+                    "append_error",
+                    "DEBUG_SKIP_FILE_SHA256_SCAN",
+                )
+            }
+            report_globals["write_repair_list"] = lambda *_args, **_kwargs: None
+            report_globals["count_reported_entries"] = lambda _path: (0, 0)
+            report_globals["append_error"] = lambda _lines: None
+            report_globals["DEBUG_SKIP_FILE_SHA256_SCAN"] = False
+
+            def server_asset_report_output():
+                result = server_asset_verification_result()
+                result["server_asset_count"] = len(server_records)
+                result["discovered_asset_count"] = 0
+                result["discovered_logical_count"] = 0
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    code = report_function(
+                        {"physical_records_payload_sha256": V2_PHYSICAL_RECORDS_PAYLOAD_SHA256},
+                        result,
+                        0,
+                        0,
+                        time.monotonic(),
+                    )
+                return code, output.getvalue()
+
+            try:
+                if server_asset_failure_reason():
+                    raise RuntimeError("Generated Verifier rejected a valid Server Asset.")
+                code, output = server_asset_report_output()
+                if (
+                    code != 0
+                    or "Inventory SHA-256 Verified   : 0 / 0" not in output
+                    or "Server Asset SHA-256 Verified: 1 / 1" not in output
+                    or "SHA-256 Integrity Result     : SUCCESS" not in output
+                ):
+                    raise RuntimeError(
+                        "Generated Verifier did not report complete Server Asset SHA coverage."
+                    )
+
+                asset_path.unlink()
+                if server_asset_failure_reason() != "missing":
+                    raise RuntimeError("Generated Verifier did not detect a missing Server Asset.")
+                code, output = server_asset_report_output()
+                if (
+                    code != 1
+                    or "Server Asset SHA-256 Verified: 0 / 1" not in output
+                    or "SHA-256 Integrity Result     : FAILED" not in output
+                ):
+                    raise RuntimeError(
+                        "Missing Server Asset did not fail count-backed SHA integrity."
+                    )
+
+                asset_path.write_bytes(b"X")
+                if server_asset_failure_reason() != "size_mismatch":
+                    raise RuntimeError(
+                        "Generated Verifier did not detect a wrong-size Server Asset."
+                    )
+                code, output = server_asset_report_output()
+                if (
+                    code != 1
+                    or "Server Asset SHA-256 Verified: 0 / 1" not in output
+                    or "SHA-256 Integrity Result     : FAILED" not in output
+                ):
+                    raise RuntimeError(
+                        "Wrong-size Server Asset did not fail count-backed SHA integrity."
+                    )
+
+                asset_path.write_bytes(b"Z" * len(asset_bytes))
+                if server_asset_failure_reason() != "hash_mismatch":
+                    raise RuntimeError(
+                        "Generated Verifier did not detect a wrong-SHA Server Asset."
+                    )
+                code, output = server_asset_report_output()
+                if (
+                    code != 1
+                    or "Server Asset SHA-256 Verified: 0 / 1" not in output
+                    or "SHA-256 Integrity Result     : FAILED" not in output
+                ):
+                    raise RuntimeError(
+                        "Wrong-SHA Server Asset did not fail count-backed SHA integrity."
+                    )
+            finally:
+                report_globals.update(saved_report_globals)
+            asset_path.unlink()
+            outside_asset = temp_root / "outside.svg"
+            outside_asset.write_bytes(asset_bytes)
+            symlink_created = False
+            try:
+                asset_path.symlink_to(outside_asset)
+                symlink_created = True
+            except OSError as error:
+                if not (
+                    os.name == "nt"
+                    and getattr(error, "winerror", None) == 1314
+                ):
+                    raise
+            if symlink_created:
+                if server_asset_failure_reason() != "unsafe_path":
+                    raise RuntimeError(
+                        "Generated Verifier did not reject an unsafe Server Asset path."
+                    )
+                asset_path.unlink()
+            asset_path.write_bytes(asset_bytes)
+
+            mismatched = dict(discovered_record)
+            mismatched["relative_path"] = "support/not-in-server-assets.svg"
+            mismatched["source_url"] = (
+                "https://models.topazlabs.com/support/not-in-server-assets.svg"
+            )
+            write_discovered_assets([mismatched])
+            try:
+                verifier_namespace["load_discovered_asset_records"](server_records)
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError(
+                    "Generated Verifier accepted a discovered asset absent from Server Assets."
+                )
+            write_discovered_assets([discovered_record])
+
+            # The validation-only early return must occur only after discovered
+            # and Server Asset manifest structure has been checked.
+            discovered_inventory_path.write_text("{broken-json\n", encoding="utf-8")
+            verifier_main = verifier_namespace["main"]
+            main_globals = verifier_main.__globals__
+            saved_main_functions = {
+                name: main_globals[name]
+                for name in (
+                    "parse_arguments",
+                    "load_inventory",
+                    "validate_supplemental_inventory",
+                )
+            }
+            main_globals["parse_arguments"] = lambda _argv: True
+            main_globals["load_inventory"] = lambda: ({"logical_entries": 0}, [])
+            main_globals["validate_supplemental_inventory"] = lambda _records: []
+            try:
+                try:
+                    verifier_main()
+                except RuntimeError:
+                    pass
+                else:
+                    raise RuntimeError(
+                        "Generated Verifier --validate-only skipped malformed discovery."
+                    )
+            finally:
+                main_globals.update(saved_main_functions)
+            discovered_inventory_path.unlink(missing_ok=True)
+
+            server_manifest.write_text("{broken-json\n", encoding="utf-8")
+            try:
+                server_loader()
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError(
+                    "Generated Verifier accepted a malformed Server Assets manifest."
+                )
+            write_server_manifest([server_record])
+        finally:
+            verifier_asset_globals.update(saved_asset_globals)
+
+    # On platforms where symlinks can be created without special privileges,
+    # prove every generated component rejects both a final-file link and a
+    # linked parent even when the target bytes stay inside Mirror. Windows
+    # junction/reparse handling is also structurally required below and is
+    # exercised by native Windows review.
+    if os.name != "nt":
+        with tempfile.TemporaryDirectory(prefix="topaz-link-policy-selftest-") as temp_name:
+            temp_root = Path(temp_name).resolve()
+            mirror = temp_root / "Mirror"
+            real_dir = mirror / "real"
+            real_dir.mkdir(parents=True)
+            target = real_dir / "payload.bin"
+            payload = b"link-policy-selftest\n"
+            target.write_bytes(payload)
+            final_link = mirror / "final.bin"
+            final_link.symlink_to(target)
+            parent_link = mirror / "linked-parent"
+            parent_link.symlink_to(real_dir, target_is_directory=True)
+            parent_file = parent_link / "payload.bin"
+
+            verifier_path_globals = verifier_namespace["v2_path_failure"].__globals__
+            saved_verifier_mirror = verifier_path_globals["MIRROR_ROOT"]
+            verifier_path_globals["MIRROR_ROOT"] = mirror
+            try:
+                for candidate in (final_link, parent_file):
+                    reason, _detail = verifier_namespace["v2_path_failure"](
+                        candidate, len(payload)
+                    )
+                    if reason != "unsafe_path":
+                        raise RuntimeError(
+                            "Generated Verifier accepted a link-like V2 path."
+                        )
+                supplemental_record = {
+                    "relative_path": "linked-parent/payload.bin",
+                    "size_bytes": len(payload),
+                }
+                reason, _detail = verifier_namespace["supplemental_file_failure"](
+                    supplemental_record
+                )
+                if reason != "unsafe_path":
+                    raise RuntimeError(
+                        "Generated Verifier accepted a link-like supplemental path."
+                    )
+            finally:
+                verifier_path_globals["MIRROR_ROOT"] = saved_verifier_mirror
+
+            downloader_path_globals = downloader_namespace["safe_mirror_destination"].__globals__
+            saved_downloader_mirror = downloader_path_globals["MIRROR_ROOT"]
+            downloader_path_globals["MIRROR_ROOT"] = mirror
+            try:
+                for relative in ("final.bin", "linked-parent/payload.bin"):
+                    try:
+                        downloader_namespace["safe_mirror_destination"](relative)
+                    except RuntimeError:
+                        pass
+                    else:
+                        raise RuntimeError(
+                            "Generated Downloader accepted a link-like mirror path."
+                        )
+            finally:
+                downloader_path_globals["MIRROR_ROOT"] = saved_downloader_mirror
+
+            server_asset_validator = repeater_namespace["_server_asset_file_is_valid"]
+            repeater_globals = server_asset_validator.__globals__
+            saved_repeater_mirror = repeater_globals["MIRROR_ROOT"]
+            repeater_globals["MIRROR_ROOT"] = mirror
+            record = {
+                "relative_path": "final.bin",
+                "size_bytes": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest().upper(),
+                "source": "recovered_404",
+                "source_url": "https://models.topazlabs.com/final.bin",
+            }
+            try:
+                for relative in ("final.bin", "linked-parent/payload.bin"):
+                    try:
+                        server_asset_validator(record, PurePosixPath(relative))
+                    except RuntimeError:
+                        pass
+                    else:
+                        raise RuntimeError(
+                            "Generated Repeater accepted a link-like Server Asset path."
+                        )
+
+                handler_class = repeater_namespace["TopazMirrorHandler"]
+                class DummyHandler:
+                    def __init__(self):
+                        self.status = None
+                        self.message = None
+                        self.command = "GET"
+                        self.wfile = io.BytesIO()
+                    def send_error(self, status, message=None, *_args, **_kwargs):
+                        self.status = int(status)
+                        self.message = message
+                    def send_response(self, status, *_args, **_kwargs):
+                        self.status = int(status)
+                    def send_header(self, _name, _value):
+                        return None
+                    def end_headers(self):
+                        return None
+                    def _send_probe_bytes(self, body):
+                        return handler_class._send_probe_bytes(self, body)
+
+                for candidate in (final_link, parent_file):
+                    dummy = DummyHandler()
+                    opened = handler_class._open_owned_model_file(dummy, candidate)
+                    if opened is not None or dummy.status != HTTPStatus.FORBIDDEN:
+                        raise RuntimeError(
+                            "Generated Repeater model serving accepted a link-like path."
+                        )
+
+                # Probe/API reads must use the same descriptor-safe Mirror policy.
+                for candidate in (final_link, parent_file):
+                    dummy = DummyHandler()
+                    handler_class._send_probe_file(dummy, candidate)
+                    if dummy.status != HTTPStatus.FORBIDDEN:
+                        raise RuntimeError(
+                            "Generated Repeater probe serving accepted a link-like path."
+                        )
+                    dummy = DummyHandler()
+                    handler_class.send_json_file(dummy, candidate)
+                    if dummy.status != HTTPStatus.FORBIDDEN:
+                        raise RuntimeError(
+                            "Generated Repeater JSON serving accepted a link-like path."
+                        )
+
+                dangling = mirror / "dangling-probe.txt"
+                dangling.symlink_to(mirror / "missing-target.txt")
+                dummy = DummyHandler()
+                handler_class._send_probe_file(dummy, dangling)
+                if dummy.status != HTTPStatus.FORBIDDEN:
+                    raise RuntimeError(
+                        "Generated Repeater probe serving accepted a dangling symlink."
+                    )
+
+                fallback = b"https://topazlabs.com/careers\n"
+                dummy = DummyHandler()
+                handler_class._send_probe_file(
+                    dummy, mirror / "missing-test.txt", missing_fallback=fallback
+                )
+                if dummy.status != HTTPStatus.OK or dummy.wfile.getvalue() != fallback:
+                    raise RuntimeError(
+                        "Generated Repeater did not preserve the missing test.txt fallback."
+                    )
+            finally:
+                repeater_globals["MIRROR_ROOT"] = saved_repeater_mirror
+
+    for source_text, label in (
+        (downloader_source, "Downloader"),
+        (verifier_source, "Verifier"),
+        (repeater_source, "Repeater"),
+    ):
+        for marker in ("is_junction", "FILE_ATTRIBUTE_REPARSE_POINT"):
+            if marker not in source_text:
+                raise RuntimeError(
+                    f"Generated {label} is missing Windows link hardening: {marker}"
+                )
+
+    # A mixed pass/hash-mismatch scan must report SHA-256 FAILED and create a
+    # schema-3 repair list that the Downloader accepts as actionable state.
+    with tempfile.TemporaryDirectory(prefix="topaz-mixed-hash-repair-selftest-") as temp_name:
+        temp_root = Path(temp_name).resolve()
+        repair_path = temp_root / "Topaz_Offline_Download_Creator_SHA256_Repair.json"
+        discovered_assets_path = (
+            temp_root / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+        )
+        verifier_report = verifier_namespace["report_verification_result"]
+        verifier_globals = verifier_report.__globals__
+        saved_verifier_globals = {
+            name: verifier_globals[name]
+            for name in (
+                "REPAIR_PATH",
+                "DISCOVERED_ASSETS_PATH",
+                "ERROR_REPORT",
+                "append_error",
+            )
+        }
+        verifier_globals["REPAIR_PATH"] = repair_path
+        verifier_globals["DISCOVERED_ASSETS_PATH"] = discovered_assets_path
+        verifier_globals["ERROR_REPORT"] = temp_root / "error.txt"
+        verifier_globals["append_error"] = lambda _lines: None
+
+        recovered_record = {
+            "relative_path": "v1/new-recovered-selftest.svg",
+            "size_bytes": 32,
+            "sha256": "E" * 64,
+            "source": "recovered_404",
+            "source_url": (
+                "https://models.topazlabs.com/v1/new-recovered-selftest.svg"
+            ),
+        }
+        recovered_records = [recovered_record]
+        recovered_canonical = json.dumps(
+            recovered_records,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        recovered_payload = {
+            "schema": DISCOVERED_ASSETS_SCHEMA,
+            "schema_version": DISCOVERED_SCHEMA_VERSION,
+            "creator_version": VERSION,
+            "creator_build": BUILD,
+            "generated_utc": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "mirror_relative_root": "Mirror",
+            "hash_algorithm": "SHA256",
+            "asset_count": 1,
+            "records_payload_sha256": hashlib.sha256(
+                recovered_canonical
+            ).hexdigest().upper(),
+            "files": recovered_records,
+        }
+        discovered_assets_path.write_text(
+            json.dumps(recovered_payload, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        recovered_before = discovered_assets_path.read_bytes()
+
+        mixed_failure = {
+            "relative_path": "v1/mixed-hash-selftest.bin",
+            "reason": "hash_mismatch",
+            "expected_size": 64,
+            "expected_sha256": "C" * 64,
+            "actual": "D" * 64,
+        }
+        mixed_result = {
+            "failures": [mixed_failure],
+            "supplemental_failures": [],
+            "server_asset_failures": [],
+            "failure_lines": ["hash_mismatch: v1/mixed-hash-selftest.bin"],
+            "processed": 2,
+            "validated": 1,
+            "sha256_validated": 1,
+            "server_asset_count": 1,
+            "discovered_asset_count": 1,
+            "discovered_logical_count": 0,
+        }
+        mixed_index = {
+            "physical_records_payload_sha256": V2_PHYSICAL_RECORDS_PAYLOAD_SHA256,
+        }
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as mixed_stdout:
+                mixed_code = verifier_report(
+                    mixed_index, mixed_result, 2, 2, time.monotonic()
+                )
+        finally:
+            for name, value in saved_verifier_globals.items():
+                verifier_globals[name] = value
+        mixed_output = mixed_stdout.getvalue()
+        if mixed_code != 1 or "SHA-256 Integrity Result     : FAILED" not in mixed_output:
+            raise RuntimeError(
+                "Generated Verifier did not report FAILED for a mixed hash-mismatch result."
+            )
+        if (
+            "Discovered Asset Files       : 1" not in mixed_output
+            or "Found Discovered Assets      : ~Discovered_Assets.v2.json"
+            not in mixed_output
+            or "Report File(s) to Script Creator" not in mixed_output
+        ):
+            raise RuntimeError(
+                "Generated Verifier did not display the separate discovered-assets manifest."
+            )
+        if discovered_assets_path.read_bytes() != recovered_before:
+            raise RuntimeError(
+                "Verifier actionable-repair generation modified the discovered-assets manifest."
+            )
+        if not repair_path.is_file():
+            raise RuntimeError(
+                "Generated Verifier did not create actionable schema-3 repair state."
+            )
+        downloader_repair_globals = downloader_namespace["load_repair_paths"].__globals__
+        saved_downloader_repair_path = downloader_repair_globals["REPAIR_PATH"]
+        downloader_repair_globals["REPAIR_PATH"] = repair_path
+        try:
+            actionable_repairs = downloader_namespace["load_repair_paths"]()
+        finally:
+            downloader_repair_globals["REPAIR_PATH"] = saved_downloader_repair_path
+        if len(actionable_repairs) != 1:
+            raise RuntimeError(
+                "Generated Downloader did not accept Verifier-created schema-3 repair state."
+            )
+
+        # A mixed pass/SHA read-error scan must also report SHA-256 FAILED.
+        # The read error occurs during authoritative hashing, so a successful hash
+        # elsewhere must not make the SHA-specific summary look successful.
+        read_error_failure = {
+            "relative_path": "v1/mixed-read-error-selftest.bin",
+            "reason": "read_error",
+            "expected_size": 64,
+            "expected_sha256": "F" * 64,
+            "actual": "Permission denied while reading file",
+        }
+        read_error_result = {
+            "failures": [read_error_failure],
+            "supplemental_failures": [],
+            "server_asset_failures": [],
+            "failure_lines": ["read_error: v1/mixed-read-error-selftest.bin"],
+            "processed": 2,
+            "validated": 1,
+            "sha256_validated": 1,
+            "server_asset_count": 1,
+            "discovered_asset_count": 1,
+            "discovered_logical_count": 0,
+        }
+        verifier_globals["REPAIR_PATH"] = repair_path
+        verifier_globals["DISCOVERED_ASSETS_PATH"] = discovered_assets_path
+        verifier_globals["ERROR_REPORT"] = temp_root / "error.txt"
+        verifier_globals["append_error"] = lambda _lines: None
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as read_error_stdout:
+                read_error_code = verifier_report(
+                    mixed_index, read_error_result, 2, 2, time.monotonic()
+                )
+        finally:
+            for name, value in saved_verifier_globals.items():
+                verifier_globals[name] = value
+        read_error_output = read_error_stdout.getvalue()
+        if (
+            read_error_code != 1
+            or "SHA-256 Integrity Result     : FAILED" not in read_error_output
+            or "File/Content Integrity Result: FAILED" not in read_error_output
+        ):
+            raise RuntimeError(
+                "Generated Verifier did not report FAILED for a mixed SHA read-error result."
+            )
+        if discovered_assets_path.read_bytes() != recovered_before:
+            raise RuntimeError(
+                "SHA read-error repair generation modified the discovered-assets manifest."
+            )
+        if not repair_path.is_file():
+            raise RuntimeError(
+                "SHA read-error did not create actionable schema-3 repair state."
+            )
+        downloader_repair_globals["REPAIR_PATH"] = repair_path
+        try:
+            read_error_repairs = downloader_namespace["load_repair_paths"]()
+        finally:
+            downloader_repair_globals["REPAIR_PATH"] = saved_downloader_repair_path
+        if len(read_error_repairs) != 1:
+            raise RuntimeError(
+                "Generated Downloader did not accept SHA read-error repair state."
+            )
+
+        # A missing SHA-bearing inventory file cannot claim SHA-256 SUCCESS just
+        # because another inventory file hashed successfully. Coverage is explicit.
+        missing_result = {
+            "failures": [{
+                "relative_path": "v1/mixed-missing-selftest.bin",
+                "reason": "missing",
+                "expected_size": 64,
+                "expected_sha256": "A" * 64,
+                "actual": "",
+            }],
+            "supplemental_failures": [],
+            "server_asset_failures": [],
+            "failure_lines": ["missing: v1/mixed-missing-selftest.bin"],
+            "processed": 2,
+            "validated": 1,
+            "sha256_validated": 1,
+            "sha256_expected": 2,
+            "server_assets_validated": 0,
+            "server_assets_sha256_validated": 0,
+            "server_asset_count": 0,
+            "discovered_asset_count": 0,
+            "discovered_logical_count": 0,
+        }
+        verifier_globals["REPAIR_PATH"] = repair_path
+        verifier_globals["ERROR_REPORT"] = temp_root / "error.txt"
+        verifier_globals["append_error"] = lambda _lines: None
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as missing_stdout:
+                missing_code = verifier_report(
+                    mixed_index, missing_result, 2, 2, time.monotonic()
+                )
+        finally:
+            for name, value in saved_verifier_globals.items():
+                verifier_globals[name] = value
+        missing_output = missing_stdout.getvalue()
+        if (
+            missing_code != 1
+            or "Inventory SHA-256 Verified   : 1 / 2" not in missing_output
+            or "Server Asset SHA-256 Verified: 0 / 0" not in missing_output
+            or "SHA-256 Integrity Result     : FAILED" not in missing_output
+        ):
+            raise RuntimeError(
+                "Generated Verifier did not fail incomplete inventory SHA coverage."
+            )
+
+    # A failed early group must not suppress checks/downloads for later groups.
+    group_runner = downloader_namespace["_process_download_groups"]
+    group_globals = group_runner.__globals__
+    saved_groups = group_globals["GROUPS"]
+    saved_process_group = group_globals["process_group"]
+    group_calls: list[str] = []
+    group_globals["GROUPS"] = [
+        {"name": "first"},
+        {"name": "second"},
+        {"name": "third"},
+    ]
+
+    def _self_test_process_group(group, _backend, _downloads_enabled, _repair_paths):
+        group_calls.append(str(group["name"]))
+        return group["name"] != "first"
+
+    group_globals["process_group"] = _self_test_process_group
+    try:
+        all_groups_valid = group_runner(None, False, {})
+    finally:
+        group_globals["GROUPS"] = saved_groups
+        group_globals["process_group"] = saved_process_group
+    if all_groups_valid or group_calls != ["first", "second", "third"]:
+        raise RuntimeError(
+            "Generated Downloader skipped later groups after an earlier failure."
+        )
+
+    repair_runner = downloader_namespace["_process_repair_groups"]
+    repair_globals = repair_runner.__globals__
+    saved_repair_groups = repair_globals["GROUPS"]
+    saved_repair_process = repair_globals["process_repair_group"]
+    repair_calls: list[str] = []
+    repair_globals["GROUPS"] = [
+        {"name": "ordinary", "items": [{"path": "v1/ordinary.bin"}]},
+        {"name": "repair", "items": [{"path": "v1/repair.bin"}]},
+        {"name": "later", "items": [{"path": "v1/later.bin"}]},
+    ]
+
+    def _self_test_process_repair_group(group, _backend, _downloads_enabled, repair_paths):
+        repair_calls.append(str(group["name"]))
+        for item in group["items"]:
+            repair_paths.pop(str(item["path"]).casefold(), None)
+        return True
+
+    repair_globals["process_repair_group"] = _self_test_process_repair_group
+    repair_request = {"v1/repair.bin": (1, "A" * 64)}
+    try:
+        repairs_valid = repair_runner(None, False, repair_request)
+    finally:
+        repair_globals["GROUPS"] = saved_repair_groups
+        repair_globals["process_repair_group"] = saved_repair_process
+    if not repairs_valid or repair_calls != ["repair"] or repair_request:
+        raise RuntimeError(
+            "Generated Downloader repair-only mode traversed non-repair inventory."
+        )
+
+    # Repair-only mode must never repeat the report-driven unknown/unhashed ZIP
+    # validation pass. Those ZIPs cannot be represented by the SHA repair list;
+    # they are handled during the normal Downloader pass only.
+    downloader_main = downloader_namespace["main"]
+    main_globals = downloader_main.__globals__
+    saved_main_globals = {
+        name: main_globals[name]
+        for name in (
+            "parse_arguments", "validate_inventory", "load_repair_paths",
+            "_display_downloader_header", "_network_download_state",
+            "_process_repair_groups", "process_reported_unhashed_zip_validation",
+            "_remaining_repair_failures", "_download_result_code",
+        )
+    }
+    repeated_unknown_zip_checks = 0
+
+    def _self_test_unexpected_reported_zip_pass(_backend, _downloads_enabled):
+        nonlocal repeated_unknown_zip_checks
+        repeated_unknown_zip_checks += 1
+        return False
+
+    try:
+        main_globals["parse_arguments"] = lambda _argv: (True, False, True, False)
+        main_globals["validate_inventory"] = lambda: {
+            "v1/repair.bin": ("v1/repair.bin", 1, False)
+        }
+        main_globals["load_repair_paths"] = lambda: {
+            "v1/repair.bin": (1, "A" * 64)
+        }
+        main_globals["_display_downloader_header"] = lambda _repair_paths: None
+        main_globals["_network_download_state"] = lambda: (("curl", "curl"), True)
+        main_globals["_process_repair_groups"] = (
+            lambda _backend, _downloads_enabled, repair_paths: (repair_paths.clear() or True)
+        )
+        main_globals["process_reported_unhashed_zip_validation"] = (
+            _self_test_unexpected_reported_zip_pass
+        )
+        main_globals["_remaining_repair_failures"] = lambda _physical, _repairs: []
+        main_globals["_download_result_code"] = lambda _launcher_mode, **_kwargs: 0
+        repair_main_code = downloader_main()
+    finally:
+        main_globals.update(saved_main_globals)
+    if repair_main_code != 0 or repeated_unknown_zip_checks:
+        raise RuntimeError(
+            "Generated Downloader repair-only mode repeated unknown/unhashed ZIP validation."
+        )
+
+    print("===========================================")
+    print("      Expected Failure / Rejection Tests")
+    print("===========================================")
+    print()
+    print("The following FAILED / REJECTED messages are expected self-test results.")
+    print()
+    print("[Expected Negative Test] Reported-fixed repair state transitions")
+    print()
 
     # A size-correct V2 file must not become REPORTED-FIXED until its
     # authoritative SHA-256 has actually matched. If repair cannot start, the
@@ -15516,6 +20179,31 @@ def _self_test_generated_programs() -> str:
                 "Generated Downloader did not fix a V2 report entry after authoritative SHA-256 matched."
             )
 
+        # A valid SHA-backed file is not complete if Error.txt cannot transition
+        # from URL to REPORTED-FIXED. Preserve the valid file but return incomplete.
+        report_file.write_text(f"URL : {report_url}\n", encoding="utf-8")
+        saved_atomic_report_write = downloader_globals["atomic_write_error_report_lines"]
+        downloader_globals["atomic_write_error_report_lines"] = lambda _lines: False
+        try:
+            failed_report_result = downloader_namespace["process_group"](
+                report_group, None, False, {}
+            )
+        finally:
+            downloader_globals["atomic_write_error_report_lines"] = (
+                saved_atomic_report_write
+            )
+        failed_report_text = report_file.read_text(encoding="utf-8")
+        if (
+            failed_report_result
+            or report_destination.read_bytes() != good_payload
+            or f"URL : {report_url}" not in failed_report_text
+            or f"REPORTED-FIXED : {report_url}" in failed_report_text
+        ):
+            raise RuntimeError(
+                "Generated Downloader accepted a SHA-backed file whose Error.txt "
+                "transition failed."
+            )
+
         report_file.write_text(
             f"REPORTED-FIXED : {report_url}\n", encoding="utf-8"
         )
@@ -15533,6 +20221,11 @@ def _self_test_generated_programs() -> str:
             raise RuntimeError(
                 "Generated Downloader did not reopen REPORTED-FIXED when forced repair could not start."
             )
+
+    print("Expected reported-fixed repair/reopen behavior: PASSED")
+    print()
+    print("[Expected Negative Test] Corrupt SHA-256 partial/replacement rejection")
+    print()
 
     # A full-size partial follows the same report rule: authoritative V2 SHA-256
     # must match before promotion or REPORTED-FIXED.
@@ -15555,7 +20248,7 @@ def _self_test_generated_programs() -> str:
         partial_globals["ERROR_REPORT"] = partial_report
         partial_globals["report_hosts_download_block"] = lambda _url: False
         if downloader_namespace["download_file"](
-            "curl",
+            ("curl", "curl"),
             url=partial_url,
             destination=partial_destination,
             expected_size=len(partial_good),
@@ -15572,6 +20265,36 @@ def _self_test_generated_programs() -> str:
         ):
             raise RuntimeError(
                 "Generated Downloader prematurely promoted/fixed a SHA-wrong V2 partial."
+            )
+
+        # A full-size SHA-valid partial may be promoted, but the operation must
+        # still return incomplete when Error.txt cannot be updated.
+        partial_report.write_text(f"URL : {partial_url}\n", encoding="utf-8")
+        partial_path.write_bytes(partial_good)
+        saved_partial_atomic_write = partial_globals["atomic_write_error_report_lines"]
+        partial_globals["atomic_write_error_report_lines"] = lambda _lines: False
+        try:
+            partial_transition_result = downloader_namespace["download_file"](
+                ("curl", "curl"),
+                url=partial_url,
+                destination=partial_destination,
+                expected_size=len(partial_good),
+                expected_sha256=partial_sha,
+            )
+        finally:
+            partial_globals["atomic_write_error_report_lines"] = (
+                saved_partial_atomic_write
+            )
+        partial_transition_text = partial_report.read_text(encoding="utf-8")
+        if (
+            partial_transition_result
+            or partial_destination.read_bytes() != partial_good
+            or f"URL : {partial_url}" not in partial_transition_text
+            or f"REPORTED-FIXED : {partial_url}" in partial_transition_text
+        ):
+            raise RuntimeError(
+                "Generated Downloader accepted a full-size partial whose Error.txt "
+                "transition failed."
             )
 
     # Pre-existing V2 partial bytes require authoritative SHA-256 even when no
@@ -15607,7 +20330,7 @@ def _self_test_generated_programs() -> str:
             curl_calls: list[list[str]] = []
             partial_globals["run_curl"] = lambda command: curl_calls.append(list(command)) or 99
             if downloader_namespace["download_file"](
-                "curl",
+                ("curl", "curl"),
                 url="https://models.topazlabs.com/v1/no-report-full.bin",
                 destination=full_destination,
                 expected_size=len(good_payload),
@@ -15637,7 +20360,7 @@ def _self_test_generated_programs() -> str:
 
             partial_globals["run_curl"] = fake_resume_curl
             if downloader_namespace["download_file"](
-                "curl",
+                ("curl", "curl"),
                 url="https://models.topazlabs.com/v1/no-report-resume.bin",
                 destination=resume_destination,
                 expected_size=len(good_payload),
@@ -15676,7 +20399,7 @@ def _self_test_generated_programs() -> str:
             partial_globals["sha256_file"] = counting_sha256_file
             partial_globals["run_curl"] = fake_fresh_curl
             if not downloader_namespace["download_file"](
-                "curl",
+                ("curl", "curl"),
                 url="https://models.topazlabs.com/v1/fresh-v2.bin",
                 destination=fresh_destination,
                 expected_size=len(good_payload),
@@ -15689,6 +20412,126 @@ def _self_test_generated_programs() -> str:
                 )
         finally:
             partial_globals.update(saved_partial_globals)
+
+    print("Expected REJECTED behavior: PASSED")
+    print()
+
+    print("[Expected Negative Test] Downloader report record hardening")
+    print()
+    report_globals = downloader_namespace["read_error_report_lines"].__globals__
+    saved_report_path = report_globals["ERROR_REPORT"]
+    with tempfile.TemporaryDirectory(prefix="topaz-report-record-selftest-") as report_temp:
+        report_path = Path(report_temp) / "error.txt"
+        forged_url = "https://models.topazlabs.com/v1/report-record-selftest.bin"
+        report_path.write_text(
+            f"Diagnostic text\u2028URL : {forged_url}\n",
+            encoding="utf-8",
+        )
+        report_globals["ERROR_REPORT"] = report_path
+        try:
+            records = downloader_namespace["read_error_report_lines"]()
+            if len(records) != 1:
+                raise RuntimeError(
+                    "Generated Downloader split a Unicode line separator as a report record."
+                )
+            if downloader_namespace["download_report_url_is_unresolved"](forged_url):
+                raise RuntimeError(
+                    "Generated Downloader recognized a forged Unicode-separated unresolved URL."
+                )
+            if downloader_namespace["report_url_is_safe"](
+                "https://models.topazlabs.com/v1/a\u2028b"
+            ) is not None:
+                raise RuntimeError(
+                    "Generated Downloader accepted a non-printable URL character."
+                )
+            saved_path_safety = report_globals["error_report_path_is_safe"]
+            report_globals["error_report_path_is_safe"] = lambda: False
+            try:
+                try:
+                    downloader_namespace["mark_download_report_fixed"](forged_url)
+                except RuntimeError:
+                    pass
+                else:
+                    raise RuntimeError(
+                        "Generated Downloader treated an unsafe Error.txt as a successful report transition."
+                    )
+            finally:
+                report_globals["error_report_path_is_safe"] = saved_path_safety
+        finally:
+            report_globals["ERROR_REPORT"] = saved_report_path
+    print("Explicit-LF parsing / unsafe-report fail-closed behavior: PASSED")
+    print()
+
+    print("[Expected Negative Test] Favicon report transition ordering")
+    print()
+    with tempfile.TemporaryDirectory(prefix="topaz-favicon-report-selftest-") as favicon_temp:
+        favicon_destination = Path(favicon_temp) / "favicon.ico"
+        favicon_globals = downloader_namespace["process_asset"].__globals__
+        saved_favicon_globals = {
+            name: favicon_globals[name]
+            for name in (
+                "safe_mirror_destination",
+                "downloaded_support_file_is_valid",
+                "download_file",
+                "record_downloaded_support_asset",
+                "mark_download_report_fixed",
+                "report_failed_download",
+            )
+        }
+        favicon_calls = {"fixed": 0, "failed": 0, "registered": 0}
+        try:
+            favicon_globals["safe_mirror_destination"] = (
+                lambda *_args, **_kwargs: favicon_destination
+            )
+            favicon_globals["downloaded_support_file_is_valid"] = (
+                lambda *_args, **_kwargs: False
+            )
+
+            def fake_favicon_download(*_args, **kwargs) -> bool:
+                if kwargs.get("close_report_on_success") is not False:
+                    raise RuntimeError(
+                        "Favicon download did not defer the Error.txt transition."
+                    )
+                favicon_destination.write_bytes(b"not-an-image")
+                return True
+
+            favicon_globals["download_file"] = fake_favicon_download
+
+            def fake_favicon_register(*_args, **_kwargs) -> None:
+                favicon_calls["registered"] += 1
+
+            def fake_favicon_mark(*_args, **_kwargs) -> bool:
+                favicon_calls["fixed"] += 1
+                return True
+
+            def fake_favicon_report(*_args, **_kwargs) -> bool:
+                favicon_calls["failed"] += 1
+                return True
+
+            favicon_globals["record_downloaded_support_asset"] = fake_favicon_register
+            favicon_globals["mark_download_report_fixed"] = fake_favicon_mark
+            favicon_globals["report_failed_download"] = fake_favicon_report
+
+            if downloader_namespace["process_asset"](("curl", "curl"), True):
+                raise RuntimeError(
+                    "Generated Downloader accepted invalid HTTP-200 favicon content."
+                )
+            if favicon_destination.exists():
+                raise RuntimeError(
+                    "Generated Downloader retained invalid HTTP-200 favicon content."
+                )
+            if favicon_calls["fixed"] != 0 or favicon_calls["registered"] != 0:
+                raise RuntimeError(
+                    "Generated Downloader marked/registered favicon before validation."
+                )
+            if favicon_calls["failed"] < 1:
+                raise RuntimeError(
+                    "Generated Downloader did not retain/reopen favicon failure state."
+                )
+        finally:
+            favicon_globals.update(saved_favicon_globals)
+    print("Favicon validation-before-REPORTED-FIXED ordering: PASSED")
+    print()
 
     # Preserve explicitly captured HTTP URLs while preventing an HTTPS URL from
     # being redirected down to plaintext HTTP.
@@ -15716,7 +20559,7 @@ def _self_test_generated_programs() -> str:
             captured_commands.clear()
             proto_destination = proto_root / f"{source_scheme}.bin"
             if not downloader_namespace["download_file"](
-                "curl",
+                ("curl", "curl"),
                 url=(
                     f"{source_scheme}://models.topazlabs.com/v1/"
                     f"{source_scheme}-protocol-selftest.bin"
@@ -15763,10 +20606,11 @@ def _self_test_generated_programs() -> str:
             raise RuntimeError("Generated Downloader accepted a CRC-corrupt supplemental ZIP.")
 
         # Group-level CRC validation is expensive for multi-GB supplemental ZIPs.
-        # An unchanged file must be scanned only once during process_group(), the
-        # Missing Files summary must reuse that result, and the independent final
-        # physical-inventory pass must still scan it again. A size/timestamp change
-        # between the initial check and summary must invalidate the group cache.
+        # Normal no-hash ZIP checks stay silent. An unchanged file must be scanned
+        # only once during process_group(), the Missing Files summary must reuse that
+        # result, and the independent final physical-inventory pass must still scan
+        # it again. A size/timestamp change between the initial check and summary
+        # must invalidate the group cache.
         cache_mirror = temp_root / "CacheMirror"
         cache_relative = "astra_support/cache-selftest.zip"
         cache_destination = cache_mirror / "astra_support" / "cache-selftest.zip"
@@ -15793,7 +20637,7 @@ def _self_test_generated_programs() -> str:
             name: cache_globals[name]
             for name in (
                 "MIRROR_ROOT", "ERROR_REPORT", "validate_zip_content",
-                "download_report_url_is_unresolved",
+                "download_report_url_is_unresolved", "section",
             )
         }
         try:
@@ -15802,9 +20646,18 @@ def _self_test_generated_programs() -> str:
             original_zip_validator = saved_cache_globals["validate_zip_content"]
             scan_calls: list[str] = []
 
-            def counted_zip_validator(path: Path, size_bytes: int) -> bool:
+            def counted_zip_validator(
+                path: Path,
+                size_bytes: int,
+                *,
+                announce: bool = False,
+            ) -> bool:
                 scan_calls.append(path.name)
-                return original_zip_validator(path, size_bytes)
+                return original_zip_validator(
+                    path,
+                    size_bytes,
+                    announce=announce,
+                )
 
             cache_globals["validate_zip_content"] = counted_zip_validator
             cache_globals["download_report_url_is_unresolved"] = lambda _url: False
@@ -15819,11 +20672,13 @@ def _self_test_generated_programs() -> str:
                 )
             cache_text = cache_output.getvalue()
             if (
-                "Validating ZIP content: cache-selftest.zip" not in cache_text
-                or "ZIP content validation PASSED: cache-selftest.zip" not in cache_text
+                "Validating ZIP content:" in cache_text
+                or "ZIP content validation " in cache_text
+                or "Reported ZIP Content Validation" in cache_text
             ):
                 raise RuntimeError(
-                    "Generated Downloader did not report expensive ZIP validation progress."
+                    "Generated Downloader exposed normal ZIP validation outside the "
+                    "conditional report-driven section."
                 )
 
             physical_cache = {
@@ -15850,25 +20705,35 @@ def _self_test_generated_programs() -> str:
             cache_group["items"][0]["size"] = expected_cache_size
             scan_calls.clear()
             changed_once = False
+            section_calls = 0
+            original_section = saved_cache_globals["section"]
 
-            def mutate_after_initial_scan(_url: str) -> bool:
-                nonlocal changed_once
-                if not changed_once:
+            def mutate_before_missing_summary(title: str) -> None:
+                nonlocal changed_once, section_calls
+                section_calls += 1
+                original_section(title)
+                if section_calls == 2 and not changed_once:
                     changed_once = True
                     raw_cache = bytearray(cache_destination.read_bytes())
                     payload_offset = raw_cache.find(b"cache-valid")
                     if payload_offset < 0:
-                        raise RuntimeError("Cache invalidation self-test could not locate ZIP payload.")
+                        raise RuntimeError(
+                            "Cache invalidation self-test could not locate ZIP payload."
+                        )
                     raw_cache[payload_offset] ^= 0x01
                     previous_mtime = cache_destination.stat().st_mtime_ns
                     cache_destination.write_bytes(raw_cache)
                     os.utime(
                         cache_destination,
-                        ns=(previous_mtime + 1_000_000_000, previous_mtime + 1_000_000_000),
+                        ns=(
+                            previous_mtime + 1_000_000_000,
+                            previous_mtime + 1_000_000_000,
+                        ),
                     )
-                return False
 
-            cache_globals["download_report_url_is_unresolved"] = mutate_after_initial_scan
+            cache_globals["validate_zip_content"] = counted_zip_validator
+            cache_globals["download_report_url_is_unresolved"] = lambda _url: False
+            cache_globals["section"] = mutate_before_missing_summary
             with contextlib.redirect_stdout(io.StringIO()):
                 changed_group_result = downloader_namespace["process_group"](
                     cache_group, None, False, {}
@@ -15879,6 +20744,253 @@ def _self_test_generated_programs() -> str:
                 )
         finally:
             cache_globals.update(saved_cache_globals)
+
+        # The user-facing ZIP validation section is report-driven only. With no
+        # unresolved no-hash ZIP in Error.txt it must emit nothing; once such a
+        # URL is present it must appear after the normal groups, validate the ZIP,
+        # and close the report entry as REPORTED-FIXED.
+        with zipfile.ZipFile(
+            cache_destination,
+            "w",
+            compression=zipfile.ZIP_STORED,
+        ) as archive:
+            archive.writestr("member.bin", b"cache-valid" * 64)
+        cache_group["items"][0]["size"] = cache_destination.stat().st_size
+        reported_zip_globals = downloader_namespace[
+            "process_reported_unhashed_zip_validation"
+        ].__globals__
+        saved_reported_zip_globals = {
+            name: reported_zip_globals[name]
+            for name in (
+                "MIRROR_ROOT", "ERROR_REPORT", "GROUPS",
+                "run_curl", "report_hosts_download_block",
+                "atomic_write_error_report_lines",
+            )
+        }
+        try:
+            reported_zip_report = temp_root / "reported-zip-error.txt"
+            reported_zip_globals["MIRROR_ROOT"] = cache_mirror
+            reported_zip_globals["ERROR_REPORT"] = reported_zip_report
+            reported_zip_globals["GROUPS"] = [cache_group]
+
+            quiet_output = io.StringIO()
+            with contextlib.redirect_stdout(quiet_output):
+                quiet_result = downloader_namespace[
+                    "process_reported_unhashed_zip_validation"
+                ](None, False)
+            if not quiet_result or quiet_output.getvalue():
+                raise RuntimeError(
+                    "Generated Downloader displayed ZIP validation without an "
+                    "unresolved ZIP entry in Error.txt."
+                )
+
+            reported_zip_report.write_text(
+                "===========================================\n"
+                "Failed Downloader Request\n"
+                "===========================================\n"
+                f"URL : {cache_url}\n",
+                encoding="utf-8",
+            )
+            visible_output = io.StringIO()
+            with contextlib.redirect_stdout(visible_output):
+                visible_result = downloader_namespace[
+                    "process_reported_unhashed_zip_validation"
+                ](None, False)
+            visible_text = visible_output.getvalue()
+            if not visible_result:
+                raise RuntimeError(
+                    "Generated Downloader rejected a valid reported no-hash ZIP."
+                )
+            for marker in (
+                "Reported ZIP Content Validation",
+                "Validating ZIP content: cache-selftest.zip",
+                "ZIP content validation PASSED: cache-selftest.zip",
+                "Reported ZIP validation completed and marked REPORTED-FIXED.",
+            ):
+                if marker not in visible_text:
+                    raise RuntimeError(
+                        "Generated Downloader report-driven ZIP section is "
+                        "missing output: " + marker
+                    )
+            report_text = reported_zip_report.read_text(encoding="utf-8")
+            if (
+                f"REPORTED-FIXED : {cache_url}" not in report_text
+                or f"URL : {cache_url}" in report_text
+            ):
+                raise RuntimeError(
+                    "Generated Downloader did not close the validated ZIP report entry."
+                )
+
+            closed_output = io.StringIO()
+            with contextlib.redirect_stdout(closed_output):
+                closed_result = downloader_namespace[
+                    "process_reported_unhashed_zip_validation"
+                ](None, False)
+            if not closed_result or closed_output.getvalue():
+                raise RuntimeError(
+                    "Generated Downloader repeated ZIP validation after the report "
+                    "entry was closed."
+                )
+
+            # A reported no-hash ZIP whose container remains structurally valid but
+            # whose member CRC fails must make exactly one replacement download
+            # attempt when downloads are available. The normal download_file()
+            # staging path must validate the replacement before promotion and close
+            # the report entry only after that validation succeeds.
+            cache_destination.write_bytes(corrupt.read_bytes())
+            cache_group["items"][0]["size"] = 0
+            reported_zip_report.write_text(
+                "===========================================\n"
+                "Failed Downloader Request\n"
+                "===========================================\n"
+                f"URL : {cache_url}\n",
+                encoding="utf-8",
+            )
+            replacement_source = temp_root / "reported-zip-replacement.zip"
+            with zipfile.ZipFile(
+                replacement_source, "w", compression=zipfile.ZIP_STORED
+            ) as archive:
+                archive.writestr("member.bin", b"reported-zip-repaired" * 64)
+            replacement_bytes = replacement_source.read_bytes()
+            repair_attempts: list[list[str]] = []
+
+            def fake_reported_zip_curl(command: list[str]) -> int:
+                repair_attempts.append(list(command))
+                output_index = command.index("-o") + 1
+                partial_path = Path(command[output_index])
+                partial_path.parent.mkdir(parents=True, exist_ok=True)
+                partial_path.write_bytes(replacement_bytes)
+                return 0
+
+            reported_zip_globals["run_curl"] = fake_reported_zip_curl
+            reported_zip_globals["report_hosts_download_block"] = lambda _url: False
+            repaired_output = io.StringIO()
+            with contextlib.redirect_stdout(repaired_output):
+                repaired_result = downloader_namespace[
+                    "process_reported_unhashed_zip_validation"
+                ](("curl", "curl"), True)
+            repaired_text = repaired_output.getvalue()
+            if not repaired_result or len(repair_attempts) != 1:
+                raise RuntimeError(
+                    "Generated Downloader did not make exactly one replacement "
+                    "attempt for a CRC-corrupt reported no-hash ZIP."
+                )
+            if not downloader_namespace["file_is_valid"](
+                cache_destination, 0, verify_zip_crc=True
+            ):
+                raise RuntimeError(
+                    "Generated Downloader did not promote a CRC-valid reported ZIP replacement."
+                )
+            repaired_report_text = reported_zip_report.read_text(encoding="utf-8")
+            if (
+                f"REPORTED-FIXED : {cache_url}" not in repaired_report_text
+                or f"URL : {cache_url}" in repaired_report_text
+            ):
+                raise RuntimeError(
+                    "Generated Downloader did not close the repaired ZIP report entry."
+                )
+            for marker in (
+                "Reported ZIP content validation FAILED.",
+                "Attempting a validated replacement download.",
+                "Reported ZIP replacement downloaded, validated, and marked REPORTED-FIXED.",
+            ):
+                if marker not in repaired_text:
+                    raise RuntimeError(
+                        "Generated Downloader reported-ZIP repair output is missing: " + marker
+                    )
+
+            # A valid replacement is not a complete repair until Error.txt can
+            # transition URL -> REPORTED-FIXED. Simulate an atomic report-write
+            # failure and require the validated replacement to remain on disk while
+            # the workflow stays incomplete and the unresolved URL remains visible.
+            cache_destination.write_bytes(corrupt.read_bytes())
+            reported_zip_report.write_text(
+                "===========================================\n"
+                "Failed Downloader Request\n"
+                "===========================================\n"
+                f"URL : {cache_url}\n",
+                encoding="utf-8",
+            )
+            repair_attempts.clear()
+            reported_zip_globals["run_curl"] = fake_reported_zip_curl
+            reported_zip_globals["atomic_write_error_report_lines"] = lambda _lines: False
+            report_failure_output = io.StringIO()
+            with contextlib.redirect_stdout(report_failure_output):
+                report_failure_result = downloader_namespace[
+                    "process_reported_unhashed_zip_validation"
+                ](("curl", "curl"), True)
+            report_failure_text = report_failure_output.getvalue()
+            if report_failure_result or len(repair_attempts) != 1:
+                raise RuntimeError(
+                    "Generated Downloader accepted a repaired ZIP whose Error.txt "
+                    "transition failed."
+                )
+            if not downloader_namespace["file_is_valid"](
+                cache_destination, 0, verify_zip_crc=True
+            ):
+                raise RuntimeError(
+                    "Generated Downloader discarded a valid ZIP replacement after "
+                    "the Error.txt transition failed."
+                )
+            failed_transition_report = reported_zip_report.read_text(encoding="utf-8")
+            if (
+                f"URL : {cache_url}" not in failed_transition_report
+                or f"REPORTED-FIXED : {cache_url}" in failed_transition_report
+            ):
+                raise RuntimeError(
+                    "Generated Downloader did not preserve the unresolved ZIP report "
+                    "entry after an atomic report-update failure."
+                )
+            if (
+                "Reported ZIP replacement downloaded and validated, but the error "
+                "report could not be updated." not in report_failure_text
+                or "and marked REPORTED-FIXED." in report_failure_text
+            ):
+                raise RuntimeError(
+                    "Generated Downloader reported false ZIP repair-state success "
+                    "after an Error.txt update failure."
+                )
+            reported_zip_globals["atomic_write_error_report_lines"] = (
+                saved_reported_zip_globals["atomic_write_error_report_lines"]
+            )
+
+            # Regression for the nested generator interpolation that previously
+            # baked an unrelated inventory filename into every runtime integrity
+            # failure. Exercise the generated Downloader with a synthetic filename.
+            future_destination = cache_mirror / "astra_support" / "future-package.zip"
+            future_payload = b"not-a-valid-zip-payload"
+            filename_attempts: list[list[str]] = []
+
+            def fake_invalid_zip_curl(command: list[str]) -> int:
+                filename_attempts.append(list(command))
+                output_index = command.index("-o") + 1
+                partial_path = Path(command[output_index])
+                partial_path.parent.mkdir(parents=True, exist_ok=True)
+                partial_path.write_bytes(future_payload)
+                return 0
+
+            reported_zip_globals["run_curl"] = fake_invalid_zip_curl
+            filename_output = io.StringIO()
+            with contextlib.redirect_stdout(filename_output):
+                filename_result = downloader_namespace["download_file"](
+                    ("curl", "curl"),
+                    url="https://veai-models.topazlabs.com/astra_support/future-package.zip",
+                    destination=future_destination,
+                    expected_size=len(future_payload),
+                    verify_zip_crc=True,
+                )
+            filename_text = filename_output.getvalue()
+            if filename_result or len(filename_attempts) != 1:
+                raise RuntimeError(
+                    "Generated Downloader integrity-filename regression did not exercise "
+                    "one failed synthetic download."
+                )
+            if "FAILED integrity/content validation: future-package.zip" not in filename_text:
+                raise RuntimeError(
+                    "Generated Downloader integrity failure printed the wrong filename."
+                )
+        finally:
+            reported_zip_globals.update(saved_reported_zip_globals)
 
         # The standalone Downloader must not return success for a supplemental
         # ZIP that fails CRC/content validation. Preserve the CRC requirement in
@@ -15907,9 +21019,9 @@ def _self_test_generated_programs() -> str:
         saved_main_globals = {
             name: main_globals[name]
             for name in (
-                "MIRROR_ROOT", "ERROR_REPORT", "GROUPS",
+                "MIRROR_ROOT", "ERROR_REPORT", "REPAIR_PATH", "GROUPS",
                 "LOGICAL_INVENTORY_ENTRIES", "UNIQUE_PHYSICAL_FILES",
-                "UNKNOWN_SIZE_PATHS", "process_asset", "curl_command",
+                "UNKNOWN_SIZE_PATHS", "process_asset", "download_backend",
                 "active_network_adapter", "final_inventory_failures",
                 "process_group",
             )
@@ -15918,12 +21030,13 @@ def _self_test_generated_programs() -> str:
             sys.argv = [str(OUT_PORTABLE_DOWNLOADER)]
             main_globals["MIRROR_ROOT"] = crc_mirror
             main_globals["ERROR_REPORT"] = temp_root / "crc-error.txt"
+            main_globals["REPAIR_PATH"] = temp_root / "selftest-repair.json"
             main_globals["GROUPS"] = [crc_group]
             main_globals["LOGICAL_INVENTORY_ENTRIES"] = 1
             main_globals["UNIQUE_PHYSICAL_FILES"] = 1
             main_globals["UNKNOWN_SIZE_PATHS"] = set()
-            main_globals["process_asset"] = lambda _curl, _enabled: True
-            main_globals["curl_command"] = lambda: None
+            main_globals["process_asset"] = lambda _backend, _enabled: True
+            main_globals["download_backend"] = lambda: None
             main_globals["active_network_adapter"] = lambda: False
 
             physical = downloader_namespace["validate_inventory"]()
@@ -16073,18 +21186,25 @@ def _self_test_generated_programs() -> str:
     help_start = creator_source.index("def print_creator_help() -> None:")
     help_end = creator_source.index("\ndef parse_creator_cli", help_start)
     help_source = creator_source[help_start:help_end]
-    easter_position = help_source.index('print("Easter eggs:")')
+    easter_position = help_source.index('print("Easter Eggs:")')
     error_codes_position = help_source.index('print("Error Codes:")')
     if error_codes_position <= easter_position:
         raise RuntimeError("Creator --help Error Codes must appear after Easter Eggs.")
     for marker in (
-        'print("  0   SUCCESS")',
-        'print("  1   INCOMPLETE")',
-        'print("  2   FAILED")',
-        'print("  130 CANCELLED")',
+        'help_row("0    SUCCESS", "Operation completed successfully.")',
+        'help_row("1    INCOMPLETE", "Download, inventory, or integrity work remains incomplete.")',
+        'help_row("2    FAILED", "Fatal configuration, manifest, validation, or program error.")',
+        'help_row("130  CANCELLED", "Operation was cancelled by the user, including Ctrl+C.")',
+        'help_row("  --certificate-preflight",',
+        'help_row("  --install-certificate-elevated",',
+        'help_row("  --launcher-prestart-display",',
+        'help_row("  --launcher-prepared-start",',
+        'help_row("  --launcher-prepared",',
+        'help_row("  --managed-by-repeater",',
+        'help_row("  --elevated-child",',
     ):
         if marker not in help_source:
-            raise RuntimeError("Creator --help is missing exit-code documentation: " + marker)
+            raise RuntimeError("Creator --help is missing command/error documentation: " + marker)
 
     invalid_cli = subprocess.run(
         [sys.executable, str(Path(__file__).resolve()), "--definitely-invalid"],
@@ -16158,9 +21278,14 @@ def _self_test_generated_programs() -> str:
     removed_recovery_marker = 'Report remains:' + ' URL'
     if removed_recovery_marker in creator_source[recovery_start:recovery_end]:
         raise RuntimeError("Recovery output still contains the removed report-remains line.")
-    if 'failures.append(PurePosixPath(relative).name)' not in downloader_source:
+    if 'return PurePosixPath(relative).name' not in downloader_source:
         raise RuntimeError(
             "Generated Downloader missing-file sections do not use filename-only results."
+        )
+
+    if creator_source.count("native_unix_bash_executable()") < 3:
+        raise RuntimeError(
+            "Creator Unix launcher validation is not consistently gated by native host OS."
         )
 
     # Validate all three launcher formats in an isolated directory regardless
@@ -16180,15 +21305,46 @@ def _self_test_generated_programs() -> str:
             generate_linux_launcher()
             validate_unix_launcher(OUT_LINUX, "Linux", allow_missing_bash=True)
 
+            aligned_download_result = "Download Integrity Result    :"
+            aligned_verification_result = "Verification Result          :"
+            launcher_sources = (
+                OUT_BAT.read_text(encoding="utf-8"),
+                OUT_MACOS.read_text(encoding="utf-8"),
+                OUT_LINUX.read_text(encoding="utf-8"),
+            )
+            if any(aligned_download_result not in source for source in launcher_sources):
+                raise RuntimeError(
+                    "Generated launcher lost aligned Download Integrity Result output."
+                )
+            if any(aligned_verification_result not in source for source in launcher_sources):
+                raise RuntimeError(
+                    "Generated launcher lost aligned Verification Result output."
+                )
+
+            # A non-Unix creator host must ignore an incidental bash.exe on PATH.
+            # This guards Windows systems with WSL/Git Bash from trying to execute
+            # Unix launcher syntax/runtime tests using native Windows temp paths.
+            bash_helper_globals = native_unix_bash_executable.__globals__
+            saved_helper_os = bash_helper_globals["CURRENT_OS"]
+            try:
+                bash_helper_globals["CURRENT_OS"] = "windows"
+                if native_unix_bash_executable() is not None:
+                    raise RuntimeError(
+                        "Unix launcher validation selected bash on a non-Unix creator host."
+                    )
+            finally:
+                bash_helper_globals["CURRENT_OS"] = saved_helper_os
+
             # Exercise the Unix launcher verifier-result contract with injected
             # verifier exits. The Windows launcher is structurally checked above
             # for the equivalent fatal-verifier branch and exit-code mapping.
-            bash_executable = shutil.which("bash")
+            bash_executable = native_unix_bash_executable()
             if bash_executable is not None:
                 fake_bin = temp_root / "fake-bin"
                 fake_bin.mkdir()
                 fake_id = fake_bin / "id"
                 fake_python = fake_bin / "python3"
+                fake_sudo = fake_bin / "sudo"
                 fake_id.write_text(
                     "#!/usr/bin/env bash\n"
                     'if [ "$1" = "-u" ]; then echo 1000; exit 0; fi\n'
@@ -16210,8 +21366,15 @@ def _self_test_generated_programs() -> str:
                     encoding="utf-8",
                     newline="\n",
                 )
+                fake_sudo.write_text(
+                    "#!/usr/bin/env bash\n"
+                    'exec "$@"\n',
+                    encoding="utf-8",
+                    newline="\n",
+                )
                 make_executable(fake_id)
                 make_executable(fake_python)
+                make_executable(fake_sudo)
                 # The launcher checks these paths before invoking the injected
                 # Python shim. Their contents are intentionally irrelevant.
                 for required_name in (
@@ -16239,7 +21402,9 @@ def _self_test_generated_programs() -> str:
                     })
                     launcher_test = subprocess.run(
                         [bash_executable, str(OUT_LINUX)],
-                        input="n\n",
+                        # Unix parity with Windows: approve server startup first,
+                        # then choose/confirm IP. A fake sudo completes the prepared start.
+                        input="y\n1\ny\n",
                         capture_output=True,
                         text=True,
                         check=False,
@@ -16265,8 +21430,18 @@ def _self_test_generated_programs() -> str:
         "helper.unlink(missing_ok=True)",
         "if not prompt_expired_certificate_cleanup():",
         "The 30-minute HTTPS certificate reached its expiration boundary.",
+        'print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")',
         "Server Shutdown Complete!",
         "def _install_linux_trust_anchor_file(source: Path, destination: Path) -> None:",
+        "def _request_unix_certificate_elevation() -> bool:",
+        '"--install-certificate-elevated"',
+        'print("Local certificate installation verified.")',
+        'f"Server privileges dropped to {account_name} "',
+        "certificate_summary_already_displayed = (",
+        "launcher_prepared_certificate or launcher_prepared_start_only",
+        "or not certificate_summary_already_displayed",
+        "_certificate_installation_is_pending(_thumbprint)",
+        "certificate_pair_is_valid(CERT_FILE, KEY_FILE)",
         "TLS_SNI = weakref.WeakKeyDictionary()",
         "return isinstance(self.connection, ssl.SSLSocket)",
         "TLS_SNI[ssl_socket] = requested_host",
@@ -16281,6 +21456,21 @@ def _self_test_generated_programs() -> str:
                 "Generated Repeater is missing certificate-expiration/security behavior: "
                 + marker
             )
+    if "~\\TopazServer\\Certs\\~Remove_Cert.bat" not in repeater_source:
+        raise RuntimeError(
+            "Generated Repeater is missing the portable Windows cleanup-helper retry alias."
+        )
+    if repeater_source.count("Server privileges dropped to ") != 1:
+        raise RuntimeError(
+            "Generated Repeater privilege-drop status must appear exactly once."
+        )
+    if repeater_source.index("Local certificate installation verified.") > repeater_source.index(
+        "Server privileges dropped to "
+    ):
+        raise RuntimeError(
+            "Generated Repeater privilege-drop status must follow certificate verification."
+        )
+
     for forbidden_marker in (
         "The 30-minute HTTPS certificate has " + "expired.",
         "Server shutdown " + "complete.",
@@ -16316,7 +21506,26 @@ def _self_test_generated_programs() -> str:
             "REMOVE_CERT_LINUX": cert_dir / "Remove_Cert.sh",
         })
 
-        repeater_namespace["_replace_with_certificate_for_existing_key"]()
+        # Generated-program regressions exercise certificate consumers, not
+        # private-key provider discovery. Reuse the Creator-managed private key
+        # but mint a fresh isolated 30-minute certificate so a long self-test
+        # cannot cross the five-minute renewal window before this check runs.
+        shutil.copyfile(KEY_FILE, repeater_globals["KEY_FILE"])
+        try:
+            os.chmod(repeater_globals["KEY_FILE"], 0o600)
+        except OSError:
+            pass
+        write_runtime_certificate_for_private_key(
+            repeater_globals["KEY_FILE"],
+            repeater_globals["CERT_FILE"],
+        )
+        if not repeater_namespace["certificate_pair_is_valid"](
+            repeater_globals["CERT_FILE"],
+            repeater_globals["KEY_FILE"],
+        ):
+            raise RuntimeError(
+                "Generated Repeater rejected the Creator-managed self-test certificate pair."
+            )
         certificate_file = repeater_globals["CERT_FILE"]
         thumbprint = repeater_namespace["certificate_sha1_thumbprint"](certificate_file)
         history_dir = repeater_globals["CERTIFICATE_HISTORY_DIR"]
@@ -16345,6 +21554,9 @@ def _self_test_generated_programs() -> str:
             "--managed-by-repeater",
             "--elevated-child",
             "Verifying certificate removal from the Windows Root store",
+            "NativeErrorCode -eq 1223",
+            "Administrator rights were not granted.",
+            "The cleanup helper and certificate files were retained for retry.",
         ):
             if marker not in windows_helper:
                 raise RuntimeError(
@@ -16408,7 +21620,22 @@ def _self_test_generated_programs() -> str:
         live_model.parent.mkdir(parents=True, exist_ok=True)
         live_body = b"build-245-live-tls-route-identity"
         live_model.write_bytes(live_body)
-        live_globals["_replace_with_certificate_for_existing_key"]()
+        shutil.copyfile(KEY_FILE, live_globals["KEY_FILE"])
+        try:
+            os.chmod(live_globals["KEY_FILE"], 0o600)
+        except OSError:
+            pass
+        write_runtime_certificate_for_private_key(
+            live_globals["KEY_FILE"],
+            live_globals["CERT_FILE"],
+        )
+        if not live_namespace["certificate_pair_is_valid"](
+            live_globals["CERT_FILE"],
+            live_globals["KEY_FILE"],
+        ):
+            raise RuntimeError(
+                "Generated Repeater rejected the Creator-managed live TLS self-test pair."
+            )
 
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         server_context.load_cert_chain(
@@ -16586,7 +21813,14 @@ def _self_test_generated_programs() -> str:
             else:
                 raise RuntimeError("Generated Repeater accepted a directory as Linux trust anchor.")
 
-    bash_status = "bash syntax checked" if shutil.which("bash") else "bash unavailable; structural checks used"
+    if CURRENT_OS in {"linux", "darwin"}:
+        bash_status = (
+            "bash syntax checked"
+            if native_unix_bash_executable()
+            else "bash unavailable; structural checks used"
+        )
+    else:
+        bash_status = "Unix bash execution skipped on non-Unix host; structural checks used"
     return (
         "Creator outputs compile; Downloader/Verifier validate; "
         "live same-source-port HTTP/HTTPS isolation pass; "
@@ -16730,6 +21964,8 @@ def _self_test_determinism() -> str:
     import contextlib
     import io
     with contextlib.redirect_stdout(io.StringIO()):
+        prune_discovered_inventory_promoted_to_base()
+        sync_recovered_assets_report_from_server_assets()
         write_v2_sha256_assets()
         write_server_asset_manifest()
         write_portable_sha256_verifier()
