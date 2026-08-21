@@ -54,8 +54,8 @@ atexit.register(_early_reset_console_color)
 sys.excepthook = _creator_uncaught_exception
 print(GREEN, end="")
 
-VERSION = "7.0.0"
-BUILD = 261
+VERSION = "7.0.2"
+BUILD = 262
 VERSION_FILE = VERSION.replace(" ", "_")
 
 if sys.version_info < (3, 10):
@@ -3589,6 +3589,13 @@ ALLOWED_MANIFEST_HOSTS = frozenset({
     "downloads.topazlabs.com",
 })
 
+# Plain HTTP is retained only for Topaz model hosts observed using it in production.
+# Keep this separate from ALLOWED_MANIFEST_HOSTS so frozen V2 ownership rules remain exact.
+RECOVERY_HTTP_HOSTS = frozenset({
+    "models.topazlabs.com",
+    "video-models.topazlabs.com",
+})
+
 WINDOWS_RESERVED_PATH_NAMES = frozenset({
     "con",
     "prn",
@@ -6527,6 +6534,22 @@ def recovered_asset_source_urls(record: dict) -> list[str]:
     return values
 
 
+def recovered_urls_have_authenticated_source(urls: list[str]) -> bool:
+    """Return whether at least one recovered source URL was authenticated by HTTPS."""
+    for value in urls:
+        try:
+            if urlparse(value).scheme.lower() == "https":
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def recovered_record_has_authenticated_source(record: dict) -> bool:
+    """Return whether recovered provenance contains an authenticated HTTPS origin."""
+    return recovered_urls_have_authenticated_source(recovered_asset_source_urls(record))
+
+
 def normalized_recovered_asset_source_url(
     value: object,
     *,
@@ -6545,7 +6568,7 @@ def normalized_recovered_asset_source_url(
     if host not in ALLOWED_MANIFEST_HOSTS:
         return None
     if scheme == "http":
-        if host != "models.topazlabs.com" or port not in (None, 80):
+        if host not in RECOVERY_HTTP_HOSTS or port not in (None, 80):
             return None
     elif scheme == "https":
         if port not in (None, 443):
@@ -6578,6 +6601,26 @@ def normalized_recovered_asset_source_url(
     if normalized.lstrip("/") != expected_relative:
         return None
     return f"{scheme}://{host}{normalized}"
+
+
+def recovered_url_is_deploy_support_asset(value: object) -> bool:
+    """Return whether a recovered URL is an HTTPS downloads/deploy support asset."""
+    try:
+        parsed = urlparse(str(value or "").strip())
+        host = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+        port = parsed.port
+    except (TypeError, ValueError):
+        return False
+    return (
+        parsed.scheme.lower() == "https"
+        and host == "downloads.topazlabs.com"
+        and port in (None, 443)
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+        and parsed.path.casefold().startswith("/deploy/")
+    )
 
 
 def trusted_previous_server_asset_records(*, announce_invalid: bool = False) -> list[dict]:
@@ -6649,7 +6692,7 @@ def normalized_dynamic_server_asset_record(raw_record: dict) -> dict | None:
                 return None
             if normalized_url not in urls:
                 urls.append(normalized_url)
-        if not urls:
+        if not urls or not recovered_urls_have_authenticated_source(urls):
             return None
         current["source_url"] = urls[0]
         if len(urls) > 1:
@@ -6777,6 +6820,14 @@ def write_server_asset_manifest(
             existing = records_by_path.get(key)
             if existing is not None:
                 incoming = merge_recovered_asset_records(existing, incoming)
+            if (
+                incoming.get("source") == "recovered_404"
+                and not recovered_record_has_authenticated_source(incoming)
+            ):
+                raise RuntimeError(
+                    "Refusing recovered Server Asset without authenticated HTTPS provenance: "
+                    + relative
+                )
             records_by_path[key] = incoming
 
     records = sorted(records_by_path.values(), key=lambda item: item["relative_path"].casefold())
@@ -6845,8 +6896,6 @@ def normalize_discovered_record(raw_record: object, *, inventory: bool) -> dict:
     suffix = PurePosixPath(relative).suffix.casefold()
     if inventory and suffix not in DISCOVERED_INVENTORY_SUFFIXES:
         raise RuntimeError(f"Discovered inventory extension is not approved: {relative}")
-    if not inventory and suffix in DISCOVERED_INVENTORY_SUFFIXES:
-        raise RuntimeError(f"Discovered asset belongs in discovered inventory: {relative}")
     try:
         size_bytes = int(raw_record.get("size_bytes", 0) or 0)
     except (TypeError, ValueError) as error:
@@ -6866,6 +6915,15 @@ def normalize_discovered_record(raw_record: object, *, inventory: bool) -> dict:
             urls.append(normalized_url)
     if not urls:
         raise RuntimeError(f"Discovered record has no source URL: {relative}")
+    deploy_support_flags = [recovered_url_is_deploy_support_asset(url) for url in urls]
+    if inventory and any(deploy_support_flags):
+        raise RuntimeError(f"Discovered deploy support asset belongs outside inventory: {relative}")
+    if (
+        not inventory
+        and suffix in DISCOVERED_INVENTORY_SUFFIXES
+        and not all(deploy_support_flags)
+    ):
+        raise RuntimeError(f"Discovered asset belongs in discovered inventory: {relative}")
     record = {
         "relative_path": relative,
         "size_bytes": size_bytes,
@@ -6943,7 +7001,17 @@ def load_discovered_manifest(path: Path, *, inventory: bool) -> list[dict]:
             raise RuntimeError("Discovered inventory physical count failed.")
     elif int(payload.get(count_field, -1)) != len(normalized):
         raise RuntimeError("Discovered asset count failed.")
-    return normalized
+
+    # A digest calculated from a first-time unauthenticated HTTP download cannot
+    # establish provenance. Legacy HTTP-only records remain structurally valid,
+    # but they are quarantined from every trusted runtime view. Records that also
+    # contain an HTTPS source remain trusted; an HTTP alias can then use the
+    # independently established size/SHA-256 baseline.
+    return [
+        record
+        for record in normalized
+        if recovered_record_has_authenticated_source(record)
+    ]
 
 
 def load_discovered_inventory_records() -> list[dict]:
@@ -6961,6 +7029,28 @@ def load_discovered_asset_records() -> list[dict]:
     return load_discovered_manifest(DISCOVERED_ASSETS_FILE, inventory=False)
 
 
+def validate_discovered_manifest_partition() -> None:
+    """Require one physical path to belong to exactly one discovery side manifest."""
+    inventory_records = load_discovered_manifest(
+        DISCOVERED_INVENTORY_FILE, inventory=True
+    )
+    asset_records = load_discovered_manifest(
+        DISCOVERED_ASSETS_FILE, inventory=False
+    )
+    inventory_paths = {
+        record["relative_path"].casefold() for record in inventory_records
+    }
+    asset_paths = {
+        record["relative_path"].casefold() for record in asset_records
+    }
+    overlap = sorted(inventory_paths & asset_paths)
+    if overlap:
+        raise RuntimeError(
+            "Discovered Inventory and Discovered Assets share physical paths: "
+            + ", ".join(overlap[:3])
+        )
+
+
 def write_discovered_manifest(records: list[dict], *, inventory: bool) -> None:
     """Atomically persist one discovered side manifest."""
     normalized = [normalize_discovered_record(record, inventory=inventory) for record in records]
@@ -6974,6 +7064,27 @@ def write_discovered_manifest(records: list[dict], *, inventory: bool) -> None:
     if inventory:
         base_keys = current_base_inventory_path_keys()
         by_path = {key: value for key, value in by_path.items() if key not in base_keys}
+    unauthenticated = [
+        record["relative_path"]
+        for record in by_path.values()
+        if not recovered_record_has_authenticated_source(record)
+    ]
+    if unauthenticated:
+        raise RuntimeError(
+            "Refusing discovered record without authenticated HTTPS provenance: "
+            + ", ".join(sorted(unauthenticated, key=str.casefold))
+        )
+
+    other_path = DISCOVERED_ASSETS_FILE if inventory else DISCOVERED_INVENTORY_FILE
+    other_records = load_discovered_manifest(other_path, inventory=not inventory)
+    other_keys = {record["relative_path"].casefold() for record in other_records}
+    overlap = sorted(set(by_path) & other_keys)
+    if overlap:
+        raise RuntimeError(
+            "Refusing cross-manifest discovered physical-path overlap: "
+            + ", ".join(overlap[:3])
+        )
+
     records = sorted(by_path.values(), key=lambda item: item["relative_path"].casefold())
     path = DISCOVERED_INVENTORY_FILE if inventory else DISCOVERED_ASSETS_FILE
     if not records:
@@ -7014,6 +7125,121 @@ def write_discovered_manifest(records: list[dict], *, inventory: bool) -> None:
         os.replace(staged, path)
     finally:
         staged.unlink(missing_ok=True)
+
+
+def reopen_legacy_http_discovery_reports(records: list[dict]) -> int:
+    """Reopen legacy HTTP-only discovery URLs so recovery can re-authenticate via HTTPS."""
+    urls: list[str] = []
+    for record in records:
+        for value in recovered_asset_source_urls(record):
+            try:
+                if urlparse(value).scheme.lower() == "http" and value not in urls:
+                    urls.append(value)
+            except (TypeError, ValueError):
+                continue
+    if not urls:
+        return 0
+    if ERROR_REPORT_FILE.parent.is_symlink() or ERROR_REPORT_FILE.is_symlink():
+        raise RuntimeError("Refusing unsafe Error.txt path while reopening legacy HTTP discovery.")
+    if ERROR_REPORT_FILE.exists() and not ERROR_REPORT_FILE.is_file():
+        raise RuntimeError("Error.txt destination is not a regular file.")
+    try:
+        if ERROR_REPORT_FILE.is_file():
+            with ERROR_REPORT_FILE.open(
+                "r", encoding="utf-8", errors="replace", newline=""
+            ) as handle:
+                lines = handle.readlines()
+        else:
+            lines = []
+    except OSError as error:
+        raise RuntimeError(f"Unable to read Error.txt for legacy discovery migration: {error}") from error
+
+    reopened = 0
+    for url in urls:
+        unresolved = f"URL : {url}"
+        fixed = f"REPORTED-FIXED : {url}"
+        matching = [
+            index for index, raw_line in enumerate(lines)
+            if raw_line.rstrip("\r\n").strip() in {url, unresolved, fixed}
+        ]
+        if matching:
+            first = matching[0]
+            ending = lines[first][len(lines[first].rstrip("\r\n")):] or "\n"
+            lines[first] = unresolved + ending
+            for index in reversed(matching[1:]):
+                del lines[index]
+        else:
+            if lines and not lines[-1].endswith(("\n", "\r")):
+                lines[-1] += "\n"
+            lines.append(unresolved + "\n")
+        reopened += 1
+
+    ERROR_REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=ERROR_REPORT_FILE.name + ".",
+        suffix=".reopen",
+        dir=str(ERROR_REPORT_FILE.parent),
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.chmod(temporary, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
+            handle.writelines(lines)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if ERROR_REPORT_FILE.is_symlink():
+            raise OSError("Error.txt became a symbolic link during legacy migration.")
+        os.replace(temporary, ERROR_REPORT_FILE)
+    except BaseException:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        temporary.unlink(missing_ok=True)
+        raise
+    return reopened
+
+
+def prune_unauthenticated_discovered_records() -> tuple[int, int]:
+    """Remove legacy discovered records whose trust was established only over HTTP."""
+    removed_counts: list[int] = []
+    for path, inventory in (
+        (DISCOVERED_INVENTORY_FILE, True),
+        (DISCOVERED_ASSETS_FILE, False),
+    ):
+        if not path.exists():
+            removed_counts.append(0)
+            continue
+        # load_discovered_manifest already validates the complete on-disk payload
+        # and returns only records with authenticated provenance. Rewrite that
+        # trusted subset so generated programs never inherit an HTTP-only baseline.
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            # Reuse the normal loader so callers receive its established error contract.
+            load_discovered_manifest(path, inventory=inventory)
+            raise AssertionError("Unreachable discovered-manifest validation path.")
+        raw_records = payload.get("files") if isinstance(payload, dict) else None
+        if not isinstance(raw_records, list):
+            # Let the normal loader produce the precise validation failure.
+            load_discovered_manifest(path, inventory=inventory)
+            removed_counts.append(0)
+            continue
+        trusted = load_discovered_manifest(path, inventory=inventory)
+        normalized_records = [
+            normalize_discovered_record(record, inventory=inventory)
+            for record in raw_records
+        ]
+        unauthenticated_records = [
+            record for record in normalized_records
+            if not recovered_record_has_authenticated_source(record)
+        ]
+        removed = len(unauthenticated_records)
+        if removed:
+            reopen_legacy_http_discovery_reports(unauthenticated_records)
+            write_discovered_manifest(trusted, inventory=inventory)
+        removed_counts.append(removed)
+    return removed_counts[0], removed_counts[1]
 
 
 def prune_discovered_inventory_promoted_to_base() -> int:
@@ -7076,15 +7302,69 @@ def discovered_inventory_logical_records() -> list[dict]:
     return logical
 
 
+def recovered_discovery_is_inventory(
+    relative_path: str | Path, source_urls: list[str] | tuple[str, ...],
+) -> bool:
+    """Classify recovered discovery using the shared extension/deploy provenance rule."""
+    suffix = PurePosixPath(str(relative_path)).suffix.casefold()
+    if suffix not in DISCOVERED_INVENTORY_SUFFIXES:
+        return False
+    deploy_flags = [recovered_url_is_deploy_support_asset(url) for url in source_urls]
+    if any(deploy_flags):
+        if not all(deploy_flags):
+            raise RuntimeError(
+                "Recovered discovery mixes deploy-support and inventory source URLs: "
+                f"{relative_path}"
+            )
+        return False
+    return True
+
+
 def record_recovered_discovery(url: str, destination: Path) -> None:
-    """Classify one recovered unknown file into inventory or support-asset discovery."""
-    suffix = destination.suffix.casefold()
-    if suffix in DISCOVERED_INVENTORY_SUFFIXES:
-        record_discovered_inventory(url, destination)
+    """Classify one recovered path using its complete existing + incoming provenance."""
+    relative = destination.resolve().relative_to(MIRROR_ROOT.resolve()).as_posix()
+    key = relative.casefold()
+    validate_discovered_manifest_partition()
+    inventory_records = load_discovered_inventory_records()
+    asset_records = load_discovered_asset_records()
+    inventory_record = next(
+        (record for record in inventory_records if record["relative_path"].casefold() == key),
+        None,
+    )
+    asset_record = next(
+        (record for record in asset_records if record["relative_path"].casefold() == key),
+        None,
+    )
+    existing = inventory_record if inventory_record is not None else asset_record
+    source_urls = recovered_asset_source_urls(existing) if existing is not None else []
+    normalized_url = normalized_recovered_asset_source_url(
+        url, expected_relative=relative
+    )
+    if normalized_url is None:
+        raise RuntimeError(f"Invalid recovered discovery source URL: {url}")
+    if normalized_url not in source_urls:
+        source_urls.append(normalized_url)
+
+    inventory = recovered_discovery_is_inventory(relative, source_urls)
+    if inventory_record is not None and not inventory:
+        raise RuntimeError(
+            "Recovered alias would move an existing discovered inventory path into assets: "
+            + relative
+        )
+    if asset_record is not None and inventory:
+        raise RuntimeError(
+            "Recovered alias would move an existing discovered asset path into inventory: "
+            + relative
+        )
+
+    if inventory:
+        record_discovered_inventory(normalized_url, destination)
         return
-    record_discovered_asset(url, destination)
+    record_discovered_asset(normalized_url, destination)
     write_server_asset_manifest(
-        server_asset_record(destination, source="recovered_404", source_url=url)
+        server_asset_record(
+            destination, source="recovered_404", source_url=normalized_url
+        )
     )
 
 
@@ -7137,6 +7417,7 @@ def sync_recovered_assets_report_from_server_assets(
     if v2_owned_keys is None:
         v2_owned_keys = current_base_inventory_path_keys()
 
+    validate_discovered_manifest_partition()
     inventory_records = load_discovered_inventory_records()
     inventory_by_path = {
         record["relative_path"].casefold(): record
@@ -7157,9 +7438,9 @@ def sync_recovered_assets_report_from_server_assets(
         key = current["relative_path"].casefold()
         if key in v2_owned_keys:
             continue
-        inventory = (
-            PurePosixPath(current["relative_path"]).suffix.casefold()
-            in DISCOVERED_INVENTORY_SUFFIXES
+        inventory = recovered_discovery_is_inventory(
+            current["relative_path"],
+            recovered_asset_source_urls(current),
         )
         normalized = normalize_discovered_record(current, inventory=inventory)
         target = inventory_by_path if inventory else asset_by_path
@@ -7796,6 +8077,10 @@ ALLOWED_HOSTS = {{
     "veai-models.topazlabs.com",
     "downloads.topazlabs.com",
 }}
+REPORTABLE_HTTP_HOSTS = {{
+    "models.topazlabs.com",
+    "video-models.topazlabs.com",
+}}
 
 
 def validate_report_url(value: object) -> str | None:
@@ -7814,7 +8099,7 @@ def validate_report_url(value: object) -> str | None:
 
     scheme_allowed = (
         parsed.scheme == "http"
-        and host == "models.topazlabs.com"
+        and host in REPORTABLE_HTTP_HOSTS
         and port in {{None, 80}}
     ) or (
         parsed.scheme == "https"
@@ -7897,8 +8182,8 @@ def validate_url(value: object):
             f"Unsupported manifest URL scheme: {{parsed.scheme or '<missing>'}}"
         )
     if scheme == "http":
-        if host != "models.topazlabs.com":
-            raise RuntimeError("Only the historical raw-model host may use HTTP.")
+        if host not in REPORTABLE_HTTP_HOSTS:
+            raise RuntimeError("Unapproved HTTP model host.")
         if port not in {{None, 80}}:
             raise RuntimeError(f"Unexpected HTTP manifest port: {{port}}")
     if scheme == "https" and port not in {{None, 443}}:
@@ -8209,13 +8494,39 @@ def _load_discovered_payload(path: Path, schema: str) -> tuple[dict, list[dict]]
 
 
 def _validate_discovered_source_urls(urls: list[str], relative: str) -> None:
-    """Require discovered logical source URLs to match one mirror-relative path."""
+    """Require discovered URLs to match the path and include authenticated provenance."""
     if not urls:
         raise RuntimeError(f"Discovered inventory has no source URL: {{relative}}")
+    authenticated = False
     for value in urls:
         _url, parsed = validate_url(value)
         if parsed.query or parsed.path != "/" + relative:
             raise RuntimeError(f"Discovered inventory URL/path mismatch: {{relative}}")
+        authenticated = authenticated or parsed.scheme == "https"
+    if not authenticated:
+        raise RuntimeError(
+            f"Discovered record lacks authenticated HTTPS provenance: {{relative}}"
+        )
+
+
+def _discovered_url_is_deploy_support_asset(value: str) -> bool:
+    """Return whether one discovered URL is an HTTPS downloads/deploy support asset."""
+    try:
+        parsed = urlparse(value)
+        host = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+        port = parsed.port
+    except (TypeError, ValueError):
+        return False
+    return (
+        parsed.scheme == "https"
+        and host == "downloads.topazlabs.com"
+        and port in (None, 443)
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+        and parsed.path.casefold().startswith("/deploy/")
+    )
 
 
 def _normalize_discovered_inventory_record(
@@ -8247,6 +8558,8 @@ def _normalize_discovered_inventory_record(
         raise RuntimeError(f"Invalid discovered inventory source: {{relative}}")
     urls = _discovered_source_urls(raw)
     _validate_discovered_source_urls(urls, relative)
+    if any(_discovered_url_is_deploy_support_asset(url) for url in urls):
+        raise RuntimeError(f"Discovered deploy support asset belongs outside inventory: {{relative}}")
     return {{
         "relative_path": relative,
         "size_bytes": size_bytes,
@@ -8357,8 +8670,7 @@ def _normalize_discovered_asset_record(raw: object, position: int) -> dict:
     if not isinstance(raw, dict):
         raise RuntimeError(f"Invalid discovered asset record {{position}}.")
     relative = normalize_relative_path(raw.get("relative_path"))
-    if PurePosixPath(relative).suffix.casefold() in DISCOVERED_INVENTORY_SUFFIXES:
-        raise RuntimeError(f"Discovered asset belongs in inventory: {{relative}}")
+    suffix = PurePosixPath(relative).suffix.casefold()
     try:
         size_bytes = int(raw.get("size_bytes", 0) or 0)
     except (TypeError, ValueError) as error:
@@ -8370,6 +8682,11 @@ def _normalize_discovered_asset_record(raw: object, position: int) -> dict:
         raise RuntimeError(f"Invalid discovered asset source: {{relative}}")
     urls = _discovered_source_urls(raw)
     _validate_discovered_source_urls(urls, relative)
+    if (
+        suffix in DISCOVERED_INVENTORY_SUFFIXES
+        and not all(_discovered_url_is_deploy_support_asset(url) for url in urls)
+    ):
+        raise RuntimeError(f"Discovered asset belongs in inventory: {{relative}}")
     return {{
         "relative_path": relative,
         "size_bytes": size_bytes,
@@ -9169,6 +9486,7 @@ if __name__ == "__main__":
         record_developer_check("Portable SHA-256 verifier")
 
 
+prune_unauthenticated_discovered_records()
 prune_discovered_inventory_promoted_to_base()
 sync_recovered_assets_report_from_server_assets()
 write_v2_sha256_assets()
@@ -9635,14 +9953,14 @@ def _validated_recovered_asset_origin(parsed) -> tuple[str, str]:
         raise RuntimeError(
             "Recovered server support asset uses an unsupported scheme."
         )
-    if scheme == "http" and host != "models.topazlabs.com":
+    if scheme == "http" and host not in RECOVERY_REPORT_HTTP_HOSTS:
         raise RuntimeError(
-            "Recovered HTTP assets are limited to models.topazlabs.com:80."
+            "Recovered HTTP assets are limited to approved Topaz model hosts on port 80."
         )
     allowed_ports = {{None, 80}} if scheme == "http" else {{None, 443}}
     if parsed.port not in allowed_ports:
         raise RuntimeError(
-            "Recovered HTTP assets are limited to models.topazlabs.com:80."
+            "Recovered HTTP assets are limited to approved Topaz model hosts on port 80."
             if scheme == "http"
             else "Recovered HTTPS asset uses an unexpected port."
         )
@@ -9922,6 +10240,10 @@ def _register_recovered_server_asset(
         raise RuntimeError(
             f"Recovered server support asset has no source URL: {{relative}}"
         )
+    if not any(urlparse(value).scheme.lower() == "https" for value in urls):
+        raise RuntimeError(
+            f"Recovered server support asset lacks authenticated HTTPS provenance: {{relative}}"
+        )
     for source_url in urls:
         scheme, host, source_path = normalized_recovered_asset_route(
             source_url, relative
@@ -10008,6 +10330,24 @@ def _validated_discovered_inventory_record(
     _server_asset_file_is_valid(raw_record, relative_path)
     if not (urls := recovered_asset_source_urls(raw_record)):
         raise RuntimeError(f"Discovered inventory has no source URL: {{relative}}")
+    if not any(urlparse(value).scheme.lower() == "https" for value in urls):
+        raise RuntimeError(
+            f"Discovered inventory lacks authenticated HTTPS provenance: {{relative}}"
+        )
+    for source_url in urls:
+        try:
+            parsed = urlparse(source_url)
+            source_host = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+        except (TypeError, ValueError):
+            continue
+        if (
+            parsed.scheme == "https"
+            and source_host == "downloads.topazlabs.com"
+            and parsed.path.casefold().startswith("/deploy/")
+        ):
+            raise RuntimeError(
+                f"Discovered deploy support asset belongs outside inventory: {{relative}}"
+            )
     return relative, urls
 
 
@@ -10121,6 +10461,10 @@ RECOVERY_REPORT_HOSTS = {{
     "veai-models.topazlabs.com",
     "downloads.topazlabs.com",
 }}
+RECOVERY_REPORT_HTTP_HOSTS = {{
+    "models.topazlabs.com",
+    "video-models.topazlabs.com",
+}}
 
 
 def forbidden_report_character(character: str) -> bool:
@@ -10232,7 +10576,7 @@ def build_recovery_report_url(scheme: str, raw_host: str, raw_target: str) -> st
         return None
 
     hostname = host.rsplit(":", 1)[0] if ":" in host else host
-    if scheme == "http" and hostname != "models.topazlabs.com":
+    if scheme == "http" and hostname not in RECOVERY_REPORT_HTTP_HOSTS:
         return None
 
     decoded_path = path
@@ -12374,6 +12718,7 @@ def generate_windows_launcher() -> None:
         "echo.",
         ':START_SERVER_PROMPT',
         'set "STARTSERVER="',
+        'ver >nul',
         'set /p STARTSERVER=Start the Topaz Repeater Server now? (Y/N): ',
         'if errorlevel 1 (',
         '    set "BAT_CANCELLED=1"',
@@ -12444,6 +12789,7 @@ def generate_windows_launcher() -> None:
         "echo.",
         'set "HOST_IP="',
         'set "IP_CHOICE="',
+        'ver >nul',
         'set /p IP_CHOICE=Choose server IP option 1-!IP_COUNT!: ',
         'if errorlevel 1 (',
         '    set "BAT_CANCELLED=1"',
@@ -12464,6 +12810,7 @@ def generate_windows_launcher() -> None:
         "echo.",
         ':CONFIRM_HOST_IP',
         'set "CONFIRM_IP="',
+        'ver >nul',
         'set /p CONFIRM_IP=Confirm? !HOST_IP! (Y/N): ',
         'if errorlevel 1 (',
         '    set "BAT_CANCELLED=1"',
@@ -12690,13 +13037,18 @@ def validate_windows_launcher() -> None:
                 f"{value}"
             )
 
+    # SET /P preserves a pre-existing nonzero ERRORLEVEL on some cmd.exe paths.
+    # Clear it immediately before every prompt so EOF detection reflects SET /P itself.
     required_prompt_eof_blocks = (
+        'ver >nul\n'
         'set /p STARTSERVER=Start the Topaz Repeater Server now? (Y/N): \n'
         'if errorlevel 1 (\n'
         '    set "BAT_CANCELLED=1"',
+        'ver >nul\n'
         'set /p IP_CHOICE=Choose server IP option 1-!IP_COUNT!: \n'
         'if errorlevel 1 (\n'
         '    set "BAT_CANCELLED=1"',
+        'ver >nul\n'
         'set /p CONFIRM_IP=Confirm? !HOST_IP! (Y/N): \n'
         'if errorlevel 1 (\n'
         '    set "BAT_CANCELLED=1"',
@@ -13243,6 +13595,62 @@ def section(title: str) -> None:
     }}
     print(exact_titles.get(title, f"      {{title}}"))
     print("=" * 43)
+    print()
+
+
+def error_missing_filenames() -> list[str]:
+    """Return unresolved approved Error.txt filenames in encounter order."""
+    report_hosts = {{
+        "models.topazlabs.com", "image-models.topazlabs.com",
+        "models-r2.topazlabs.com", "models-bal.topazlabs.com",
+        "veai-models.topazlabs.com", "video-models.topazlabs.com",
+        "downloads.topazlabs.com",
+    }}
+    report_http_hosts = {{
+        "models.topazlabs.com", "video-models.topazlabs.com",
+    }}
+    filenames: list[str] = []
+    seen: set[str] = set()
+    for line in read_error_report_lines():
+        value = line.strip()
+        if not value.startswith("URL : "):
+            continue
+        url = value[len("URL : "):].strip()
+        try:
+            parsed = urlparse(url)
+            host = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+            port = parsed.port
+        except (TypeError, ValueError):
+            continue
+        if host not in report_hosts or parsed.username or parsed.password or parsed.fragment:
+            continue
+        if parsed.scheme == "http":
+            if host not in report_http_hosts or port not in (None, 80):
+                continue
+        elif parsed.scheme == "https":
+            if port not in (None, 443):
+                continue
+        else:
+            continue
+        filename = PurePosixPath(parsed.path).name
+        if not filename or filename in seen:
+            continue
+        seen.add(filename)
+        filenames.append(filename)
+    return filenames
+
+
+def display_error_missing_file() -> None:
+    """Display unresolved Error.txt filenames without creating new persistent state."""
+    section("Error Missing File")
+    filenames = error_missing_filenames()
+    if filenames:
+        for filename in filenames:
+            print(filename)
+        print()
+        return
+    print("No Error Files was Present")
+    print(ERROR_REPORT.name)
     print()
 
 
@@ -13991,10 +14399,15 @@ def run_curl(command: list[str]) -> int:
 
 def run_wget_download(
     wget: str, *, url: str, output: Path, resume: bool,
+    allow_http_downgrade: bool,
 ) -> int:
-    """Run wget for one download, optionally resuming an existing partial file."""
+    """Run wget with plaintext redirects allowed only for SHA-pinned downloads."""
     parsed = urlparse(url)
-    allowed_schemes = {{"http", "https"}} if parsed.scheme.lower() == "http" else {{"https"}}
+    allowed_schemes = (
+        {{"http", "https"}}
+        if parsed.scheme.lower() == "http" or allow_http_downgrade
+        else {{"https"}}
+    )
     if (resolved_url := wget_resolve_url(wget, url, allowed_schemes)) is None:
         return 8
     command = [
@@ -14156,11 +14569,17 @@ def _prepare_existing_partial(state: dict[str, object]) -> bool | None:
 def _download_backend_state(
     backend: tuple[str, str],
     url: str,
+    *,
+    allow_http_downgrade: bool,
 ) -> dict[str, object]:
-    """Return backend execution metadata constrained to the URL's protocol."""
+    """Return backend metadata with plaintext redirects gated by trusted SHA-256."""
     backend_name, executable = backend
     parsed_url = urlparse(url)
-    allowed_protocol = "=http,https" if parsed_url.scheme.lower() == "http" else "=https"
+    allowed_protocol = (
+        "=http,https"
+        if parsed_url.scheme.lower() == "http" or allow_http_downgrade
+        else "=https"
+    )
     curl_base: list[str] | None = None
     if backend_name == "curl":
         curl_base = [
@@ -14175,6 +14594,7 @@ def _download_backend_state(
         "name": backend_name,
         "executable": executable,
         "curl_base": curl_base,
+        "allow_http_downgrade": allow_http_downgrade,
     }}
 
 
@@ -14199,6 +14619,7 @@ def _run_download_backend(
         url=url,
         output=partial,
         resume=resume,
+        allow_http_downgrade=bool(backend_state["allow_http_downgrade"]),
     )
 
 
@@ -14297,9 +14718,7 @@ def _partial_size_is_valid(state: dict[str, object]) -> bool:
 
 def _partial_sha_is_valid(state: dict[str, object]) -> bool:
     """Validate authoritative SHA metadata for one completed partial."""
-    candidate_sha = str(state["expected_sha"])
-    if bool(state["partial_has_prior_bytes"]) and state["partial_expected_sha"]:
-        candidate_sha = str(state["partial_expected_sha"])
+    candidate_sha = str(state["expected_sha"] or state["partial_expected_sha"])
     if not candidate_sha:
         if bool(state["force_repair"]):
             raise RuntimeError(
@@ -14375,7 +14794,11 @@ def download_file(
         return False
     if (existing_result := _prepare_existing_partial(state)) is not None:
         return existing_result
-    backend_state = _download_backend_state(backend, url)
+    backend_state = _download_backend_state(
+        backend,
+        url,
+        allow_http_downgrade=bool(state["expected_sha"] or state["partial_expected_sha"]),
+    )
     if (
         not _resume_partial_download(state, backend_state)
         or not _download_new_partial(state, backend_state)
@@ -14991,11 +15414,20 @@ def _validate_discovered_inventory_url(
         raise RuntimeError(f"Invalid discovered inventory URL scheme: {{url}}")
     if (
         parsed.scheme == "http"
-        and (host != "models.topazlabs.com" or parsed.port not in (None, 80))
+        and (
+            host not in {{"models.topazlabs.com", "video-models.topazlabs.com"}}
+            or parsed.port not in (None, 80)
+        )
     ):
         raise RuntimeError(f"Invalid discovered inventory HTTP URL: {{url}}")
     if parsed.scheme == "https" and parsed.port not in (None, 443):
         raise RuntimeError(f"Invalid discovered inventory HTTPS URL: {{url}}")
+    if (
+        parsed.scheme == "https"
+        and host == "downloads.topazlabs.com"
+        and parsed.path.casefold().startswith("/deploy/")
+    ):
+        raise RuntimeError(f"Discovered deploy support asset belongs outside inventory: {{relative}}")
     if parsed.path != "/" + relative:
         raise RuntimeError(f"Discovered inventory URL/path mismatch: {{relative}}")
 
@@ -15038,6 +15470,10 @@ def _discovered_downloader_record_items(
         raise RuntimeError(f"Discovered inventory has no source URL: {{relative}}")
     for url in urls:
         _validate_discovered_inventory_url(url, relative, allowed_hosts)
+    if not any(urlparse(url).scheme.lower() == "https" for url in urls):
+        raise RuntimeError(
+            f"Discovered inventory lacks authenticated HTTPS provenance: {{relative}}"
+        )
     return [
         {{
             "url": url,
@@ -15102,7 +15538,9 @@ def _validated_inventory_url(item: dict, allowed_hosts: set[str]) -> str:
         raise RuntimeError(f"Unsupported download URL: {{url}}")
     if (host := url.split("/", 3)[2].lower()) not in allowed_hosts:
         raise RuntimeError(f"Unapproved download host: {{host}}")
-    if url.startswith("http://") and host != "models.topazlabs.com":
+    if url.startswith("http://") and host not in {{
+        "models.topazlabs.com", "video-models.topazlabs.com"
+    }}:
         raise RuntimeError(f"Unapproved HTTP download URL: {{url}}")
     return url
 
@@ -15437,6 +15875,7 @@ def main() -> int:
         reported_zip_valid = process_reported_unhashed_zip_validation(
             backend, downloads_enabled
         )
+        display_error_missing_file()
         final_failures = final_inventory_failures(
             physical_files, repair_paths, asset_valid
         )
@@ -16345,7 +16784,7 @@ def read_recovery_urls(report_file: Path) -> list[str]:
         if host not in RECOVERABLE_HOSTS:
             continue
         if parsed.scheme == "http":
-            if host != "models.topazlabs.com" or port not in (None, 80):
+            if host not in RECOVERY_HTTP_HOSTS or port not in (None, 80):
                 continue
         elif parsed.scheme == "https":
             if port not in (None, 443):
@@ -16796,7 +17235,7 @@ def recovery_destination(url: str) -> Path | None:
         return None
 
     if parsed.scheme == "http":
-        if host != "models.topazlabs.com" or port not in (None, 80):
+        if host not in RECOVERY_HTTP_HOSTS or port not in (None, 80):
             return None
     elif port not in (None, 443):
         return None
@@ -17004,13 +17443,16 @@ def recovery_download_backend() -> tuple[str, str] | None:
     return None
 
 def recovery_wget_resolve_url(
-    wget: str, url: str, allowed_schemes: set[str],
+    wget: str, url: str, allowed_schemes: set[str], *, allow_http_downgrade: bool,
 ) -> str | None:
     """Resolve wget redirects without crossing a forbidden source-scheme boundary."""
     current = url
     for _redirect in range(11):
-        if urlparse(current).scheme.lower() not in allowed_schemes:
-            print(f"Recovery blocked wget redirect to disallowed protocol: {current}")
+        if (
+            urlparse(current).scheme.lower() not in allowed_schemes
+            or not recovery_effective_url_is_allowed(url, current, allow_http_downgrade=allow_http_downgrade)
+        ):
+            print(f"Recovery blocked wget redirect outside approved policy: {current}")
             return None
         try:
             result = subprocess.run(
@@ -17033,31 +17475,112 @@ def recovery_wget_resolve_url(
         if not locations:
             return None
         redirected = urljoin(current, locations[-1])
-        if urlparse(redirected).scheme.lower() not in allowed_schemes:
-            print(f"Recovery blocked wget redirect to disallowed protocol: {redirected}")
+        if (
+            urlparse(redirected).scheme.lower() not in allowed_schemes
+            or not recovery_effective_url_is_allowed(url, redirected, allow_http_downgrade=allow_http_downgrade)
+        ):
+            print(f"Recovery blocked wget redirect outside approved policy: {redirected}")
             return None
         current = redirected
     print("Recovery wget redirect limit exceeded.")
     return None
 
+def recovery_effective_url_is_allowed(
+    source_url: str, effective_url: str, *, allow_http_downgrade: bool = False,
+) -> bool:
+    """Require redirects to stay on approved Topaz origins and obey trust-aware schemes."""
+    try:
+        source = urlparse(source_url)
+        effective = urlparse(effective_url)
+        source_scheme = source.scheme.lower()
+        scheme = effective.scheme.lower()
+        host = effective.hostname.rstrip(".").lower() if effective.hostname else ""
+        port = effective.port
+    except (TypeError, ValueError):
+        return False
+    allowed_schemes = (
+        {"http", "https"}
+        if source_scheme == "http" or allow_http_downgrade
+        else {"https"}
+    )
+    if scheme not in allowed_schemes or host not in RECOVERABLE_HOSTS:
+        return False
+    if scheme == "http":
+        # A URL that began in plaintext retains the narrow HTTP-host allowlist.
+        # An authenticated HTTPS source may downgrade only when caller-provided
+        # authoritative SHA-256 makes plaintext a transport rather than a trust root.
+        if source_scheme == "http" and host not in RECOVERY_HTTP_HOSTS:
+            return False
+        if port not in (None, 80):
+            return False
+    elif port not in (None, 443):
+        return False
+    if effective.username or effective.password or effective.fragment:
+        return False
+    return True
+
+
+RECOVERY_CURL_EFFECTIVE_MARKER = "\nTOPAZ_EFFECTIVE_URL:"
+
+
+def recovery_curl_trace_is_allowed(
+    source_url: str, trace: str, *, allow_http_downgrade: bool,
+) -> tuple[bool, str]:
+    """Validate every curl hop using the caller's SHA-backed downgrade policy."""
+    marker_index = trace.rfind(RECOVERY_CURL_EFFECTIVE_MARKER)
+    if marker_index < 0:
+        return False, ""
+    header_trace = trace[:marker_index]
+    effective_url = trace[
+        marker_index + len(RECOVERY_CURL_EFFECTIVE_MARKER):
+    ].strip()
+    current_url = source_url
+    for raw_location in re.findall(
+        r"(?im)^Location:[ \t]*(.*?)[ \t]*\r?$", header_trace
+    ):
+        location = raw_location.strip()
+        if not location:
+            return False, effective_url
+        redirected = urljoin(current_url, location)
+        if not recovery_effective_url_is_allowed(source_url, redirected, allow_http_downgrade=allow_http_downgrade):
+            return False, effective_url
+        current_url = redirected
+    if not recovery_effective_url_is_allowed(source_url, effective_url, allow_http_downgrade=allow_http_downgrade):
+        return False, effective_url
+    return True, effective_url
+
+
 def run_recovery_backend(
     backend: tuple[str, str], *, url: str, output: Path, resume: bool,
+    allow_http_downgrade: bool = False,
 ) -> int:
     backend_name, executable = backend
     parsed = urlparse(url)
     if backend_name == "curl":
-        allowed_protocol = "=http,https" if parsed.scheme.lower() == "http" else "=https"
+        allowed_protocol = (
+            "=http,https"
+            if parsed.scheme.lower() == "http" or allow_http_downgrade
+            else "=https"
+        )
         command = [
             executable, "--proto", allowed_protocol, "--proto-redir", allowed_protocol,
             "--location", "--fail", "--retry", "2", "--connect-timeout", "10",
             "--speed-time", "60", "--speed-limit", "1024", "--show-error",
+            "--dump-header", "-",
+            "--write-out", RECOVERY_CURL_EFFECTIVE_MARKER + "%{url_effective}\n",
         ]
         if resume:
             command.extend(["-C", "-"])
         command.extend(["-o", str(output), url])
     elif backend_name == "wget":
-        allowed_schemes = {"http", "https"} if parsed.scheme.lower() == "http" else {"https"}
-        resolved_url = recovery_wget_resolve_url(executable, url, allowed_schemes)
+        allowed_schemes = (
+            {"http", "https"}
+            if parsed.scheme.lower() == "http" or allow_http_downgrade
+            else {"https"}
+        )
+        resolved_url = recovery_wget_resolve_url(
+            executable, url, allowed_schemes, allow_http_downgrade=allow_http_downgrade
+        )
         if resolved_url is None:
             return 8
         command = [
@@ -17070,7 +17593,26 @@ def run_recovery_backend(
     else:
         raise RuntimeError(f"Unsupported recovery backend: {backend_name}")
     try:
-        return subprocess.run(command, check=False).returncode
+        if backend_name == "curl":
+            result = subprocess.run(
+                command, check=False, stdout=subprocess.PIPE, text=True
+            )
+            if result.returncode != 0:
+                return result.returncode
+            trace_allowed, effective_url = recovery_curl_trace_is_allowed(
+                url,
+                str(result.stdout or ""),
+                allow_http_downgrade=allow_http_downgrade,
+            )
+            if not trace_allowed:
+                print(
+                    "Recovery blocked redirect/final destination outside approved hosts: "
+                    + (effective_url or "<missing>")
+                )
+                return 47
+            return 0
+        result = subprocess.run(command, check=False)
+        return result.returncode
     except OSError as error:
         print(f"Recovery {backend_name} execution failed: {error}")
         return 127
@@ -17100,8 +17642,18 @@ def download_recovery_file(
             expected_sha256 = known_sha
     expected_size = int(expected_size or 0)
     expected_sha256 = str(expected_sha256 or "").upper()
+    has_trusted_sha256 = bool(expected_sha256)
     backend = recovery_download_backend()
     validation_suffix = content_suffix or destination.suffix
+
+    # A hashless first-time discovery cannot authenticate bytes left by an older
+    # attempt. In particular, test4 may have left an HTTP-controlled .part, and a
+    # failed redirect-policy check may also leave bytes before curl reports the
+    # final policy result. Only SHA-pinned recovery may safely resume prior bytes.
+    if not has_trusted_sha256 and recovery_partial_exists(temporary_file):
+        print("Discarding untrusted recovery partial before authenticated discovery.")
+        temporary_file.unlink(missing_ok=True)
+
     if backend is None:
         if CURRENT_OS == "windows":
             print("Recovery unavailable: curl was not found.")
@@ -17128,7 +17680,11 @@ def download_recovery_file(
         resume_start_size = temporary_file.stat().st_size
 
         result_code = run_recovery_backend(
-            backend, url=url, output=temporary_file, resume=True
+            backend,
+            url=url,
+            output=temporary_file,
+            resume=True,
+            allow_http_downgrade=bool(expected_sha256),
         )
         if backend[0] == "curl" and result_code in {33, 36}:
             print("Recovery resume was rejected. Restarting from byte zero.")
@@ -17153,11 +17709,15 @@ def download_recovery_file(
     if not recovery_partial_exists(temporary_file):
         create_recovery_partial(temporary_file)
         result_code = run_recovery_backend(
-            backend, url=url, output=temporary_file, resume=False
+            backend,
+            url=url,
+            output=temporary_file,
+            resume=False,
+            allow_http_downgrade=bool(expected_sha256),
         )
         if result_code != 0:
             try:
-                if temporary_file.stat().st_size <= 0:
+                if not has_trusted_sha256 or temporary_file.stat().st_size <= 0:
                     temporary_file.unlink(missing_ok=True)
             except OSError:
                 pass
@@ -17176,7 +17736,7 @@ def download_recovery_file(
             actual = temporary_file.stat().st_size
         except OSError:
             actual = 0
-        if expected_size > 0 and actual > expected_size:
+        if not has_trusted_sha256 or (expected_size > 0 and actual > expected_size):
             temporary_file.unlink(missing_ok=True)
         return False
 
@@ -17196,6 +17756,27 @@ def download_recovery_file(
 def recovery_candidate_path(url: str, destination: Path) -> Path:
     token = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
     return destination.with_name(destination.name + f".candidate-{token}")
+
+
+def recovery_https_upgrade_url(url: str) -> str | None:
+    """Return the exact authenticated HTTPS twin for one approved observed HTTP URL."""
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+        port = parsed.port
+    except (TypeError, ValueError):
+        return None
+    if (
+        parsed.scheme.lower() != "http"
+        or host not in RECOVERY_HTTP_HOSTS
+        or port not in (None, 80)
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    return f"https://{host}{parsed.path or '/'}"
 
 
 def verify_recovery_alias_candidate(url: str, destination: Path) -> bool:
@@ -17304,6 +17885,28 @@ def recover_logged_404_files() -> bool:
             else trusted_discovered_record(destination)
         )
 
+        # Preserve the exact observed HTTP report URL, but never let its plaintext
+        # response establish a new trusted digest. For a first-time HTTP discovery,
+        # try the exact same host/path over HTTPS and use those authenticated bytes
+        # as the trust root. If that secure twin is unavailable, leave Error.txt
+        # unresolved instead of silently falling back to unauthenticated HTTP.
+        download_url = url
+        discovery_source_urls = [url]
+        if urlparse(url).scheme.lower() == "http" and not expected_sha256:
+            https_upgrade_url = recovery_https_upgrade_url(url)
+            if https_upgrade_url is None:
+                print(
+                    "HTTP recovery has no trusted SHA-256 and no approved HTTPS twin; "
+                    "leaving this report entry unresolved."
+                )
+                not_permitted += 1
+                print()
+                continue
+            print("Unknown HTTP recovery: trying authenticated HTTPS twin first.")
+            print(f"HTTPS: {https_upgrade_url}")
+            download_url = https_upgrade_url
+            discovery_source_urls = [https_upgrade_url, url]
+
         if destination.is_file():
             if recovery_file_is_usable(
                 destination,
@@ -17351,9 +17954,10 @@ def recover_logged_404_files() -> bool:
                     "Existing bytes are not yet owned by this source URL. "
                     "Downloading an isolated comparison copy."
                 )
-                if verify_recovery_alias_candidate(url, destination):
+                if verify_recovery_alias_candidate(download_url, destination):
                     try:
-                        record_recovered_server_asset(url, destination)
+                        for source_url in discovery_source_urls:
+                            record_recovered_server_asset(source_url, destination)
                     except (OSError, ValueError, RuntimeError) as error:
                         print(f"Integrity/report update failed: {error}")
                         failed += 1
@@ -17410,7 +18014,7 @@ def recover_logged_404_files() -> bool:
                 print(f"Embedded recovery fallback failed: {error}")
                 recovery_succeeded = False
         else:
-            recovery_succeeded = download_recovery_file(url, destination)
+            recovery_succeeded = download_recovery_file(download_url, destination)
 
         if not recovery_succeeded and not known_embedded:
             try:
@@ -17433,7 +18037,8 @@ def recover_logged_404_files() -> bool:
                 print("Downloaded successfully.")
             if not known_embedded:
                 try:
-                    record_recovered_server_asset(url, destination)
+                    for source_url in discovery_source_urls:
+                        record_recovered_server_asset(source_url, destination)
                 except (OSError, ValueError, RuntimeError) as error:
                     print(f"Integrity/report update failed: {error}")
                     failed += 1
@@ -18522,11 +19127,441 @@ def _self_test_recovery() -> str:
         if "Before" not in report_text or "After" not in report_text:
             raise RuntimeError("Recovery report update damaged unrelated lines.")
 
+        # curl may follow redirects only while every hop and the final effective
+        # URL remain inside approved recovery origins. HTTPS plaintext downgrade is
+        # allowed only when authoritative SHA-256 already makes HTTP transport-only.
+        saved_subprocess_run = subprocess.run
+        effective_url = "https://models-r2.topazlabs.com/v1/future.xml"
+        redirect_locations = [effective_url]
+
+        class _RecoveryBackendResult:
+            def __init__(self, returncode: int, stdout: str):
+                self.returncode = returncode
+                self.stdout = stdout
+
+        def fake_recovery_subprocess_run(command, **_kwargs):
+            if "--dump-header" not in command or command[command.index("--dump-header") + 1] != "-":
+                raise RuntimeError("Recovery curl did not capture redirect headers.")
+            if "--write-out" not in command:
+                raise RuntimeError("Recovery curl did not request its effective URL.")
+            write_out = command[command.index("--write-out") + 1]
+            if "TOPAZ_EFFECTIVE_URL:" not in write_out or "%{url_effective}" not in write_out:
+                raise RuntimeError("Recovery curl effective-URL marker is missing.")
+            headers = []
+            for location in redirect_locations:
+                headers.append(
+                    "HTTP/1.1 302 Found\r\n"
+                    f"Location: {location}\r\n\r\n"
+                )
+            headers.append("HTTP/2 200\r\n\r\n")
+            trace = "".join(headers) + RECOVERY_CURL_EFFECTIVE_MARKER + effective_url + "\n"
+            return _RecoveryBackendResult(0, trace)
+
+        subprocess.run = fake_recovery_subprocess_run
+        try:
+            backend_output = Path(temp_name) / "redirect-policy.part"
+            if run_recovery_backend(
+                ("curl", "curl"),
+                url="https://models.topazlabs.com/v1/future.xml",
+                output=backend_output,
+                resume=False,
+            ) != 0:
+                raise RuntimeError("Approved HTTPS recovery redirect was rejected.")
+
+            # Even when the final URL returns to an approved Topaz origin, an
+            # unapproved intermediate redirect must make the chain fail closed.
+            redirect_locations = [
+                "https://attacker.invalid/bounce",
+                "https://models-r2.topazlabs.com/v1/future.xml",
+            ]
+            effective_url = "https://models-r2.topazlabs.com/v1/future.xml"
+            if run_recovery_backend(
+                ("curl", "curl"),
+                url="https://models.topazlabs.com/v1/future.xml",
+                output=backend_output,
+                resume=False,
+            ) == 0:
+                raise RuntimeError("Recovery accepted an unapproved intermediate redirect.")
+
+            redirect_locations = []
+            effective_url = "https://attacker.invalid/v1/future.xml"
+            if run_recovery_backend(
+                ("curl", "curl"),
+                url="https://models.topazlabs.com/v1/future.xml",
+                output=backend_output,
+                resume=False,
+            ) == 0:
+                raise RuntimeError("Recovery accepted an unapproved final destination.")
+
+            redirect_locations = ["http://models.topazlabs.com/v1/future.xml"]
+            effective_url = "http://models.topazlabs.com/v1/future.xml"
+            if run_recovery_backend(
+                ("curl", "curl"),
+                url="https://models.topazlabs.com/v1/future.xml",
+                output=backend_output,
+                resume=False,
+            ) == 0:
+                raise RuntimeError(
+                    "Unknown HTTPS recovery accepted an unpinned redirect downgrade to HTTP."
+                )
+            if run_recovery_backend(
+                ("curl", "curl"),
+                url="https://models.topazlabs.com/v1/future.xml",
+                output=backend_output,
+                resume=False,
+                allow_http_downgrade=True,
+            ) != 0:
+                raise RuntimeError(
+                    "SHA-pinned HTTPS recovery rejected an approved HTTP transport downgrade."
+                )
+
+            redirect_locations = ["http://attacker.invalid/v1/future.xml"]
+            effective_url = "http://attacker.invalid/v1/future.xml"
+            if run_recovery_backend(
+                ("curl", "curl"),
+                url="https://models.topazlabs.com/v1/future.xml",
+                output=backend_output,
+                resume=False,
+                allow_http_downgrade=True,
+            ) == 0:
+                raise RuntimeError(
+                    "SHA-pinned HTTPS recovery accepted an unapproved HTTP redirect host."
+                )
+        finally:
+            subprocess.run = saved_subprocess_run
+
+    # Hashless first-time discovery must never inherit bytes from an older partial.
+    # This closes both legacy test4 HTTP partials and bytes written before a failed
+    # redirect-policy decision. SHA-pinned recovery retains resume support because
+    # the final authoritative digest authenticates the complete reconstructed file.
+    recovery_download_globals = download_recovery_file.__globals__
+    saved_partial_state = {
+        "MIRROR_ROOT": recovery_download_globals["MIRROR_ROOT"],
+        "recovery_download_backend": recovery_download_globals["recovery_download_backend"],
+        "run_recovery_backend": recovery_download_globals["run_recovery_backend"],
+    }
+    try:
+        with tempfile.TemporaryDirectory(prefix="topaz-hashless-partial-selftest-") as temp_name:
+            partial_mirror = (Path(temp_name) / "Mirror").resolve()
+            partial_mirror.mkdir(parents=True)
+            recovery_download_globals["MIRROR_ROOT"] = partial_mirror
+            recovery_download_globals["recovery_download_backend"] = lambda: ("curl", "curl")
+
+            # A test4-style nonempty partial must be discarded before the HTTPS
+            # bootstrap begins, so the backend sees a byte-zero fresh partial.
+            hashless_destination = partial_mirror / "future" / "legacy-http.tz3"
+            hashless_destination.parent.mkdir(parents=True)
+            hashless_partial = hashless_destination.with_name(hashless_destination.name + ".part")
+            hashless_partial.write_bytes(b"HTTP-CONTROLLED-PREFIX")
+            fresh_https_bytes = b"HTTPS-AUTHENTICATED-COMPLETE"
+            hashless_calls: list[tuple[bool, bytes]] = []
+
+            def fake_hashless_success(_backend, *, url, output, resume, allow_http_downgrade=False):
+                del url, allow_http_downgrade
+                hashless_calls.append((resume, output.read_bytes()))
+                output.write_bytes(fresh_https_bytes)
+                return 0
+
+            recovery_download_globals["run_recovery_backend"] = fake_hashless_success
+            if not download_recovery_file(
+                "https://video-models.topazlabs.com/future/legacy-http.tz3",
+                hashless_destination,
+                expected_size=0,
+                expected_sha256="",
+            ):
+                raise RuntimeError("Hashless HTTPS recovery failed after discarding legacy partial.")
+            if hashless_calls != [(False, b"")]:
+                raise RuntimeError("Hashless recovery resumed or retained bytes from an older partial.")
+            if hashless_destination.read_bytes() != fresh_https_bytes or hashless_partial.exists():
+                raise RuntimeError("Hashless recovery did not promote only fresh HTTPS bytes.")
+
+            # If a backend writes bytes and then fails redirect-policy validation,
+            # those unauthenticated/hashless bytes must not survive for a later run.
+            failed_destination = partial_mirror / "future" / "redirect-failed.tz3"
+            failed_partial = failed_destination.with_name(failed_destination.name + ".part")
+
+            def fake_hashless_policy_failure(_backend, *, url, output, resume, allow_http_downgrade=False):
+                del url, allow_http_downgrade
+                if resume:
+                    raise RuntimeError("Hashless redirect-failure test unexpectedly resumed.")
+                output.write_bytes(b"UNTRUSTED-REDIRECT-BYTES")
+                return 47
+
+            recovery_download_globals["run_recovery_backend"] = fake_hashless_policy_failure
+            if download_recovery_file(
+                "https://video-models.topazlabs.com/future/redirect-failed.tz3",
+                failed_destination,
+                expected_size=0,
+                expected_sha256="",
+            ):
+                raise RuntimeError("Hashless redirect-policy failure unexpectedly succeeded.")
+            if failed_partial.exists() or failed_destination.exists():
+                raise RuntimeError("Hashless redirect-policy failure retained untrusted bytes.")
+
+            # SHA-pinned recovery may still resume because the final digest covers
+            # both the old partial and newly downloaded suffix before promotion.
+            pinned_destination = partial_mirror / "future" / "pinned-resume.tz3"
+            pinned_partial = pinned_destination.with_name(pinned_destination.name + ".part")
+            pinned_complete = b"PINNED-RESUME-COMPLETE"
+            pinned_prefix = pinned_complete[:7]
+            pinned_partial.write_bytes(pinned_prefix)
+            pinned_sha = hashlib.sha256(pinned_complete).hexdigest().upper()
+            pinned_calls: list[bool] = []
+
+            def fake_pinned_resume(_backend, *, url, output, resume, allow_http_downgrade=False):
+                del url
+                pinned_calls.append(resume)
+                if not resume or not allow_http_downgrade:
+                    raise RuntimeError("SHA-pinned recovery lost trusted resume/downgrade policy.")
+                with output.open("ab") as handle:
+                    handle.write(pinned_complete[len(pinned_prefix):])
+                return 0
+
+            recovery_download_globals["run_recovery_backend"] = fake_pinned_resume
+            if not download_recovery_file(
+                "https://video-models.topazlabs.com/future/pinned-resume.tz3",
+                pinned_destination,
+                expected_size=len(pinned_complete),
+                expected_sha256=pinned_sha,
+            ):
+                raise RuntimeError("SHA-pinned recovery resume self-test failed.")
+            if pinned_calls != [True] or pinned_destination.read_bytes() != pinned_complete:
+                raise RuntimeError("SHA-pinned recovery did not preserve verified resume support.")
+    finally:
+        recovery_download_globals.update(saved_partial_state)
+
+    # End-to-end Starlight 2.6 trust-boundary regression: the Repeater may report
+    # the exact observed HTTP URL, but first-time trust is established from the
+    # same host/path over HTTPS. The HTTP URL is retained as an alias and is the
+    # report identity that transitions to REPORTED-FIXED.
+    recovery_globals = recover_logged_404_files.__globals__
+    saved_recovery_state = {
+        "MIRROR_ROOT": recovery_globals["MIRROR_ROOT"],
+        "ERROR_REPORT_FILE": recovery_globals["ERROR_REPORT_FILE"],
+        "DISCOVERED_INVENTORY_FILE": recovery_globals["DISCOVERED_INVENTORY_FILE"],
+        "DISCOVERED_ASSETS_FILE": recovery_globals["DISCOVERED_ASSETS_FILE"],
+        "download_recovery_file": recovery_globals["download_recovery_file"],
+        "validate_recovery_hosts": recovery_globals["validate_recovery_hosts"],
+        "current_base_inventory_path_keys": recovery_globals["current_base_inventory_path_keys"],
+    }
+    try:
+        with tempfile.TemporaryDirectory(prefix="topaz-starlight26-recovery-selftest-") as temp_name:
+            temp_root = Path(temp_name).resolve()
+            test_mirror = temp_root / "Mirror"
+            test_mirror.mkdir(parents=True)
+            test_report = temp_root / "Topaz_Offline_Download_Creator_Error.txt"
+            test_inventory = temp_root / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+            test_assets = temp_root / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+            starlight_url = (
+                "http://video-models.topazlabs.com/"
+                "slp-2.5/20260731.0/slp26.zip"
+            )
+            starlight_https_url = (
+                "https://video-models.topazlabs.com/"
+                "slp-2.5/20260731.0/slp26.zip"
+            )
+            test_report.write_text(
+                "URL : " + starlight_url + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            recovery_globals["MIRROR_ROOT"] = test_mirror
+            recovery_globals["ERROR_REPORT_FILE"] = test_report
+            recovery_globals["DISCOVERED_INVENTORY_FILE"] = test_inventory
+            recovery_globals["DISCOVERED_ASSETS_FILE"] = test_assets
+            recovery_globals["validate_recovery_hosts"] = lambda _urls: True
+            recovery_globals["current_base_inventory_path_keys"] = lambda: set()
+
+            def fake_starlight_download(url, destination, **_kwargs):
+                if url != starlight_https_url:
+                    raise RuntimeError(
+                        "Unknown HTTP Starlight recovery did not use its exact HTTPS twin."
+                    )
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(
+                    destination, "w", compression=zipfile.ZIP_DEFLATED
+                ) as archive:
+                    archive.writestr(
+                        "starlight26-selftest.txt", b"starlight-2.6-https-bootstrap\n"
+                    )
+                return True
+
+            recovery_globals["download_recovery_file"] = fake_starlight_download
+            if not recover_logged_404_files():
+                raise RuntimeError("Starlight 2.6 HTTPS-upgrade recovery self-test failed.")
+            recovered_path = test_mirror / "slp-2.5" / "20260731.0" / "slp26.zip"
+            if not recovered_path.is_file() or not test_inventory.is_file():
+                raise RuntimeError(
+                    "Starlight 2.6 HTTPS-upgrade recovery did not create discovered inventory."
+                )
+            payload = json.loads(test_inventory.read_text(encoding="utf-8"))
+            records = payload.get("files", [])
+            if len(records) != 1:
+                raise RuntimeError("Starlight 2.6 HTTPS-upgrade record count failed.")
+            record = records[0]
+            record_urls = recovered_asset_source_urls(record)
+            if (
+                record.get("source_url") != starlight_https_url
+                or record_urls != [starlight_https_url, starlight_url]
+                or str(record.get("sha256", "")).upper() != sha256_file(recovered_path)
+            ):
+                raise RuntimeError(
+                    "Starlight 2.6 did not preserve HTTPS provenance plus observed HTTP alias."
+                )
+            report_text = test_report.read_text(encoding="utf-8")
+            if (
+                f"REPORTED-FIXED : {starlight_url}" not in report_text
+                or f"REPORTED-FIXED : {starlight_https_url}" in report_text
+            ):
+                raise RuntimeError(
+                    "Starlight 2.6 did not close the original observed HTTP report entry."
+                )
+            if test_assets.exists():
+                raise RuntimeError(
+                    "Starlight 2.6 ZIP was misclassified as a discovered support asset."
+                )
+
+        # If the exact HTTPS twin is unavailable, first-time HTTP discovery must
+        # remain unresolved; there is no silent fallback to plaintext bootstrap.
+        with tempfile.TemporaryDirectory(prefix="topaz-http-upgrade-failure-selftest-") as temp_name:
+            temp_root = Path(temp_name).resolve()
+            test_mirror = temp_root / "Mirror"
+            test_mirror.mkdir(parents=True)
+            test_report = temp_root / "Topaz_Offline_Download_Creator_Error.txt"
+            test_inventory = temp_root / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+            test_assets = temp_root / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+            http_url = "http://video-models.topazlabs.com/future/https-unavailable.tz3"
+            https_url = "https://video-models.topazlabs.com/future/https-unavailable.tz3"
+            test_report.write_text("URL : " + http_url + "\n", encoding="utf-8", newline="\n")
+            recovery_globals["MIRROR_ROOT"] = test_mirror
+            recovery_globals["ERROR_REPORT_FILE"] = test_report
+            recovery_globals["DISCOVERED_INVENTORY_FILE"] = test_inventory
+            recovery_globals["DISCOVERED_ASSETS_FILE"] = test_assets
+            recovery_globals["validate_recovery_hosts"] = lambda _urls: True
+            recovery_globals["current_base_inventory_path_keys"] = lambda: set()
+            attempted_urls: list[str] = []
+
+            def fake_https_unavailable(url, _destination, **_kwargs):
+                attempted_urls.append(url)
+                if url != https_url:
+                    raise RuntimeError("HTTP fallback was attempted after HTTPS upgrade failure.")
+                return False
+
+            recovery_globals["download_recovery_file"] = fake_https_unavailable
+            if recover_logged_404_files():
+                raise RuntimeError("Unavailable HTTPS twin incorrectly completed HTTP discovery.")
+            if attempted_urls != [https_url]:
+                raise RuntimeError("Unknown HTTP recovery attempted a plaintext fallback.")
+            if test_inventory.exists() or test_assets.exists():
+                raise RuntimeError("Failed HTTPS upgrade created trusted discovery state.")
+            report_text = test_report.read_text(encoding="utf-8")
+            if (
+                f"URL : {http_url}" not in report_text
+                or f"REPORTED-FIXED : {http_url}" in report_text
+            ):
+                raise RuntimeError("Failed HTTPS upgrade did not remain unresolved in Error.txt.")
+
+        # HTTP remains usable as transport when HTTPS previously established the
+        # authoritative bytes for the same destination. The HTTP URL becomes an
+        # alias only after matching that trusted size/SHA-256 baseline.
+        with tempfile.TemporaryDirectory(prefix="topaz-http-pinned-recovery-selftest-") as temp_name:
+            temp_root = Path(temp_name).resolve()
+            test_mirror = temp_root / "Mirror"
+            test_mirror.mkdir(parents=True)
+            test_report = temp_root / "Topaz_Offline_Download_Creator_Error.txt"
+            test_inventory = temp_root / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+            test_assets = temp_root / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+            relative = "future-pinned-selftest/model.tz3"
+            https_url = "https://video-models.topazlabs.com/" + relative
+            http_url = "http://video-models.topazlabs.com/" + relative
+            trusted_bytes = b"trusted-https-baseline-selftest\n"
+            destination = test_mirror.joinpath(*PurePosixPath(relative).parts)
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(trusted_bytes)
+            recovery_globals["MIRROR_ROOT"] = test_mirror
+            recovery_globals["ERROR_REPORT_FILE"] = test_report
+            recovery_globals["DISCOVERED_INVENTORY_FILE"] = test_inventory
+            recovery_globals["DISCOVERED_ASSETS_FILE"] = test_assets
+            recovery_globals["validate_recovery_hosts"] = lambda _urls: True
+            recovery_globals["current_base_inventory_path_keys"] = lambda: set()
+            record_discovered_inventory(https_url, destination)
+            destination.unlink()
+            test_report.write_text("URL : " + http_url + "\n", encoding="utf-8", newline="\n")
+
+            def fake_pinned_http_download(url, target, **_kwargs):
+                if url != http_url:
+                    raise RuntimeError("Unexpected URL in pinned HTTP recovery self-test.")
+                expected_size, expected_sha = recovery_expected_integrity(target)
+                if (
+                    expected_size != len(trusted_bytes)
+                    or expected_sha != hashlib.sha256(trusted_bytes).hexdigest().upper()
+                ):
+                    raise RuntimeError("Pinned HTTP recovery lost its HTTPS-established integrity.")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(trusted_bytes)
+                return True
+
+            recovery_globals["download_recovery_file"] = fake_pinned_http_download
+            if not recover_logged_404_files():
+                raise RuntimeError("HTTP recovery with trusted HTTPS baseline was rejected.")
+            trusted_records = load_discovered_inventory_records()
+            if len(trusted_records) != 1:
+                raise RuntimeError("Pinned HTTP alias recovery lost discovered inventory.")
+            trusted_urls = recovered_asset_source_urls(trusted_records[0])
+            if https_url not in trusted_urls or http_url not in trusted_urls:
+                raise RuntimeError("Pinned HTTP alias was not merged with HTTPS provenance.")
+            if f"REPORTED-FIXED : {http_url}" not in test_report.read_text(encoding="utf-8"):
+                raise RuntimeError("Pinned HTTP recovery did not mark its report fixed.")
+
+        # First-time HTTPS discovery remains permitted because TLS authenticates
+        # the approved origin before the new digest is established.
+        with tempfile.TemporaryDirectory(prefix="topaz-https-discovery-selftest-") as temp_name:
+            temp_root = Path(temp_name).resolve()
+            test_mirror = temp_root / "Mirror"
+            test_mirror.mkdir(parents=True)
+            test_report = temp_root / "Topaz_Offline_Download_Creator_Error.txt"
+            test_inventory = temp_root / "Topaz_Offline_Download_Creator_Discovered_Inventory.v2.json"
+            test_assets = temp_root / "Topaz_Offline_Download_Creator_Discovered_Assets.v2.json"
+            https_url = "https://video-models.topazlabs.com/future-https-selftest/model.tz3"
+            test_report.write_text("URL : " + https_url + "\n", encoding="utf-8", newline="\n")
+            recovery_globals["MIRROR_ROOT"] = test_mirror
+            recovery_globals["ERROR_REPORT_FILE"] = test_report
+            recovery_globals["DISCOVERED_INVENTORY_FILE"] = test_inventory
+            recovery_globals["DISCOVERED_ASSETS_FILE"] = test_assets
+            recovery_globals["validate_recovery_hosts"] = lambda _urls: True
+            recovery_globals["current_base_inventory_path_keys"] = lambda: set()
+
+            def fake_https_discovery_download(url, target, **_kwargs):
+                if url != https_url:
+                    raise RuntimeError("Unexpected URL in HTTPS discovery self-test.")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"authenticated-https-discovery-selftest\n")
+                return True
+
+            recovery_globals["download_recovery_file"] = fake_https_discovery_download
+            if not recover_logged_404_files():
+                raise RuntimeError("First-time HTTPS discovery recovery was rejected.")
+            if len(load_discovered_inventory_records()) != 1:
+                raise RuntimeError("First-time HTTPS discovery did not become trusted inventory.")
+            if f"REPORTED-FIXED : {https_url}" not in test_report.read_text(encoding="utf-8"):
+                raise RuntimeError("First-time HTTPS discovery did not mark its report fixed.")
+    finally:
+        recovery_globals.update(saved_recovery_state)
+
     unknown_support = recovery_destination(
         "https://models.topazlabs.com/v1/self-test-future.xml"
     )
     if unknown_support is None:
         raise RuntimeError("Unknown permitted XML support recovery was rejected.")
+    deploy_text_support = recovery_destination(
+        "https://downloads.topazlabs.com/deploy/TopazPhotoAI/static/all-app-tooltip.txt"
+    )
+    if deploy_text_support is None:
+        raise RuntimeError("downloads/deploy .txt support recovery was rejected.")
+    if recovery_destination(
+        "https://downloads.topazlabs.com/deploy/TopazVideoStudio/1.2.0/TopazVideo-1.2.0.msi"
+    ) is not None:
+        raise RuntimeError("MSI installer was incorrectly enabled for automatic recovery.")
     if recovery_destination("https://models.topazlabs.com/v1/track") is not None:
         raise RuntimeError("Blocked API route was accepted for static recovery.")
 
@@ -18554,7 +19589,7 @@ def _self_test_recovery() -> str:
         finally:
             MIRROR_ROOT = saved_creator_mirror
 
-    return "staging/SHA/hosts/report/unknown-static recovery + link policy"
+    return "staging/SHA/hosts/report/HTTP trust-boundary + hashless-partial provenance + Starlight-2.6 HTTPS-upgrade policy + link policy"
 
 
 def _self_test_embedded_assets() -> str:
@@ -18597,7 +19632,7 @@ def _self_test_embedded_assets() -> str:
 
 
 def _self_test_server_assets() -> str:
-    global SERVER_ASSET_MANIFEST_FILE, MIRROR_ROOT, DISCOVERED_INVENTORY_FILE, DISCOVERED_ASSETS_FILE
+    global SERVER_ASSET_MANIFEST_FILE, MIRROR_ROOT, DISCOVERED_INVENTORY_FILE, DISCOVERED_ASSETS_FILE, ERROR_REPORT_FILE
     import runpy
 
     namespace = runpy.run_path(str(SERVER_PY))
@@ -18739,6 +19774,10 @@ def _self_test_server_assets() -> str:
             )
             if normalized_dynamic_server_asset_record(good) is None:
                 raise RuntimeError("Valid dynamic Server Asset provenance was rejected.")
+            http_only = dict(good)
+            http_only["source_url"] = "http://models.topazlabs.com/v1/future-selftest.xml"
+            if normalized_dynamic_server_asset_record(http_only) is not None:
+                raise RuntimeError("HTTP-only dynamic Server Asset provenance was trusted.")
             bad_sha = dict(good)
             bad_sha["sha256"] = "0" * 64
             if normalized_dynamic_server_asset_record(bad_sha) is not None:
@@ -18755,6 +19794,7 @@ def _self_test_server_assets() -> str:
     saved_discovered_inventory = DISCOVERED_INVENTORY_FILE
     saved_discovered_assets = DISCOVERED_ASSETS_FILE
     saved_discovery_server_manifest = SERVER_ASSET_MANIFEST_FILE
+    saved_discovery_error_report = ERROR_REPORT_FILE
     discovery_test_root = MIRROR_ROOT / "_selftest_discovered"
     shutil.rmtree(discovery_test_root, ignore_errors=True)
     try:
@@ -18771,17 +19811,35 @@ def _self_test_server_assets() -> str:
             SERVER_ASSET_MANIFEST_FILE = (
                 temp_root / "Manifests" / "Topaz_Offline_Download_Creator_Server_Assets_Manifest.json"
             )
+            ERROR_REPORT_FILE = temp_root / "Topaz_Offline_Download_Creator_Error.txt"
             inventory_file = discovery_test_root / "future-model-selftest.tz3"
             asset_file = discovery_test_root / "future-support-selftest.svg"
+            deploy_text_file = MIRROR_ROOT / "deploy" / "_selftest_discovered" / "all-app-tooltip.txt"
+            deploy_zip_file = MIRROR_ROOT / "deploy" / "_selftest_discovered" / "future-support.zip"
             inventory_file.parent.mkdir(parents=True, exist_ok=True)
             asset_file.parent.mkdir(parents=True, exist_ok=True)
+            deploy_text_file.parent.mkdir(parents=True, exist_ok=True)
+            deploy_zip_file.parent.mkdir(parents=True, exist_ok=True)
             inventory_file.write_bytes(b"future-model-selftest\n")
             asset_file.write_bytes(b"<svg>future-support-selftest</svg>\n")
+            deploy_text_file.write_bytes(b"deploy-support-selftest\n")
+            with zipfile.ZipFile(deploy_zip_file, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("future-support.txt", b"deploy-zip-support-selftest\n")
             inventory_url = "https://video-models.topazlabs.com/_selftest_discovered/future-model-selftest.tz3"
             asset_url = "https://downloads.topazlabs.com/_selftest_discovered/future-support-selftest.svg"
+            deploy_text_url = (
+                "https://downloads.topazlabs.com/"
+                "deploy/_selftest_discovered/all-app-tooltip.txt"
+            )
+            deploy_zip_url = (
+                "https://downloads.topazlabs.com/"
+                "deploy/_selftest_discovered/future-support.zip"
+            )
 
             record_discovered_inventory(inventory_url, inventory_file)
             record_discovered_asset(asset_url, asset_file)
+            record_discovered_asset(deploy_text_url, deploy_text_file)
+            record_recovered_discovery(deploy_zip_url, deploy_zip_file)
 
             inventory_payload = json.loads(DISCOVERED_INVENTORY_FILE.read_text(encoding="utf-8"))
             asset_payload = json.loads(DISCOVERED_ASSETS_FILE.read_text(encoding="utf-8"))
@@ -18795,13 +19853,141 @@ def _self_test_server_assets() -> str:
             if (
                 asset_payload.get("schema") != DISCOVERED_ASSETS_SCHEMA
                 or asset_payload.get("schema_version") != DISCOVERED_SCHEMA_VERSION
-                or asset_payload.get("asset_count") != 1
+                or asset_payload.get("asset_count") != 3
             ):
                 raise RuntimeError("Discovered assets side-manifest framing failed.")
             if len(load_discovered_inventory_records()) != 1:
                 raise RuntimeError("Discovered inventory record count failed.")
-            if len(load_discovered_asset_records()) != 1:
+            if len(load_discovered_asset_records()) != 3:
                 raise RuntimeError("Discovered asset record count failed.")
+            discovered_assets = load_discovered_asset_records()
+            if not any(
+                record.get("relative_path") == "deploy/_selftest_discovered/all-app-tooltip.txt"
+                for record in discovered_assets
+            ):
+                raise RuntimeError("downloads/deploy .txt support asset was not retained as an asset.")
+            if not any(
+                record.get("relative_path") == "deploy/_selftest_discovered/future-support.zip"
+                for record in discovered_assets
+            ):
+                raise RuntimeError("downloads/deploy .zip support asset was misclassified as inventory.")
+
+            # One physical path cannot acquire contradictory side-manifest ownership
+            # when a later alias changes deploy-support provenance classification.
+            mixed_alias_file = MIRROR_ROOT / "deploy" / "_selftest_discovered" / "mixed-alias.zip"
+            mixed_alias_file.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(
+                mixed_alias_file, "w", compression=zipfile.ZIP_DEFLATED
+            ) as archive:
+                archive.writestr("mixed-alias.txt", b"mixed-alias-selftest\n")
+            inventory_alias_url = (
+                "https://video-models.topazlabs.com/"
+                "deploy/_selftest_discovered/mixed-alias.zip"
+            )
+            deploy_alias_url = (
+                "https://downloads.topazlabs.com/"
+                "deploy/_selftest_discovered/mixed-alias.zip"
+            )
+            record_recovered_discovery(inventory_alias_url, mixed_alias_file)
+            try:
+                record_recovered_discovery(deploy_alias_url, mixed_alias_file)
+            except RuntimeError as error:
+                if "mixes deploy-support and inventory source URLs" not in str(error):
+                    raise
+            else:
+                raise RuntimeError(
+                    "Cross-manifest mixed alias provenance was accepted."
+                )
+            mixed_key = mixed_alias_file.relative_to(MIRROR_ROOT).as_posix().casefold()
+            inventory_paths = {
+                record["relative_path"].casefold()
+                for record in load_discovered_inventory_records()
+            }
+            asset_paths = {
+                record["relative_path"].casefold()
+                for record in load_discovered_asset_records()
+            }
+            if mixed_key not in inventory_paths or mixed_key in asset_paths:
+                raise RuntimeError(
+                    "Rejected mixed alias changed discovered side-manifest ownership."
+                )
+
+            # Even direct/internal writes must fail closed if a trusted physical
+            # path would otherwise appear in both side manifests.
+            try:
+                record_discovered_asset(deploy_alias_url, mixed_alias_file)
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError(
+                    "Cross-manifest physical-path overlap was written directly."
+                )
+            validate_discovered_manifest_partition()
+
+            legacy_http_record = {
+                "relative_path": "_selftest_discovered/legacy-http-only.tz3",
+                "size_bytes": 17,
+                "sha256": hashlib.sha256(b"legacy-http-only\n").hexdigest().upper(),
+                "source": "recovered_404",
+                "source_url": (
+                    "http://video-models.topazlabs.com/"
+                    "_selftest_discovered/legacy-http-only.tz3"
+                ),
+            }
+            mixed_inventory_records = [
+                *inventory_payload.get("files", []),
+                legacy_http_record,
+            ]
+            mixed_inventory_bytes = canonical_discovered_payload(mixed_inventory_records)
+            mixed_inventory_payload = dict(inventory_payload)
+            mixed_inventory_payload["logical_entries"] = 2
+            mixed_inventory_payload["unique_physical_files"] = 2
+            mixed_inventory_payload["records_payload_sha256"] = hashlib.sha256(
+                mixed_inventory_bytes
+            ).hexdigest().upper()
+            mixed_inventory_payload["files"] = mixed_inventory_records
+            DISCOVERED_INVENTORY_FILE.write_text(
+                json.dumps(mixed_inventory_payload, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            legacy_http_url = str(legacy_http_record["source_url"])
+            ERROR_REPORT_FILE.write_text(
+                f"REPORTED-FIXED : {legacy_http_url}\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            removed_inventory, removed_assets = prune_unauthenticated_discovered_records()
+            if removed_inventory != 1 or removed_assets != 0:
+                raise RuntimeError("Legacy HTTP-only discovered provenance was not pruned exactly.")
+            migrated_report = ERROR_REPORT_FILE.read_text(encoding="utf-8")
+            if (
+                f"URL : {legacy_http_url}" not in migrated_report
+                or f"REPORTED-FIXED : {legacy_http_url}" in migrated_report
+            ):
+                raise RuntimeError(
+                    "Legacy HTTP-only discovery was not reopened for HTTPS re-authentication."
+                )
+            pruned_inventory = json.loads(
+                DISCOVERED_INVENTORY_FILE.read_text(encoding="utf-8")
+            )
+            if (
+                pruned_inventory.get("logical_entries") != 1
+                or pruned_inventory.get("unique_physical_files") != 1
+                or any(
+                    str(item.get("source_url", "")).startswith("http://")
+                    for item in pruned_inventory.get("files", [])
+                    if isinstance(item, dict)
+                )
+            ):
+                raise RuntimeError("Pruned discovered inventory retained HTTP-only trust state.")
+
+            try:
+                record_discovered_inventory(deploy_text_url, deploy_text_file)
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("downloads/deploy .txt support asset was accepted as inventory.")
 
             alias_url = (
                 "https://models-r2.topazlabs.com/"
@@ -18830,6 +20016,9 @@ def _self_test_server_assets() -> str:
                 server_asset_record(
                     asset_file, source="recovered_404", source_url=asset_url
                 ),
+                server_asset_record(
+                    deploy_zip_file, source="recovered_404", source_url=deploy_zip_url
+                ),
             ]
             legacy_payload = canonical_server_asset_payload(legacy_records)
             SERVER_ASSET_MANIFEST_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -18850,8 +20039,14 @@ def _self_test_server_assets() -> str:
             sync_recovered_assets_report_from_server_assets(set())
             if len(load_discovered_inventory_records()) != 1:
                 raise RuntimeError("Recovered model/package did not migrate to discovered inventory.")
-            if len(load_discovered_asset_records()) != 1:
-                raise RuntimeError("Recovered support file did not migrate to discovered assets.")
+            migrated_assets = load_discovered_asset_records()
+            if len(migrated_assets) != 2:
+                raise RuntimeError("Recovered support files did not migrate to discovered assets.")
+            if not any(
+                record.get("relative_path") == "deploy/_selftest_discovered/future-support.zip"
+                for record in migrated_assets
+            ):
+                raise RuntimeError("Recovered deploy .zip migrated to inventory instead of assets.")
             write_server_asset_manifest(v2_owned_keys=set())
             rebuilt_server = json.loads(
                 SERVER_ASSET_MANIFEST_FILE.read_text(encoding="utf-8")
@@ -18863,10 +20058,13 @@ def _self_test_server_assets() -> str:
             }
             inventory_relative = inventory_file.relative_to(MIRROR_ROOT).as_posix().casefold()
             asset_relative = asset_file.relative_to(MIRROR_ROOT).as_posix().casefold()
+            deploy_zip_relative = deploy_zip_file.relative_to(MIRROR_ROOT).as_posix().casefold()
             if inventory_relative in rebuilt_paths:
                 raise RuntimeError("Discovered inventory remained double-owned by Server Assets.")
             if rebuilt_paths.get(asset_relative) != "recovered_404":
                 raise RuntimeError("Discovered support asset was lost from runtime Server Assets.")
+            if rebuilt_paths.get(deploy_zip_relative) != "recovered_404":
+                raise RuntimeError("Discovered deploy .zip was lost from runtime Server Assets.")
 
             # An accepted inventory extension must not be accepted by the asset manifest.
             try:
@@ -18967,9 +20165,11 @@ def _self_test_server_assets() -> str:
                 raise RuntimeError("Empty promoted discovered inventory side manifest remained.")
     finally:
         shutil.rmtree(discovery_test_root, ignore_errors=True)
+        shutil.rmtree(MIRROR_ROOT / "deploy" / "_selftest_discovered", ignore_errors=True)
         DISCOVERED_INVENTORY_FILE = saved_discovered_inventory
         DISCOVERED_ASSETS_FILE = saved_discovered_assets
         SERVER_ASSET_MANIFEST_FILE = saved_discovery_server_manifest
+        ERROR_REPORT_FILE = saved_discovery_error_report
 
     return (
         f"24 embedded baseline; manifest count {len(records)}; stale dynamic precedence + "
@@ -18981,6 +20181,7 @@ def _self_test_generated_programs() -> str:
     import contextlib
     import io
     from http import HTTPStatus
+    from http.server import BaseHTTPRequestHandler
 
     generated = (
         OUT_PORTABLE_DOWNLOADER,
@@ -19105,7 +20306,8 @@ def _self_test_generated_programs() -> str:
         'raise SystemExit(2)',
         'download_report_url_is_unresolved',
         'authoritative_sha = str(item.get("sha256", "") or "").upper()',
-        'allowed_protocol = "=http,https" if parsed_url.scheme.lower() == "http" else "=https"',
+        'allow_http_downgrade=bool(state["expected_sha"] or state["partial_expected_sha"])',
+        'candidate_sha = str(state["expected_sha"] or state["partial_expected_sha"])',
         'report_failed_download(url)',
         'settings.get("partial_sha256", "")',
         '"partial_has_prior_bytes": partial.is_file()',
@@ -19133,6 +20335,10 @@ def _self_test_generated_programs() -> str:
         'def process_reported_unhashed_zip_validation(',
         'downloads_enabled: bool',
         'section("Reported ZIP Content Validation")',
+        'def error_missing_filenames() -> list[str]:',
+        'def display_error_missing_file() -> None:',
+        'section("Error Missing File")',
+        'No Error Files was Present',
         'reported_zip_valid = process_reported_unhashed_zip_validation(',
         'Attempting a validated replacement download.',
         'Reported ZIP replacement downloaded and validated, but ',
@@ -19197,6 +20403,180 @@ def _self_test_generated_programs() -> str:
     downloader_namespace = runpy.run_path(str(OUT_PORTABLE_DOWNLOADER))
     verifier_namespace = runpy.run_path(str(OUT_PORTABLE_SHA256_VERIFIER))
     repeater_namespace = runpy.run_path(str(SERVER_PY))
+
+    # Build 262 policy: Video Studio 1.7.0 legitimately probes the Starlight
+    # 2.6 package over HTTP on video-models.topazlabs.com. The URL remains
+    # reportable, but first-time automatic trust requires pre-existing integrity.
+    starlight_26_url = (
+        "http://video-models.topazlabs.com/slp-2.5/20260731.0/slp26.zip"
+    )
+    built_starlight_26 = repeater_namespace["build_recovery_report_url"](
+        "http",
+        "video-models.topazlabs.com",
+        "/slp-2.5/20260731.0/slp26.zip",
+    )
+    if built_starlight_26 != starlight_26_url:
+        raise RuntimeError("Generated Repeater filtered the Starlight 2.6 HTTP report URL.")
+    if repeater_namespace["build_recovery_report_url"](
+        "http", "image-models.topazlabs.com", "/future-http-selftest.tz3"
+    ) is not None:
+        raise RuntimeError("Generated Repeater broadened HTTP reporting beyond approved model hosts.")
+    if verifier_namespace["validate_report_url"](starlight_26_url) != starlight_26_url:
+        raise RuntimeError("Generated Verifier did not count the Starlight 2.6 HTTP report URL.")
+    if verifier_namespace["validate_report_url"](
+        "http://image-models.topazlabs.com/future-http-selftest.tz3"
+    ) is not None:
+        raise RuntimeError("Generated Verifier broadened HTTP report validation too far.")
+
+    # Exercise the actual Repeater HEAD/404 reporting path, not only its URL builder.
+    with tempfile.TemporaryDirectory(prefix="topaz-starlight26-head-report-selftest-") as temp_name:
+        repeater_report = Path(temp_name) / "Topaz_Offline_Download_Creator_Error.txt"
+        handler_class = repeater_namespace["TopazMirrorHandler"]
+        send_error_globals = handler_class.send_error.__globals__
+        saved_repeater_report = send_error_globals["ERROR_REPORT"]
+        saved_base_send_error = BaseHTTPRequestHandler.send_error
+        try:
+            send_error_globals["ERROR_REPORT"] = repeater_report
+            BaseHTTPRequestHandler.send_error = (
+                lambda _self, _code, _message=None, _explain=None: None
+            )
+            handler = handler_class.__new__(handler_class)
+            handler.headers = {"Host": "video-models.topazlabs.com"}
+            handler.path = "/slp-2.5/20260731.0/slp26.zip"
+            handler.command = "HEAD"
+            handler.connection = object()
+            handler._result_url = None
+            handler_class.send_error(handler, HTTPStatus.NOT_FOUND)
+            if (
+                not repeater_report.is_file()
+                or f"URL : {starlight_26_url}"
+                not in repeater_report.read_text(encoding="utf-8")
+            ):
+                raise RuntimeError("Generated Repeater did not persist the Starlight 2.6 HEAD 404.")
+        finally:
+            send_error_globals["ERROR_REPORT"] = saved_repeater_report
+            BaseHTTPRequestHandler.send_error = saved_base_send_error
+
+    with tempfile.TemporaryDirectory(prefix="topaz-error-missing-display-selftest-") as temp_name:
+        display_report = Path(temp_name) / "Topaz_Offline_Download_Creator_Error.txt"
+        display_report.write_text(
+            "URL : " + starlight_26_url + "\n"
+            "REPORTED-FIXED : https://downloads.topazlabs.com/fixed.svg\n"
+            "URL : https://downloads.topazlabs.com/deploy/TopazPhotoAI/static/all-app-tooltip.txt\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        display_globals = downloader_namespace["display_error_missing_file"].__globals__
+        saved_display_report = display_globals["ERROR_REPORT"]
+        display_globals["ERROR_REPORT"] = display_report
+        try:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                downloader_namespace["display_error_missing_file"]()
+            display_text = output.getvalue()
+            if (
+                "Error Missing File" not in display_text
+                or "slp26.zip" not in display_text
+                or "all-app-tooltip.txt" not in display_text
+                or "fixed.svg" in display_text
+            ):
+                raise RuntimeError("Generated Downloader Error Missing File display is incorrect.")
+            display_report.unlink()
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                downloader_namespace["display_error_missing_file"]()
+            empty_text = output.getvalue()
+            if (
+                "No Error Files was Present" not in empty_text
+                or "Topaz_Offline_Download_Creator_Error.txt" not in empty_text
+            ):
+                raise RuntimeError("Generated Downloader empty Error Missing File display is incorrect.")
+        finally:
+            display_globals["ERROR_REPORT"] = saved_display_report
+
+    deploy_text_relative = "deploy/TopazPhotoAI/static/all-app-tooltip.txt"
+    deploy_text_url = "https://downloads.topazlabs.com/" + deploy_text_relative
+    deploy_text_record = {
+        "relative_path": deploy_text_relative,
+        "size_bytes": 32,
+        "sha256": "A" * 64,
+        "source": "recovered_404",
+        "source_url": deploy_text_url,
+    }
+    verifier_asset_normalizer = verifier_namespace["_normalize_discovered_asset_record"]
+    normalized_deploy_asset = verifier_asset_normalizer(deploy_text_record, 1)
+    if normalized_deploy_asset.get("relative_path") != deploy_text_relative:
+        raise RuntimeError("Generated Verifier rejected downloads/deploy .txt support ownership.")
+    try:
+        verifier_namespace["_normalize_discovered_inventory_record"](
+            deploy_text_record, 1, set(), set()
+        )
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError("Generated Verifier accepted downloads/deploy .txt as inventory.")
+
+    downloader_item_validator = downloader_namespace["_discovered_downloader_record_items"]
+    try:
+        downloader_item_validator(
+            deploy_text_record,
+            1,
+            set(),
+            set(),
+            {
+                "models.topazlabs.com", "image-models.topazlabs.com",
+                "models-r2.topazlabs.com", "models-bal.topazlabs.com",
+                "veai-models.topazlabs.com", "video-models.topazlabs.com",
+                "downloads.topazlabs.com",
+            },
+        )
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError("Generated Downloader accepted downloads/deploy .txt as inventory.")
+
+    with tempfile.TemporaryDirectory(prefix="topaz-deploy-support-repeater-selftest-") as temp_name:
+        temp_root = Path(temp_name).resolve()
+        mirror = temp_root / "Mirror"
+        deploy_path = mirror.joinpath(*PurePosixPath(deploy_text_relative).parts)
+        deploy_path.parent.mkdir(parents=True)
+        deploy_bytes = b"deploy-support-repeater-selftest"
+        deploy_path.write_bytes(deploy_bytes)
+        repeater_record = dict(deploy_text_record)
+        repeater_record["size_bytes"] = len(deploy_bytes)
+        repeater_record["sha256"] = hashlib.sha256(deploy_bytes).hexdigest().upper()
+        repeater_inventory_validator = repeater_namespace["_validated_discovered_inventory_record"]
+        repeater_globals = repeater_inventory_validator.__globals__
+        saved_repeater_mirror = repeater_globals["MIRROR_ROOT"]
+        repeater_globals["MIRROR_ROOT"] = mirror
+        try:
+            try:
+                repeater_inventory_validator(repeater_record, set())
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("Generated Repeater accepted downloads/deploy .txt as inventory.")
+        finally:
+            repeater_globals["MIRROR_ROOT"] = saved_repeater_mirror
+
+    # Build 262 HTTP recovery policy: the observed Video Studio 1.7.0 Starlight
+    # request is both reportable and recoverable, while unrelated HTTP hosts stay denied.
+    with tempfile.TemporaryDirectory(prefix="topaz-http-recovery-policy-selftest-") as temp_name:
+        policy_report = Path(temp_name) / "Topaz_Offline_Download_Creator_Error.txt"
+        policy_report.write_text(
+            "URL : " + starlight_26_url + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        if read_recovery_urls(policy_report) != [starlight_26_url]:
+            raise RuntimeError("Build 262 did not admit the Starlight 2.6 HTTP recovery URL.")
+        if recovery_destination(starlight_26_url) is None:
+            raise RuntimeError("Build 262 did not map the Starlight 2.6 HTTP recovery destination.")
+        denied_http = "http://image-models.topazlabs.com/future-http-selftest.tz3"
+        denied_report = Path(temp_name) / "denied.txt"
+        denied_report.write_text("URL : " + denied_http + "\n", encoding="utf-8", newline="\n")
+        if read_recovery_urls(denied_report) or recovery_destination(denied_http) is not None:
+            raise RuntimeError("Build 262 broadened automatic HTTP recovery beyond approved model hosts.")
 
     # Prove one persistent discovered model/package is authoritative across the
     # Verifier, Downloader, and Repeater without modifying the frozen V2 files.
@@ -19268,6 +20648,32 @@ def _self_test_generated_programs() -> str:
             if not corrupt["failures"] or corrupt["failures"][0].get("reason") != "size_mismatch":
                 raise RuntimeError("Generated Verifier did not reject corrupt discovered inventory.")
             model_path.write_bytes(model_bytes)
+            legacy_http_records = [dict(discovered_records[0])]
+            legacy_http_records[0]["source_url"] = (
+                "http://video-models.topazlabs.com/" + relative
+            )
+            legacy_http_bytes = json.dumps(
+                legacy_http_records, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+            legacy_http_payload = dict(discovered_payload)
+            legacy_http_payload["records_payload_sha256"] = hashlib.sha256(
+                legacy_http_bytes
+            ).hexdigest().upper()
+            legacy_http_payload["files"] = legacy_http_records
+            discovered_path.write_text(
+                json.dumps(legacy_http_payload, indent=2) + "\n",
+                encoding="utf-8", newline="\n",
+            )
+            try:
+                verifier_loader([], [])
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("Generated Verifier trusted HTTP-only discovered provenance.")
+            discovered_path.write_text(
+                json.dumps(discovered_payload, indent=2) + "\n",
+                encoding="utf-8", newline="\n",
+            )
         finally:
             verifier_globals.update(saved_verifier_discovery)
 
@@ -19294,6 +20700,20 @@ def _self_test_generated_programs() -> str:
             physical = downloader_namespace["validate_inventory"]()
             if set(physical) != {relative.casefold()}:
                 raise RuntimeError("Generated Downloader did not count discovered inventory.")
+            discovered_path.write_text(
+                json.dumps(legacy_http_payload, indent=2) + "\n",
+                encoding="utf-8", newline="\n",
+            )
+            try:
+                downloader_loader()
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("Generated Downloader trusted HTTP-only discovered provenance.")
+            discovered_path.write_text(
+                json.dumps(discovered_payload, indent=2) + "\n",
+                encoding="utf-8", newline="\n",
+            )
         finally:
             downloader_globals.update(saved_downloader_discovery)
 
@@ -19326,6 +20746,20 @@ def _self_test_generated_programs() -> str:
             else:
                 raise RuntimeError("Generated Repeater accepted corrupt discovered inventory bytes.")
             model_path.write_bytes(model_bytes)
+            discovered_path.write_text(
+                json.dumps(legacy_http_payload, indent=2) + "\n",
+                encoding="utf-8", newline="\n",
+            )
+            try:
+                repeater_validator()
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("Generated Repeater trusted HTTP-only discovered provenance.")
+            discovered_path.write_text(
+                json.dumps(discovered_payload, indent=2) + "\n",
+                encoding="utf-8", newline="\n",
+            )
         finally:
             repeater_globals["DISCOVERED_INVENTORY_MANIFEST"] = (
                 saved_repeater_discovery["DISCOVERED_INVENTORY_MANIFEST"]
@@ -20298,9 +21732,9 @@ def _self_test_generated_programs() -> str:
             )
 
     # Pre-existing V2 partial bytes require authoritative SHA-256 even when no
-    # error-report or repair-list entry exists. If the partial is discarded and
-    # downloading restarts from byte zero, that requirement must clear so a fresh
-    # normal download is not hashed twice.
+    # error-report or repair-list entry exists. Fresh downloads also verify the
+    # available authoritative digest once, which is what makes a legitimate
+    # HTTPS-to-HTTP transport downgrade safe for known inventory.
     with tempfile.TemporaryDirectory(prefix="topaz-partial-no-report-selftest-") as partial_temp:
         partial_root = Path(partial_temp).resolve()
         partial_mirror = partial_root / "Mirror"
@@ -20379,8 +21813,7 @@ def _self_test_generated_programs() -> str:
                     "No-report resumed V2 partial did not follow the expected reject path."
                 )
 
-            # Fresh byte-zero download with no report/repair entry should not incur
-            # an extra SHA pass solely because V2 metadata exists for partial safety.
+            # Fresh byte-zero V2 download verifies its authoritative digest once.
             fresh_destination = partial_mirror / "v1" / "fresh-v2.bin"
             sha_calls = 0
             real_sha256_file = saved_partial_globals["sha256_file"]
@@ -20406,9 +21839,9 @@ def _self_test_generated_programs() -> str:
                 partial_sha256=good_sha,
             ):
                 raise RuntimeError("Generated Downloader rejected a fresh valid V2 download.")
-            if sha_calls != 0 or fresh_destination.read_bytes() != good_payload:
+            if sha_calls != 1 or fresh_destination.read_bytes() != good_payload:
                 raise RuntimeError(
-                    "Fresh V2 download was redundantly SHA-scanned or promoted wrong bytes."
+                    "Fresh V2 download did not perform exactly one authoritative SHA-256 pass."
                 )
         finally:
             partial_globals.update(saved_partial_globals)
@@ -20533,8 +21966,9 @@ def _self_test_generated_programs() -> str:
     print("Favicon validation-before-REPORTED-FIXED ordering: PASSED")
     print()
 
-    # Preserve explicitly captured HTTP URLs while preventing an HTTPS URL from
-    # being redirected down to plaintext HTTP.
+    # Preserve explicitly captured HTTP URLs. An HTTPS download may permit a
+    # plaintext redirect only when an authoritative SHA-256 is supplied and will
+    # be verified before promotion. This covers legacy Sharpen-style transport.
     with tempfile.TemporaryDirectory(prefix="topaz-protocol-selftest-") as proto_temp:
         proto_root = Path(proto_temp).resolve() / "Mirror"
         proto_root.mkdir()
@@ -20543,6 +21977,7 @@ def _self_test_generated_programs() -> str:
         proto_globals["ERROR_REPORT"] = Path(proto_temp) / "error.txt"
         proto_globals["report_hosts_download_block"] = lambda _url: False
         captured_commands: list[list[str]] = []
+        trusted_sha = hashlib.sha256(b"X").hexdigest().upper()
 
         def fake_run_curl(command: list[str]) -> int:
             captured_commands.append(list(command))
@@ -20552,23 +21987,27 @@ def _self_test_generated_programs() -> str:
             return 0
 
         proto_globals["run_curl"] = fake_run_curl
-        for source_scheme, expected_protocols in (
-            ("http", "=http,https"),
-            ("https", "=https"),
-        ):
+        protocol_cases = (
+            ("http", "=http,https", {}),
+            ("https", "=https", {}),
+            ("https-pinned", "=http,https", {"partial_sha256": trusted_sha}),
+        )
+        for label, expected_protocols, options in protocol_cases:
             captured_commands.clear()
-            proto_destination = proto_root / f"{source_scheme}.bin"
+            source_scheme = "https" if label.startswith("https") else "http"
+            proto_destination = proto_root / f"{label}.bin"
             if not downloader_namespace["download_file"](
                 ("curl", "curl"),
                 url=(
                     f"{source_scheme}://models.topazlabs.com/v1/"
-                    f"{source_scheme}-protocol-selftest.bin"
+                    f"{label}-protocol-selftest.bin"
                 ),
                 destination=proto_destination,
                 expected_size=1,
+                **options,
             ):
                 raise RuntimeError(
-                    f"Generated Downloader protocol self-test failed for {source_scheme}."
+                    f"Generated Downloader protocol self-test failed for {label}."
                 )
             command = captured_commands[-1]
             if (
@@ -20576,7 +22015,7 @@ def _self_test_generated_programs() -> str:
                 or command[command.index("--proto-redir") + 1] != expected_protocols
             ):
                 raise RuntimeError(
-                    f"Generated Downloader redirect policy is wrong for {source_scheme}."
+                    f"Generated Downloader redirect policy is wrong for {label}."
                 )
 
     with tempfile.TemporaryDirectory(prefix="topaz-supplemental-zip-selftest-") as temp_name:
