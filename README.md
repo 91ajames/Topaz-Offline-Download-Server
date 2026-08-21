@@ -94,6 +94,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Recovery Mode:**
     - 777 + 322 = 1099 logical **V 7.0.2**
     - 606 + 322 = 928 physical **V 7.0.2**
+    - Supported **Starlight 2.6**
 
 - Resume Fix for non https will be fixed in **V 7.0.3**
 
