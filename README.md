@@ -91,6 +91,9 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Known Logical Inventory Size:** 180.03 GB
 - **Known Unique Physical Size:** 154.67 GB
 - **Missing Inventory Metadata:** 1
+- **Recovery Mode:**
+- 777 + 321 = 1098 logical **V 7.0.2**
+- 606 + 321 = 927 physical **V 7.0.2**
 
 ### Known Unavailable Package
 
