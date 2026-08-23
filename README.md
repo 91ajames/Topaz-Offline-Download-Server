@@ -93,11 +93,10 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Missing Inventory Metadata:** 1
 - **Recovery Mode:**
     - 777 + 321 = 1098 logical **V 7.0.2**
+          - KLIS 222.56 GB
     - 606 + 321 = 927 physical **V 7.0.2**
+          - KUPS 197.20 GB
     - Supported **Starlight 2.6**
-    - Size:
-    - KLIS 222.56 GB
-    - KUPS 197.20 GB
 
 - Resume Fix for non https & Restructure will be fixed in **V 7.0.3**
 
