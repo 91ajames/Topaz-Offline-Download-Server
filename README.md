@@ -92,11 +92,14 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Known Unique Physical Size:** 154.67 GB
 - **Missing Inventory Metadata:** 1
 - **Recovery Mode:**
-    - 777 + 322 = 1099 logical **V 7.0.2**
-    - 606 + 322 = 928 physical **V 7.0.2**
+    - 777 + 321 = 1098 logical **V 7.0.2**
+    - 606 + 321 = 927 physical **V 7.0.2**
     - Supported **Starlight 2.6**
+    - Size:
+    - KLIS 222.56 GB
+    - KUPS 197.20 GB
 
-- Resume Fix for non https will be fixed in **V 7.0.3**
+- Resume Fix for non https & Restructure will be fixed in **V 7.0.3**
 
 ### Known Unavailable Package
 
