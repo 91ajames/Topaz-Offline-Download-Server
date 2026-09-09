@@ -100,7 +100,7 @@ Actual time depends on storage performance, network speed, file verification, ce
           - KUPS 197.20 GB
     - Supported **Starlight 2.6**
 
-- Resume Fix for non https & Restructure will be fixed in **V 7.0.3** - this will be updated soon. Sorry for the long wait.
+- Resume Fix for non https & Restructure will be fixed in **V 7.0.3** - Coming Soon. Sorry for the long wait.
 
 ### Known Unavailable Package
 
