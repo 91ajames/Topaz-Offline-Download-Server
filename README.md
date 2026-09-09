@@ -100,7 +100,7 @@ Actual time depends on storage performance, network speed, file verification, ce
           - KUPS 197.20 GB
     - Supported **Starlight 2.6**
 
-- Resume Fix for non https & Restructure will be fixed in **V 7.0.3**
+- Resume Fix for non https & Restructure will be fixed in **V 7.0.3** - this will be updated soon. Sorry for the long wait.
 
 ### Known Unavailable Package
 
@@ -109,6 +109,8 @@ One captured Video AI package currently remains unavailable upstream and does no
 `astra_support/20250825/models.zip`
 
 The URL remains preserved in the inventory history rather than being removed simply because the upstream file is unavailable.
+
+- You can make a self empty txt file zip to ignore any error 1 codes that will be displayed if necessary.
 
 ---
 
