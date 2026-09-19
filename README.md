@@ -1,3 +1,13 @@
+# Sorry for the long wait — **v7.0.3 is coming!**
+
+# I’m currently adding several improvements to the script. One of the bigger additions will let you choose which versions you actually want to install, so you won’t have to download over **150 GB** of files just to prepare an offline installation.
+
+# I’ve also recently added a Wiki page that goes into much more detail about what the script does behind the scenes. I’ll try to shorten and refine it later, but for now it gives a much better look at just how much work the script handles throughout the entire process.
+
+# **Thank you for your patience — the extra time going into v7.0.3 is focused on making the Offline Download Creator more flexible, efficient, and useful for everyone.**
+
+---
+
 # Topaz Offline Download Server
 
 A local **HTTP/HTTPS mirror and preservation server** for **Topaz Photo**, **Topaz Gigapixel**, **Topaz Video**, **Topaz Photo AI**, **Topaz Sharpen AI**, and related AI model, support, and GPU files.
