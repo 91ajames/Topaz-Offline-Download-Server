@@ -4,6 +4,8 @@
 
 # I’ve also recently added a Wiki page that goes into much more detail about what the script does behind the scenes. I’ll try to shorten and refine it later, but for now it gives a much better look at just how much work the script handles throughout the entire process.
 
+# For now, **v7.0.2 is still doing a great job.** Any recoverable download files that are not currently available in the inventory will be reported to the Error file, and running the script again will automatically attempt to retrieve those missing files.
+
 # **Thank you for your patience — the extra time going into v7.0.3 is focused on making the Offline Download Creator more flexible, efficient, and useful for everyone.**
 
 ---
