@@ -2,7 +2,7 @@
 
 # I’m currently adding several improvements to the script. One of the bigger additions will let you choose which versions you actually want to install, so you won’t have to download over **150 GB** of files just to prepare an offline installation.
 
-# I’ve also recently added a Wiki page that goes into much more detail about what the script does behind the scenes. I’ll try to shorten and refine it later, but for now it gives a much better look at just how much work the script handles throughout the entire process.
+# I’ve also recently UPDATED Wiki page that goes into much more detail about what the script does behind the scenes. UPDATED shorten and refine the script handles throughout the entire process.
 
 # For now, **v7.0.2 is still doing a great job.** Any recoverable download files that are not currently available in the inventory will be reported to the Error file, and running the script again will automatically attempt to retrieve those missing files.
 
