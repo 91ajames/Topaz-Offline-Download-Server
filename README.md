@@ -249,4 +249,4 @@ This behavior is by design and there is no setting, toggle, or on/off switch to 
 
 ---
 
-![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz_Offline_Download_Creator_7.0.0.png)
+![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz_Offline_Download_Creator_7.0.3.png)
