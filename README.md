@@ -89,8 +89,8 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ### Logical Inventory
 
-- **Video 1.6.1:** 127 - StarLight 2.6 included
-- **Video 1.7.1:** 332
+- **Video 1.6.1:** 127
+- **Video 1.7.1:** 332 - StarLight 2.6 included
 - **Gigapixel 1.3.1:** 97
 - **Gigapixel 8.4.4:** 87
 - **Photo 1.6.1:** 126
