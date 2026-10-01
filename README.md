@@ -1,12 +1,12 @@
-# Sorry for the long wait — **v7.0.3 is coming!**
+# Topaz Offline Download Creator **v7.0.3**
 
-# I’m currently adding several improvements to the script. One of the bigger additions will let you choose which versions you actually want to install, so you won’t have to download over **150 GB** of files just to prepare an offline installation.
+Version **7.0.3** is the current major update to the Offline Download Creator.
 
-# I’ve also recently UPDATED Wiki page that goes into much more detail about what the script does behind the scenes. UPDATED shorten and refine the script handles throughout the entire process.
+One of the biggest changes is **application/version selection**, so you can build the offline mirror around the Topaz versions you actually want instead of downloading the entire inventory.
 
-# For now, **v7.0.2 is still doing a great job.** Any recoverable download files that are not currently available in the inventory will be reported to the Error file, and running the script again will automatically attempt to retrieve those missing files.
+v7.0.3 also expands captured application coverage, adds **Video 1.7.1**, improves interrupted and resumable downloads, strengthens Error.txt recovery/discovery, and updates the local HTTPS certificate workflow.
 
-# **Thank you for your patience — the extra time going into v7.0.3 is focused on making the Offline Download Creator more flexible, efficient, and useful for everyone.**
+The project Wiki contains the deeper architecture, testing, recovery, certificate, and inventory details. This README is intended to stay as the shorter project overview.
 
 ---
 
@@ -22,23 +22,28 @@ It is intended for **offline installations, system rebuilds, custom Windows imag
 
 ## Features
 
+- Application/version selection for targeted offline mirror creation
 - Offline AI model installation and restoration
 - Local HTTP and HTTPS Topaz download mirror
 - Exact host, protocol, and route ownership
+- HTTPS-only upstream acquisition and recovery
 - Supports multiple Topaz products and application generations
 - Windows, macOS, and Linux support
 - SHA-256 verification for authoritative V2 inventory files
 - ZIP content/CRC validation for supplemental packages without authoritative SHA-256 metadata
-- Automatic recovery of eligible files reported through 404/error logging
+- Automatic recovery of eligible files reported through Error.txt
 - Recovered-file provenance with actual size, SHA-256, path, and source URL
+- Discovered Inventory and Discovered Assets tracking
 - Preserves captured models and support files that may later disappear upstream
-- Eliminates repeated multi-gigabyte downloads after system reinstalls
-- Resumable downloads and `.part` recovery
-- Local HTTPS certificate creation, installation, expiration, and removal support
+- Resumable downloads and authenticated `.part` recovery
+- Protection against mixing HTTP partial data with an HTTPS replacement
+- Local HTTPS Root CA and rotating server-certificate support
+- Portable Client-CA install/remove helpers for Windows, macOS, and Linux
 - Cross-platform Downloader and SHA-256 Verifier
 - Manifest V2 inventory and integrity database
 - Server Assets Manifest for recovered and support-file integrity
 - Detection and reporting of missing, corrupt, incomplete, or unavailable files
+- Built-in route, recovery, certificate, generated-program, and determinism self-tests
 
 ---
 
@@ -62,11 +67,11 @@ This is especially useful when:
 
 ## Installation Time
 
-**Offline estimate:** > 13 Minutes
+**Offline estimate:** approximately 13+ minutes
 
-**Online estimate:** approximately 20–45 Minutes
+**Online estimate:** approximately 20–45 minutes
 
-Actual time depends on storage performance, network speed, file verification, certificate setup, and the Topaz products being installed.
+Actual time depends on storage performance, network speed, file verification, certificate setup, selected applications, and the amount of inventory that needs to be downloaded.
 
 ---
 
@@ -84,35 +89,32 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ### Logical Inventory
 
-- **Video 1.6.1:** 127
+- **Video 1.6.1:** 127 - StarLight 2.6 included
+- **Video 1.7.1:** 332
 - **Gigapixel 1.3.1:** 97
 - **Gigapixel 8.4.4:** 87
 - **Photo 1.6.1:** 126
 - **Photo AI 4.0.1:** 98
 - **Sharpen AI 4.1.0:** 98
-- **Raw Models:** 132  -  (Will be removed into other inventory in future updates)
+- **Raw Models:** 132
 - **Video AI 7.1.5 Extra Packages:** 6
 - **Video 1.6.1 Extra Packages:** 5
 - **Starlight 2.5 Extra Packages:** 1
 
 ### Inventory Totals
 
-- **Snapshot Manifests:** 10
-- **Logical Inventory Entries:** 777
-- **Unique Physical Files:** 606
-- **Known Logical Inventory Size:** 180.03 GB
-- **Known Unique Physical Size:** 154.67 GB
+- **Snapshot Manifests:** 11
+- **Logical Inventory Entries:** 1109
+- **Known Logical Inventory Size:** 246.43 GB
+- **Probing Inventory Entries:** 880
+- **Probing Logical Inventory Size:** 178.16 GB
+- **Unique Physical Files:** 936
+- **Known Unique Physical Size:** 206.90 GB
 - **Missing Inventory Metadata:** 1
-- **Recovery Mode:**
-    - 777 + 321 = 1098 logical **V 7.0.2**
-      
-          - KLIS 222.56 GB
-    - 606 + 321 = 927 physical **V 7.0.2**
-      
-          - KUPS 197.20 GB
-    - Supported **Starlight 2.6**
+- **Approved Host Alias Paths:** 81
+- **Additional URLs:** 111
 
-- Resume Fix for non https & Restructure will be fixed in **V 7.0.3** - Coming Soon. Sorry for the long wait.
+The logical inventory total can be larger than the unique physical-file total because multiple captured logical references may resolve to the same physical mirror file.
 
 ### Known Unavailable Package
 
@@ -120,9 +122,7 @@ One captured Video AI package currently remains unavailable upstream and does no
 
 `astra_support/20250825/models.zip`
 
-The URL remains preserved in the inventory history rather than being removed simply because the upstream file is unavailable.
-
-- You can make a self empty txt file zip to ignore any error 1 codes that will be displayed if necessary.
+The captured route remains preserved instead of inventing metadata or removing the package simply because the upstream file is unavailable.
 
 ---
 
@@ -198,8 +198,6 @@ The inventory was assembled through direct observation of Topaz application beha
 
 Captured URLs, protocols, hosts, paths, file sizes, and hashes are preserved as accurately as possible rather than assuming that similarly named resources are interchangeable.
 
-What's in you're wallet?
-
 ---
 
 ## Goal
@@ -214,28 +212,28 @@ No unofficial replacement source is substituted for an original Topaz asset simp
 
 ---
 
-## Version 7.0.0
+## Version 7.0.3
 
-Version 7.0.0 was extensively rebuilt from the earlier 6.2.0 architecture.
+Version **7.0.3 Build 263** expands the 7.0.x architecture with a larger inventory and a more selective, recoverable, and portable offline workflow.
 
-Major changes include:
+Major updates include:
 
-- HTTP and HTTPS local serving
-- Exact protocol-aware route ownership
-- Manifest V2 inventory
-- SHA-256 verification
-- Supplemental ZIP integrity validation
-- 404 recovery and provenance tracking
-- Server Assets Manifest
-- Cross-platform launchers
-- Automated certificate lifecycle
-- Downloader integrity and resume handling
-- Expanded Topaz application coverage
-- Reclassified and expanded model inventory
-- Built-in regression and self-testing
-- Explicit SUCCESS / INCOMPLETE / FAILED / CANCELLED exit codes
+- Application/version selection
+- Video 1.7.1 inventory and route support
+- Expanded inventory to **1109 logical entries** and **936 unique physical files**
+- Improved interrupted-download and `.part` resume handling
+- HTTPS-only acquisition with protected recovery boundaries
+- Error.txt-driven recovery with `URL :` and `REPORTED-FIXED :` state tracking
+- Discovered Inventory and Discovered Assets support
+- Exact-path route ownership and probing inventory
+- Four-hour private Root CA with 30-minute CA-signed server certificates
+- Portable Client-CA helpers for remote Windows, macOS, and Linux computers
+- Stronger generated Downloader, Verifier, Repeater, and launcher validation
+- Consolidated regression and determinism testing
 
-The original 6.2.0 inventory was preserved during the rebuild. All 338 download paths represented by 6.2.0 remain represented in 7.0.0, while the current inventory has expanded to 606 unique physical files and 777 logical inventory entries.
+Build 263 has completed the consolidated self-test successfully on both **Windows** and **Linux**.
+
+The earlier 7.0.0 release was the major rebuild from the 6.2.0 architecture. Detailed version history and implementation notes are kept in the project Wiki and changelog.
 
 ---
 
@@ -244,8 +242,6 @@ The original 6.2.0 inventory was preserved during the rebuild. All 338 download 
 Access through `localhost` or a direct IP address is intentionally disabled while the server is running.
 
 This behavior is by design and there is no setting, toggle, or on/off switch to enable it.
-
-
 
 ---
 
