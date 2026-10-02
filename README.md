@@ -104,13 +104,13 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ### Inventory Totals
 
-- **Snapshot Manifests:** 11
-- **Logical Inventory Entries:** 1109
-- **Known Logical Inventory Size:** 246.43 GB
-- **Probing Inventory Entries:** 880
-- **Probing Logical Inventory Size:** 178.16 GB
-- **Unique Physical Files:** 936
-- **Known Unique Physical Size:** 206.90 GB
+- **Snapshot Manifests:** 12
+- **Logical Inventory Entries:** 1205
+- **Known Logical Inventory Size:** 254.62 GB
+- **Probing Inventory Entries:** 976
+- **Probing Logical Inventory Size:** 186.35 GB
+- **Unique Physical Files:** 1032
+- **Known Unique Physical Size:** 215.09 GB
 - **Missing Inventory Metadata:** 1
 - **Approved Host Alias Paths:** 81
 - **Additional URLs:** 111
