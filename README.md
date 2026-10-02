@@ -92,6 +92,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Video 1.6.1:** 127
 - **Video 1.7.1:** 332 - StarLight 2.6 included
 - **Gigapixel 1.3.1:** 97
+- **Gigapixel 5.5.2:** 120
 - **Gigapixel 8.4.4:** 87
 - **Photo 1.6.1:** 126
 - **Photo AI 4.0.1:** 98
