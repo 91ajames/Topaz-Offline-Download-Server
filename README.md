@@ -245,4 +245,10 @@ This behavior is by design and there is no setting, toggle, or on/off switch to 
 
 ---
 
+Download Selection results
+
+2nd picture below is a normal flow run.
+
+![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz_Offline_Download_Creator_7.0.3-application-selection.png)
+
 ![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/Topaz_Offline_Download_Creator_7.0.3.png)
