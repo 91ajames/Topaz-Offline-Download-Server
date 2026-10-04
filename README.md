@@ -89,6 +89,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ### Logical Inventory
 
+- **Video AI 3.1.8:** 2147
 - **Video 1.6.1:** 127
 - **Video 1.7.1:** 332 - StarLight 2.6 included
 - **Gigapixel 1.3.1:** 97
@@ -104,7 +105,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ### Inventory Totals
 
-- **Snapshot Manifests:** 12
+- **Snapshot Manifests:** 13
 - **Logical Inventory Entries:** 3246
 - **Known Logical Inventory Size:** 358.71 GB
 - **Probing Inventory Entries:** 976
