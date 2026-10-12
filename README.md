@@ -89,19 +89,23 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ### Logical Inventory
 
-- **Video AI 3.1.8:** 2147
-- **Video 1.6.1:** 127
-- **Video 1.7.1:** 332 - StarLight 2.6 included
-- **Gigapixel 1.3.1:** 97
-- **Gigapixel 5.5.2:** 120
-- **Gigapixel 8.4.4:** 87
-- **Photo 1.6.1:** 126
-- **Photo AI 4.0.1:** 98
-- **Sharpen AI 4.1.0:** 98
-- **Raw Models:** 132
-- **Video AI 7.1.5 Extra Packages:** 6
 - **Video 1.6.1 Extra Packages:** 5
 - **Starlight 2.5 Extra Packages:** 1
+- **Video 1.6.1:** 127
+- **Video 1.7.1:** 332 - StarLight 2.6 included
+- **Photo 1.6.1:** 126
+- **Gigapixel 1.3.1:** 97
+- **Raw Models:** 132
+- **Raw Models #2:** 50
+
+  **LEGACY**
+  
+- **Video AI 3.1.8:** 2147
+- **Gigapixel 5.5.2:** 120
+- **Gigapixel 8.4.4:** 87
+- **Photo AI 4.0.1:** 98
+- **Sharpen AI 4.1.0:** 98
+- **Video AI 7.1.5 Extra Packages:** 6
 
 ### Inventory Totals
 
