@@ -96,9 +96,11 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Photo 1.6.1:** 126
 - **Gigapixel 1.3.1:** 97
 - **Raw Models:** 132
-- **Raw Models #2:** 50
+- **Raw Models #2:** 333
+
 
   **LEGACY**
+
   
 - **Video AI 3.1.8:** 2147
 - **Gigapixel 5.5.2:** 120
