@@ -96,7 +96,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Photo 1.6.1:** 126
 - **Gigapixel 1.3.1:** 97
 - **Raw Models:** 132
-- **Raw Models #2:** 333
+- **Raw Models #2:** 503
 
 
   **LEGACY**
