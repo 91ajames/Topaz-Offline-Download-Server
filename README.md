@@ -96,13 +96,13 @@ Actual time depends on storage performance, network speed, file verification, ce
 - **Photo 1.6.1:** 126
 - **Gigapixel 1.3.1:** 97
 - **Raw Models:** 132
-- **Raw Models #2:** 1042+ est: 126GB
-
+- **Raw Models #2:** 1004
+-
 
   **LEGACY**
 
-  
-- **Video AI 3.1.8:** 2147
+- 
+- **Video AI 3.1.8:** 2041
 - **Gigapixel 5.5.2:** 120
 - **Gigapixel 8.4.4:** 87
 - **Photo AI 4.0.1:** 98
@@ -111,13 +111,13 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ### Inventory Totals
 
-- **Snapshot Manifests:** 13
-- **Logical Inventory Entries:** 3246
-- **Known Logical Inventory Size:** 358.71 GB
-- **Probing Inventory Entries:** 976
-- **Probing Logical Inventory Size:** 186.35 GB
-- **Unique Physical Files:** 3073
-- **Known Unique Physical Size:** 319.18 GB
+- **Snapshot Manifests:** 14
+- **Logical Inventory Entries:** 4250
+- **Known Logical Inventory Size:** 452.31 GB
+- **Probing Inventory Entries:** 1937
+- **Probing Logical Inventory Size:** 276.85 GB
+- **Unique Physical Files:** 4077
+- **Known Unique Physical Size:** 412.78 GB
 - **Missing Inventory Metadata:** 1
 - **Approved Host Alias Paths:** 81
 - **Additional URLs:** 111
