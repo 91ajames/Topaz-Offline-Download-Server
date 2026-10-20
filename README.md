@@ -17,6 +17,7 @@ The **Topaz Offline Download Server** is a local **HTTP/HTTPS resource mirror** 
 Rather than serving an ordinary folder of downloads, it recreates approved **hostnames and URL paths** that supported applications expect. Once the repository is prepared and verified, those resources can be served locally—reducing repeated Internet downloads and helping preserve access if original download locations change or disappear.
 
 Designed for **offline installations, workstation rebuilds, custom Windows deployments, and long-term software preservation**. It handles captured resource delivery, not product activation, accounts, or cloud-dependent services.
+
 ---
 
 ## Features
