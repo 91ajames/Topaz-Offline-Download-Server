@@ -1,68 +1,38 @@
 # Topaz Offline Download Creator **v7.0.3**
 
-Version **7.0.3** is the current major update to the Offline Download Creator.
+Version **7.0.3** is a major expansion of the Creator's **offline resource preservation and local hosting workflow** for supported Topaz applications.
 
-One of the biggest changes is **application/version selection**, so you can build the offline mirror around the Topaz versions you actually want instead of downloading the entire inventory.
+The biggest improvement is **application/version selection**: choose the current and legacy Topaz versions you need, with optional RAW Algorithm Models, rather than downloading the entire preserved inventory. The Creator generates a coordinated **Downloader, SHA-256 Verifier, local HTTP/HTTPS Repeater, manifests, launchers, and certificate helpers**.
 
-v7.0.3 also expands captured application coverage, adds **Video 1.7.1**, improves interrupted and resumable downloads, strengthens Error.txt recovery/discovery, and updates the local HTTPS certificate workflow.
+This update expands captured coverage for **Video 1.7.1**, **Video AI 3.1.8**, and **Gigapixel 5.5.2**. It also improves large and interrupted downloads, SHA-256 integrity checks, **Error.txt-driven recovery**, approved alternate download routes, and local HTTPS certificate management.
 
-The project Wiki contains the deeper architecture, testing, recovery, certificate, and inventory details. This README is intended to stay as the shorter project overview.
+**This README is the short project overview.** The project Wiki provides detailed setup, architecture, inventory, recovery, certificates, and testing documentation.
 
 ---
 
 # Topaz Offline Download Server
 
-A local **HTTP/HTTPS mirror and preservation server** for **Topaz Photo**, **Topaz Gigapixel**, **Topaz Video**, **Topaz Photo AI**, **Topaz Sharpen AI**, and related AI model, support, and GPU files.
+The **Topaz Offline Download Server** is a local **HTTP/HTTPS resource mirror** for supported versions of **Topaz Photo, Gigapixel, Video, Photo AI, and Sharpen AI**, including captured AI models, GPU packages, metadata, and support files.
 
-This project allows supported Topaz applications to install, restore, and retrieve captured files from a local server instead of repeatedly downloading them from the Internet.
+Rather than serving an ordinary folder of downloads, it recreates approved **hostnames and URL paths** that supported applications expect. Once the repository is prepared and verified, those resources can be served locally—reducing repeated Internet downloads and helping preserve access if original download locations change or disappear.
 
-It is intended for **offline installations, system rebuilds, custom Windows images, virtual machines, archival use, and long-term software preservation**.
-
+Designed for **offline installations, workstation rebuilds, custom Windows deployments, and long-term software preservation**. It handles captured resource delivery, not product activation, accounts, or cloud-dependent services.
 ---
 
 ## Features
 
-- Application/version selection for targeted offline mirror creation
-- Offline AI model installation and restoration
-- Local HTTP and HTTPS Topaz download mirror
-- Exact host, protocol, and route ownership
-- HTTPS-only upstream acquisition and recovery
-- Supports multiple Topaz products and application generations
-- Windows, macOS, and Linux support
-- SHA-256 verification for authoritative V2 inventory files
-- ZIP content/CRC validation for supplemental packages without authoritative SHA-256 metadata
-- Automatic recovery of eligible files reported through Error.txt
-- Recovered-file provenance with actual size, SHA-256, path, and source URL
-- Discovered Inventory and Discovered Assets tracking
-- Preserves captured models and support files that may later disappear upstream
-- Resumable downloads and authenticated `.part` recovery
-- Protection against mixing HTTP partial data with an HTTPS replacement
-- Local HTTPS Root CA and rotating server-certificate support
-- Portable Client-CA install/remove helpers for Windows, macOS, and Linux
-- Cross-platform Downloader and SHA-256 Verifier
-- Manifest V2 inventory and integrity database
-- Server Assets Manifest for recovered and support-file integrity
-- Detection and reporting of missing, corrupt, incomplete, or unavailable files
-- Built-in route, recovery, certificate, generated-program, and determinism self-tests
-
----
-
-## Why?
-
-Even when the correct AI model files are already present locally, Topaz installers and applications may still attempt to contact Topaz download servers before continuing.
-
-This project recreates the expected Topaz download structure and network routes locally so supported applications can retrieve captured files from your own mirror whenever possible.
-
-This is especially useful when:
-
-- Reinstalling Windows or another operating system
-- Rebuilding a workstation
-- Deploying a custom Windows image
-- Restoring a virtual machine
-- Installing software without Internet access
-- Avoiding repeated downloads of very large model packages
-- Preserving files that may no longer remain available from their original source
-
+- **Selective application installs:** Choose supported current and legacy Topaz versions instead of downloading the entire preserved inventory.
+- **Local HTTP/HTTPS mirror:** Recreate approved Topaz hostnames and URL paths with exact route ownership and protocol rules.
+- **Coordinated cross-platform tools:** Generate matched Downloader, SHA-256 Verifier, Repeater, manifests, and launchers for Windows, macOS, and Linux.
+- **Verified inventory:** Preserve authoritative Manifest V2 metadata and check expected file sizes and SHA-256 hashes independently of download success.
+- **Supplemental package checks:** Validate ZIP structure, contents, and CRC where authoritative SHA-256 metadata is unavailable.
+- **Safe large-file transfers:** Resume interrupted `.part` downloads only under validated continuation rules, without mixing HTTP partial data into HTTPS replacements.
+- **Controlled upstream recovery:** Retrieve from approved HTTPS sources and eligible alternate routes without weakening integrity requirements.
+- **Error.txt reporting and repair:** Detect missing, corrupt, incomplete, or unavailable resources and attempt recovery only for permitted requests.
+- **Discovery and provenance:** Track new inventory and support assets, recording recovered URLs, mirror paths, sizes, SHA-256 values, and source history.
+- **Managed local certificates:** Use a local Root CA, rotating server certificates, and Client-CA installation/removal helpers.
+- **Preservation and self-tests:** Retain captured resources and route history, with built-in checks for routing, recovery, certificate handling, generated programs, and determinism.
+  
 ---
 
 ## Installation Time
@@ -77,91 +47,83 @@ Actual time depends on storage performance, network speed, file verification, ce
 
 ## Repository Statistics
 
-### Platform Support
+**Supported platforms:** Windows, macOS, Linux  
+**Tested GPU:** NVIDIA GeForce RTX 5090
 
-- **Windows**
-- **macOS**
-- **Linux**
+### Captured Application Inventory
 
-### Tested Hardware
+| Application / Package | Logical Entries |
+|---|---:|
+| **Current Applications** | |
+| Video 1.6.1 | 127 |
+| Video 1.7.1 (includes Starlight 2.6) | 332 |
+| Photo 1.6.1 | 126 |
+| Gigapixel 1.3.1 | 97 |
+| **Legacy Applications** | |
+| Video AI 3.1.8 | 2,041 |
+| Gigapixel 5.5.2 | 96 |
+| Gigapixel 8.4.4 | 87 |
+| Photo AI 4.0.1 | 98 |
+| Sharpen AI 4.1.0 | 98 |
+| **Shared and Optional Models** | |
+| Raw Models (mandatory) | 132 |
+| RAW Algorithm Models (optional) | 1,004 |
+| **Supplemental Packages** | |
+| Video 1.6.1 Extra Packages | 5 |
+| Starlight 2.5 Extra Packages | 1 |
+| Video AI 7.1.5 Extra Packages | 6 |
 
-- **GPU Tested:** NVIDIA GeForce RTX 5090
-
-### Logical Inventory
-
-- **Video 1.6.1 Extra Packages:** 5
-- **Starlight 2.5 Extra Packages:** 1
-- **Video 1.6.1:** 127
-- **Video 1.7.1:** 332 - StarLight 2.6 included
-- **Photo 1.6.1:** 126
-- **Gigapixel 1.3.1:** 97
-- **Raw Models:** 132
-- **Raw Models #2:** 1004
--
-
-  **LEGACY**
-
-- 
-- **Video AI 3.1.8:** 2041
-- **Gigapixel 5.5.2:** 120
-- **Gigapixel 8.4.4:** 87
-- **Photo AI 4.0.1:** 98
-- **Sharpen AI 4.1.0:** 98
-- **Video AI 7.1.5 Extra Packages:** 6
+**Gigapixel 5.5.2:** An additional 24 restricted reference candidates are preserved separately, bringing its recorded references to 120. These candidates are excluded from the authoritative inventory totals.
 
 ### Inventory Totals
 
-- **Snapshot Manifests:** 14
-- **Logical Inventory Entries:** 4250
-- **Known Logical Inventory Size:** 452.31 GB
-- **Probing Inventory Entries:** 1937
-- **Probing Logical Inventory Size:** 276.85 GB
-- **Unique Physical Files:** 4077
-- **Known Unique Physical Size:** 412.78 GB
-- **Missing Inventory Metadata:** 1
-- **Approved Host Alias Paths:** 81
-- **Additional URLs:** 111
+| Inventory Metric | Total |
+|---|---:|
+| Snapshot Manifests | **14** |
+| Logical Inventory Entries | **4,250** |
+| Unique Physical Files / Paths | **4,077** |
+| Known Logical Inventory Size | **452.31 GB** |
+| Known Unique Physical Size | **412.78 GB** |
+| Missing Authoritative Inventory Metadata | 1 |
 
-The logical inventory total can be larger than the unique physical-file total because multiple captured logical references may resolve to the same physical mirror file.
+### Probing and Additional Routes
+
+| Metric | Total |
+|---|---:|
+| Probing Inventory Entries | 1,937 |
+| Probing Logical Inventory Size | 276.85 GB |
+| Approved Host Alias Paths | 81 |
+| Additional URLs | 111 |
+
+**Logical versus physical:** Multiple captured application requests can refer to the same physical file. Probing and alias records describe additional route coverage and should not be treated as additional verified physical files.
+
+The full inventory is preserved as project reference data, while installation selection determines which application groups are downloaded for an individual setup.
 
 ### Known Unavailable Package
 
-One captured Video AI package currently remains unavailable upstream and does not have authoritative size or SHA-256 metadata:
+One captured Video AI package remains unavailable from known approved upstream sources and lacks authoritative size and SHA-256 metadata:
 
 `astra_support/20250825/models.zip`
 
-The captured route remains preserved instead of inventing metadata or removing the package simply because the upstream file is unavailable.
+Its original download route remains preserved for future recovery. No missing metadata is invented, and no unverified replacement file is treated as authoritative.
 
 ---
 
 ## Integrity Model
 
-Topaz Offline Download Server uses multiple integrity stages depending on how much authoritative information is available for a file.
+Validation depends on the evidence available for each resource. An authoritative expected SHA-256 provides a stronger byte-identity check than a hash calculated only after recovery.
 
 ### Recovery Integrity
 
-Newly discovered recoverable files can be downloaded from approved Topaz hosts and validated before being accepted.
+Eligible newly discovered resources are retrieved from approved HTTPS sources and validated before being added to the repository. Accepted recovery records preserve the **source URL, mirror path, measured size, SHA-256, and provenance**.
 
-Recovered files are recorded with:
-
-- Source URL
-- Mirror path
-- Actual file size
-- SHA-256
-- Recovery provenance
-
-ZIP files also receive full ZIP member/content validation before successful recovery.
+The SHA-256 calculated for a newly discovered file identifies its recovered bytes; it does not, by itself, establish an authoritative vendor hash. Recovered ZIP archives must also pass applicable structure, member-content, and CRC checks.
 
 ### Supplemental Inventory Integrity
 
-Captured packages that do not yet have authoritative V2 SHA-256 metadata remain supported as supplemental inventory.
+Captured packages without authoritative V2 SHA-256 metadata remain tracked separately. The project applies whichever checks are supported by the available evidence, including **file presence, known byte size, and ZIP content/CRC validation**.
 
-Depending on available metadata, validation can include:
-
-- File existence
-- Exact byte size
-- ZIP structure
-- ZIP member CRC/content validation
+A package that cannot be validated is not presented as SHA-256 verified, and missing expected metadata is not invented.
 
 ### Manifest V2 Integrity
 
@@ -178,70 +140,35 @@ These records are verified by the generated SHA-256 Verifier and used as the aut
 
 ## Intended Uses
 
-- Offline Installation
-- Local Topaz Download Server
-- Local AI Model Mirror
-- Windows Deployment
-- OOBE / Sysprep Images
-- Virtual Machines
-- Workstation Rebuilds
-- Software Preservation
-- Archival of Legacy and Current Topaz Releases
-- Recovery of Previously Captured Topaz Assets
+- **Offline installation and restoration:** Reuse preserved Topaz models and support resources without downloading them again.
+- **System deployments and rebuilds:** Prepare Windows OOBE/Sysprep images and restore workstations.
+- **Long-term preservation:** Archive current and legacy Topaz assets and recover eligible previously captured resources when approved sources remain available.
 
 ---
 
 ## Capture Method
 
-The inventory was assembled through direct observation of Topaz application behavior, including:
+The inventory was assembled by observing Topaz applications and installers during controlled installation and download testing. Evidence includes **application logs and state data, HTTP/HTTPS requests and download URLs, file-system activity, and model metadata**.
 
-- Application and installer logs
-- Download URLs
-- Server requests
-- HTTP/HTTPS traffic observation
-- File-system activity
-- Model metadata
-- Application state data
-- Controlled installation and download testing
-
-Captured URLs, protocols, hosts, paths, file sizes, and hashes are preserved as accurately as possible rather than assuming that similarly named resources are interchangeable.
+Captured **hosts, protocols, URL paths, file sizes, and available hash information** are preserved with their resource records. Files with similar names are not assumed to be identical.
 
 ---
 
 ## Goal
 
-The goal of this project is to preserve the ability to reinstall and restore supported Topaz applications and their required model files in the future, even if official download locations change or individual files become unavailable.
+Preserve the resources and request information needed to reinstall and restore supported Topaz applications, even if their original download locations change or disappear.
 
-Availability does not determine whether a captured file belongs in the historical inventory.
-
-If a file was legitimately captured as part of a supported Topaz workflow, its route and metadata are preserved even when the original upstream source later disappears.
-
-No unofficial replacement source is substituted for an original Topaz asset simply because the official source becomes unavailable.
+**Upstream availability does not determine historical inventory membership.** Legitimately captured resource routes and metadata remain documented even when the original files are unavailable. Missing metadata is not invented, and unofficial replacements are never treated as original Topaz assets.
 
 ---
 
 ## Version 7.0.3
 
-Version **7.0.3 Build 263** expands the 7.0.x architecture with a larger inventory and a more selective, recoverable, and portable offline workflow.
+**Version 7.0.3 (Build 263)** is the current matched release of the Creator and its generated Downloader, Verifier, Repeater, and support files. Its expanded application coverage, inventory, installation selection, integrity safeguards, recovery improvements, and local HTTPS capabilities are summarized in the sections above.
 
-Major updates include:
+**Validation:** Build 263 completed the consolidated self-test successfully on **Windows and Linux**. The reported results do not imply that every supported application feature or platform configuration has been tested.
 
-- Application/version selection
-- Video 1.7.1 inventory and route support
-- Expanded inventory to **1109 logical entries** and **936 unique physical files**
-- Improved interrupted-download and `.part` resume handling
-- HTTPS-only acquisition with protected recovery boundaries
-- Error.txt-driven recovery with `URL :` and `REPORTED-FIXED :` state tracking
-- Discovered Inventory and Discovered Assets support
-- Exact-path route ownership and probing inventory
-- Four-hour private Root CA with 30-minute CA-signed server certificates
-- Portable Client-CA helpers for remote Windows, macOS, and Linux computers
-- Stronger generated Downloader, Verifier, Repeater, and launcher validation
-- Consolidated regression and determinism testing
-
-Build 263 has completed the consolidated self-test successfully on both **Windows** and **Linux**.
-
-The earlier 7.0.0 release was the major rebuild from the 6.2.0 architecture. Detailed version history and implementation notes are kept in the project Wiki and changelog.
+**Release history:** Version 7.0.0 introduced the major architectural rebuild from 6.2.0. Detailed implementation changes and test coverage are documented in the project Wiki and changelog.
 
 ---
 
