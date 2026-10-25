@@ -193,4 +193,4 @@ Download Selection results
 Version 1.0.0 - Installing Topaz Video 1.6.1, Topaz Photo 1.6.1, & Topaz GigaPixel 1.3.1 under 13 mins
 
 ![github-small](https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/TopazMirrorServer.png)
-https://github.com/91ajames/Topaz-Offline-Download-Server/blob/main/TopazMirrorServer.png
+
