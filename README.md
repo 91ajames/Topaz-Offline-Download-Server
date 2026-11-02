@@ -1,10 +1,10 @@
-# Topaz Offline Download Creator **v7.0.3**
+# Topaz Offline Download Creator **v7.0.4**
 
-Version **7.0.3** is a major expansion of the Creator's **offline resource preservation and local hosting workflow** for supported Topaz applications.
+Version **7.0.4** further expands the Creator's **offline resource preservation, recovery, and local hosting workflow** for supported Topaz applications, building on the application/version selection and SHA-256 integrity features introduced in 7.0.3.
 
-The biggest improvement is **application/version selection**: choose the current and legacy Topaz versions you need, with optional RAW Algorithm Models, rather than downloading the entire preserved inventory. The Creator generates a coordinated **Downloader, SHA-256 Verifier, local HTTP/HTTPS Repeater, manifests, launchers, and certificate helpers**.
+The biggest improvement is **automatic post-recovery alias discovery**: the Creator can search additional Topaz endpoints for recovered models, preserve results in persistent reports, and resume interrupted discovery sessions. Qualifying discoveries can provide additional exact local HTTP/HTTPS Repeater routes.
 
-This update expands captured coverage for **Video 1.7.1**, **Video AI 3.1.8**, and **Gigapixel 5.5.2**. It also improves large and interrupted downloads, SHA-256 integrity checks, **Error.txt-driven recovery**, approved alternate download routes, and local HTTPS certificate management.
+This update adds **36 AHQ models for Video 1.6.1** and incorporates **45 approved alternate URLs** into the existing SHA-256-protected probing inventory. It also improves recovery download progress, alternate download fallback coverage, discovery diagnostics, and Repeater compatibility while retaining mandatory model integrity verification.
 
 **This README is the short project overview.** The project Wiki provides detailed setup, architecture, inventory, recovery, certificates, and testing documentation.
 
