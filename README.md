@@ -56,7 +56,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 | Application / Package | Logical Entries |
 |---|---:|
 | **Current Applications** | |
-| Video 1.6.1 | 127 |
+| Video 1.6.1 | 163 |
 | Video 1.7.1 (includes Starlight 2.6) | 332 |
 | Photo 1.6.1 | 126 |
 | Gigapixel 1.3.1 | 97 |
@@ -68,7 +68,8 @@ Actual time depends on storage performance, network speed, file verification, ce
 | Sharpen AI 4.1.0 | 98 |
 | **Shared and Optional Models** | |
 | Raw Models (mandatory) | 132 |
-| RAW Algorithm Models (optional) | 1,004 |
+| 'Research Future Findings (RAM)' | '866+' |
+| RAW Algorithm Models (optional) | < 1,004 |
 | **Supplemental Packages** | |
 | Video 1.6.1 Extra Packages | 5 |
 | Starlight 2.5 Extra Packages | 1 |
@@ -81,17 +82,17 @@ Actual time depends on storage performance, network speed, file verification, ce
 | Inventory Metric | Total |
 |---|---:|
 | Snapshot Manifests | **14** |
-| Logical Inventory Entries | **4,250** |
-| Unique Physical Files / Paths | **4,077** |
-| Known Logical Inventory Size | **452.31 GB** |
-| Known Unique Physical Size | **412.78 GB** |
+| Logical Inventory Entries | **4,286** |
+| Unique Physical Files / Paths | **4,113** |
+| Known Logical Inventory Size | **454.17 GB** |
+| Known Unique Physical Size | **414.64 GB** |
 | Missing Authoritative Inventory Metadata | 1 |
 
 ### Probing and Additional Routes
 
 | Metric | Total |
 |---|---:|
-| Probing Inventory Entries | 1,937 |
+| Probing Inventory Entries | 1,976 |
 | Probing Logical Inventory Size | 276.85 GB |
 | Approved Host Alias Paths | 81 |
 | Additional URLs | 111 |
