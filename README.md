@@ -16,6 +16,25 @@ My goal for this final major release is to leave behind a stable, well-documente
 
 **Development may be coming to an end, but the purpose of this project remains: preserving access to resources for the future.**
 
+---
+
+### A Final Personal Note
+
+This project began with a simple challenge.
+
+A friend once bet me that something like this couldn't be done. I accepted that challenge, not because I knew exactly how to accomplish it, but because I wanted to find out whether it was truly impossible.
+
+What followed was countless hours of research, experimentation, reverse engineering, trial and error, and a determination to keep going whenever something didn't work.
+
+What started as a bet eventually became something much bigger than I originally imagined.
+
+And now, as I prepare to close this chapter and move on to other projects, I can look back and say that the challenge was worth accepting.
+
+**Sometimes, the only way to find out whether something is impossible is to try.**
+
+**The challenge was simple: make the impossible possible.**
+
+---
 
 **This README is the short project overview.** The project Wiki provides detailed setup, architecture, inventory, recovery, certificates, and testing documentation.
 
