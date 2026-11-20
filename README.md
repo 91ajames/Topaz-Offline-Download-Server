@@ -22,7 +22,7 @@ My goal for this final major release is to leave behind a stable, well-documente
 
 This project began with a simple challenge.
 
-A friend once bet me that something like this couldn't be done. I accepted that challenge, not because I knew exactly how to accomplish it, but because I wanted to find out whether it was truly impossible.
+A friend once bet me that something like this couldn't be done. I accepted that challenge, not because I knew exactly how to accomplish it, but because they wanted to find out whether it was truly impossible.
 
 What followed was countless hours of research, experimentation, reverse engineering, trial and error, and a determination to keep going whenever something didn't work.
 
