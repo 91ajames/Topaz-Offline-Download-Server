@@ -1,18 +1,17 @@
-# Topaz Offline Download Creator **v7.0.5** 
+### Optional Tool — Topaz Discovery Integrated Offline + Online v0.63
 
-Version **7.0.5** represents the next and final planned major update to the Topaz Offline Download Creator, further refining its **offline resource preservation, recovery, verification, and local hosting capabilities** for supported Topaz applications.
+**This tool is completely optional and is NOT required to use Topaz Offline Download Creator.**
 
-Building upon the substantial improvements introduced in **v7.0.3**, including application/version selection, expanded AI model inventories, SHA-256 integrity verification, and enhanced recovery mechanisms, this release aims to bring the project to a more complete and polished state.
+A separate companion research utility that preserves historical model URL discoveries, including over **209,000 HTTP 206, 403, and 404 observations** across four CSV datasets.
 
-## Final Major Update — Coming Soon
+Users can review previously tested URLs, compare reported file sizes, and export HTTP 206 URLs into `Topaz_Offline_Download_Creator_Error_206.txt`.
 
-What originally began as a personal side project has grown into a much larger undertaking, involving extensive research, reverse engineering, development, testing, and preservation of resources across multiple generations of Topaz applications.
+**Usage:**
+```powershell
+python Topaz_Discovery_Integrated_Offline_Online_v0.63.py --help
+```
 
-Over time, the project has evolved beyond simply downloading AI models into a comprehensive offline preservation and restoration solution.
-
-With **v7.0.5**, I intend to bring this chapter of active development to a close and shift my focus toward other projects and interests.
-
-My goal for this final major release is to leave behind a stable, well-documented, and useful tool for anyone who values offline accessibility, software preservation, and the ability to restore supported Topaz resources without repeatedly depending on their original download sources.
+The utility operates independently and does not affect the Creator's normal functionality.
 
 **Development may be coming to an end, but the purpose of this project remains: preserving access to resources for the future.**
 
