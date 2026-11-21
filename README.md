@@ -13,6 +13,8 @@ python Topaz_Discovery_Integrated_Offline_Online_v0.63.py --help
 
 The utility operates independently and does not affect the Creator's normal functionality.
 
+7,598 unique file paths + 4,658 alternate-domain links = 12,256 distinct HTTP 206 URLs.
+
 **Development may be coming to an end, but the purpose of this project remains: preserving access to resources for the future.**
 
 ---
