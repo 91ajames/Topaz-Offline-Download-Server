@@ -101,7 +101,7 @@ Actual time depends on storage performance, network speed, file verification, ce
 | Sharpen AI 4.1.0 | 98 |
 | **Shared and Optional Models** | |
 | Raw Models (mandatory) | 132 |
-| 'Research Future Findings (RAM)' | '866+' |
+| 'Research Future Findings (RAM)' | '7,598+' |
 | RAW Algorithm Models (optional) | < 1,004 |
 | **Supplemental Packages** | |
 | Video 1.6.1 Extra Packages | 5 |
