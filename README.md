@@ -15,6 +15,8 @@ The utility operates independently and does not affect the Creator's normal func
 
 7,598 unique file paths + 4,658 alternate-domain links = 12,256 distinct HTTP 206 URLs.
 
+Approximately 323.76 GB
+
 **Development may be coming to an end, but the purpose of this project remains: preserving access to resources for the future.**
 
 ---
