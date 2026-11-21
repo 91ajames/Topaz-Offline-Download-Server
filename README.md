@@ -23,8 +23,6 @@ Approximately 323.76 GB
 
 Building upon the substantial improvements introduced in **v7.0.3**, including application/version selection, expanded AI model inventories, SHA-256 integrity verification, and enhanced recovery mechanisms, this release aims to bring the project to a more complete and polished state.
 
-## Final Major Update — Coming Soon
-
 What originally began as a personal side project has grown into a much larger undertaking, involving extensive research, reverse engineering, development, testing, and preservation of resources across multiple generations of Topaz applications.
 
 Over time, the project has evolved beyond simply downloading AI models into a comprehensive offline preservation and restoration solution.
